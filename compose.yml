@@ -1,0 +1,38 @@
+services:
+  import:
+    container_name: hagiographies-import
+    build:
+      context: import/
+      dockerfile: Dockerfile
+    volumes:
+      - ./data:/data
+      - import-venv:/app/.venv
+    env_file:
+      - .env
+    command: tail -f /dev/null
+
+  kottster:
+    container_name: hagiographies-kottster
+    build:
+      context: kottster
+      dockerfile: Dockerfile
+    ports:
+      - "5480:5480"
+      - "5481:5481"
+    volumes:
+      - ./kottster:/app
+      - /app/node_modules
+      - ./data:/data
+    environment:
+      - PORT=5480
+      - DEV_API_SERVER_PORT=5481
+      - VITE_DOCKER_MODE=true
+      - ROOT_USER_PASSWORD=admin
+      - DB_PATH=/data/hagiographies.db
+    tty: true
+    stdin_open: true
+    command: tail -f /dev/null
+
+
+volumes:
+  import-venv:

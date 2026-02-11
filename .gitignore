@@ -1,0 +1,12 @@
+.env
+*.csv
+*.xlsx
+.python-version
+__pycache__
+kottster/dist
+kottster/app.db
+data/hagiographies.db
+data/hagiographies.csv
+import/erd.mermaid
+
+.claude
