@@ -1,5 +1,7 @@
 {
   "menuPageOrder": [
-    "entry"
+    "entry",
+    "location",
+    "reference"
   ]
 }

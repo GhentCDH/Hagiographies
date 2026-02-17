@@ -13,3 +13,4 @@ DB_PATH = os.getenv("DB_PATH", "../data/hagiographies.db")
 DB_STRING = f"sqlite:///{DB_PATH}"
 
 CSV = ROOT / "data" / "hagiographies.csv"
+EXCEL = ROOT / "data" / "hagiographies.xlsx"

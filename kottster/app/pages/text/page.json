@@ -1,0 +1,28 @@
+{
+  "version": "3.4",
+  "type": "table",
+  "title": "Texts",
+  "hideInSidebar": false,
+  "config": {
+    "dataSource": "hagiographies_db",
+    "fetchStrategy": "databaseTable",
+    "table": "text",
+    "columns": [
+      {
+        "column": "origin_place",
+        "label": "Origin place",
+        "hiddenInTable": false,
+        "hiddenInForm": false,
+        "filterable": true,
+        "sortable": true,
+        "searchable": true,
+        "fieldInput": {
+          "type": "textarea",
+          "asArray": false
+        },
+        "fieldRequirement": "none",
+        "formFieldSpan": "12"
+      }
+    ]
+  }
+}

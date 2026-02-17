@@ -1,0 +1,28 @@
+{
+  "version": "3.4",
+  "type": "table",
+  "title": "Location",
+  "hideInSidebar": false,
+  "config": {
+    "dataSource": "hagiographies_db",
+    "fetchStrategy": "databaseTable",
+    "table": "location",
+    "columns": [
+      {
+        "column": "shelfmark",
+        "label": "Shelfmark",
+        "hiddenInTable": false,
+        "hiddenInForm": false,
+        "filterable": true,
+        "sortable": true,
+        "searchable": true,
+        "fieldInput": {
+          "type": "textarea",
+          "asArray": false
+        },
+        "fieldRequirement": "notEmpty",
+        "formFieldSpan": "12"
+      }
+    ]
+  }
+}
