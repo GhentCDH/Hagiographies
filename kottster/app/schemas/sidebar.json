@@ -3,6 +3,9 @@
     "entry",
     "location",
     "reference",
-    "corpusHagio"
+    "corpusHagio",
+    "archbishopric",
+    "bishopric",
+    "origin"
   ]
 }

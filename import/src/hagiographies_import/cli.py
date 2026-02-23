@@ -7,7 +7,7 @@ from .config import EXCEL
 from .db import engine, create_updated_at_trigger
 from .model import (
     CorpusHagio, Manuscript, Witness, Edition, EditionManuscriptLink,
-    City, Library, Location, Origin, Reference, Provenance
+    City, Library, Location, Origin, Reference, Provenance, Archbishopric, Bishopric
 )
 
 handler = RichHandler(
@@ -44,13 +44,33 @@ def safe_float(value):
     try:
         f_val = float(value)
         # Check whether the value is very large and needs scaling
-        # Use abs() to handle negative coordinates if any
-        if abs(f_val) > 10000:  # Threshold for "large" coordinates
+        if abs(f_val) > 10000:  # Threshold for large coordinates
             f_val = f_val / 1000000
         return f_val
     except (ValueError, TypeError):
         return None
 
+
+def safe_int(value):
+    """Safely convert a value to int."""
+    if pd.isna(value):
+        return None
+    try:
+        return int(float(value)) if not isinstance(value, str) else int(float(str(value).strip().replace(',', '')))
+    except (ValueError, TypeError):
+        return None
+
+
+def safe_bool(value):
+    """Safely convert a Y/N or YES/NO string to boolean."""
+    if pd.isna(value):
+        return None
+    s = str(value).strip().upper()
+    if s in ('Y', 'YES', 'TRUE', '1', 'T'):
+        return True
+    if s in ('N', 'NO', 'FALSE', '0', 'F'):
+        return False
+    return None
 
 
 def get_or_create(session, model, **kwargs):
@@ -113,16 +133,36 @@ def main():
     with Session(engine) as session:
         # Caches
         origins_cache = {}
+        archbishoprics_cache = {}
+        bishoprics_cache = {}
         existing_texts = {} # map BHL -> CorpusHagio object
+
+        def get_archbishopric_id(name):
+            if pd.isna(name): return None
+            name_str = str(name).strip()
+            if not name_str or name_str.lower() in ('nan', 'n/a', 'none', '-'): return None
+            if name_str not in archbishoprics_cache:
+                archbishopric = get_or_create(session, Archbishopric, name=name_str)
+                archbishoprics_cache[name_str] = archbishopric.id
+            return archbishoprics_cache[name_str]
+
+        def get_bishopric_id(name):
+            if pd.isna(name): return None
+            name_str = str(name).strip()
+            if not name_str or name_str.lower() in ('nan', 'n/a', 'none', '-'): return None
+            if name_str not in bishoprics_cache:
+                bishopric = get_or_create(session, Bishopric, name=name_str)
+                bishoprics_cache[name_str] = bishopric.id
+            return bishoprics_cache[name_str]
 
         # 1. Process "Corpus hagio" sheet first (Primary Metadata & Coordinates)
         if not df_ch.empty:
             logger.info("Processing Corpus Hagio sheet...")
-            # Detect coordinate columns
-            col_lat_org = 'GPS Latitude OR'
-            col_lon_org = 'GPS Longitude OR'
-            col_lat_des = 'GPS Latitude DES'
-            col_lon_des = 'GPS Longitude DES'
+            # Detect coordinate columns (NOTE: Swapped in Excel, so we map them correctly here)
+            col_lat_org = 'GPS Longitude OR'  # Excel "Longitude" actually has Latitude
+            col_lon_org = 'GPS Latitude OR'   # Excel "Latitude" actually has Longitude
+            col_lat_des = 'GPS Longitude DES' # Excel "Longitude" actually has Latitude
+            col_lon_des = 'GPS Latitude DES'  # Excel "Latitude" actually has Longitude
             col_bhl_ref = 'BHL reference'
             
             for index, row in df_ch.iterrows():
@@ -141,6 +181,8 @@ def main():
                             origin = get_or_create(session, Origin, name=name_str)
                             origin.latitude = safe_float(row.get(col_lat_org))
                             origin.longitude = safe_float(row.get(col_lon_org))
+                            origin.archbishopric_id = get_archbishopric_id(row.get('Archbishopric'))
+                            origin.bishopric_id = get_bishopric_id(row.get('Bishopric'))
                             origins_cache[name_str] = origin
                         origin_id = origins_cache[name_str].id
 
@@ -154,6 +196,17 @@ def main():
                 text.primary_destinatary = str(row.get('Primary destinatary')) if pd.notna(row.get('Primary destinatary')) else None
                 text.destinatary_latitude = safe_float(row.get(col_lat_des))
                 text.destinatary_longitude = safe_float(row.get(col_lon_des))
+                
+                # New metadata
+                text.approx_length = safe_int(row.get('Approx. length in words'))
+                text.archbishopric_id = get_archbishopric_id(row.get('Archbishopric'))
+                text.bishopric_id = get_bishopric_id(row.get('Bishopric'))
+                text.source_type = str(row.get('Source type')) if pd.notna(row.get('Source type')) else None
+                text.subtype = str(row.get('Subtype')) if pd.notna(row.get('Subtype')) else None
+                text.prose_verse = str(row.get('Mainly prose or verse')) if pd.notna(row.get('Mainly prose or verse')) else None
+                text.is_reecriture = safe_bool(row.get('Réécriture?'))
+                text.ocr_status = str(row.get('Cleaned?')) if pd.notna(row.get('Cleaned?')) else None
+                text.notes = str(row.get('Notes')) if pd.notna(row.get('Notes')) else None
                 
                 session.add(text)
                 existing_texts[bhl] = text
@@ -194,7 +247,15 @@ def main():
 
             ms_unique_id = row.get(col_ms_id)
             if pd.isna(ms_unique_id): continue
-            ms_unique_id_str = str(int(ms_unique_id)) if isinstance(ms_unique_id, (int, float)) else str(ms_unique_id).strip()
+            
+            # Clean Unique ID: remove (lost) or (lost?)
+            ms_unique_id_str = str(ms_unique_id).strip()
+            if '(' in ms_unique_id_str:
+                ms_unique_id_str = ms_unique_id_str.split('(')[0].strip()
+            
+            # Normalize numeric IDs (like '6318.0' -> '6318')
+            if ms_unique_id_str.endswith('.0'):
+                ms_unique_id_str = ms_unique_id_str[:-2]
             
             if ms_unique_id_str not in existing_manuscripts:
                 city_name = str(row.get('Location', 'Unknown')).strip()
@@ -211,7 +272,15 @@ def main():
                 location = locations_cache.get(loc_key) or get_or_create(session, Location, city_id=city.id, library_id=library.id, shelfmark=shelfmark)
                 locations_cache[loc_key] = location
 
-                ms = Manuscript(location_id=location.id)
+                ms = Manuscript(location_id=location.id, unique_id=ms_unique_id_str)
+                ms.preservation_status = str(row.get('Preservation status')) if pd.notna(row.get('Preservation status')) else None
+                ms.vernacular_region = str(row.get('Vernacular region (Romance/Germanic)')) if pd.notna(row.get('Vernacular region (Romance/Germanic)')) else None
+                ms.catalog_link = str(row.get('Online catalogue link')) if pd.notna(row.get('Online catalogue link')) else None
+                ms.manuscript_type = str(row.get('Manuscript type')) if pd.notna(row.get('Manuscript type')) else None
+                ms.height = safe_float(row.get('Height'))
+                ms.width = safe_float(row.get('Width'))
+                ms.iiif_url = str(row.get('Link to images')) if pd.notna(row.get('Link to images')) else None
+                
                 session.add(ms)
                 session.flush()
                 existing_manuscripts[ms_unique_id_str] = ms
@@ -237,7 +306,12 @@ def main():
                 manuscript_id=manuscript.id,
                 page_range=str(row.get('Folio or page per BHL', '')) if pd.notna(row.get('Folio or page per BHL')) else None,
                 dating=str(row.get('Dating', '')) if pd.notna(row.get('Dating')) else None,
-                provenance_id=prov_id
+                provenance_id=prov_id,
+                archbishopric_id=get_archbishopric_id(row.get('Archbishopric')),
+                bishopric_id=get_bishopric_id(row.get('Bishopric')),
+                dating_century=str(row.get('Dating by (earliest) century')) if pd.notna(row.get('Dating by (earliest) century')) else None,
+                dating_range_start=safe_int(row.get('Dating range start')),
+                dating_range_end=safe_int(row.get('Dating range end'))
             )
             session.add(witness)
         

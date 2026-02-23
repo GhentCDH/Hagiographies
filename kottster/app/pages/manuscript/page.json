@@ -22,6 +22,21 @@
         },
         "fieldRequirement": "notEmpty",
         "formFieldSpan": "12"
+      },
+      {
+        "column": "preservation_status",
+        "label": "Preservation status",
+        "hiddenInTable": false,
+        "hiddenInForm": false,
+        "filterable": true,
+        "sortable": true,
+        "searchable": true,
+        "fieldInput": {
+          "type": "textarea",
+          "asArray": false
+        },
+        "fieldRequirement": "none",
+        "formFieldSpan": "12"
       }
     ]
   }

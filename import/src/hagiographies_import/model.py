@@ -32,16 +32,42 @@ class EditionManuscriptLink(Table, table=True):
     manuscript: "Manuscript" = Relationship(back_populates="editions_linked")
 
 
+class Archbishopric(Table, table=True):
+    """Represents an archbishopric jurisdiction."""
+    name: str = Field(index=True, unique=True)
+
+    # Relationships
+    origins: List["Origin"] = Relationship(back_populates="archbishopric")
+    corpus_hagios: List["CorpusHagio"] = Relationship(back_populates="archbishopric")
+    witnesses: List["Witness"] = Relationship(back_populates="archbishopric")
+
+
+class Bishopric(Table, table=True):
+    """Represents a bishopric jurisdiction."""
+    name: str = Field(index=True, unique=True)
+
+    # Relationships
+    origins: List["Origin"] = Relationship(back_populates="bishopric")
+    corpus_hagios: List["CorpusHagio"] = Relationship(back_populates="bishopric")
+    witnesses: List["Witness"] = Relationship(back_populates="bishopric")
+
+
 class Origin(Table, table=True):
     """Represents the origin of a text."""
     name: str
 
-    # Relationships
-    texts: List["CorpusHagio"] = Relationship(back_populates="origin")
-    
     # Coordinates
     latitude: Optional[float] = None # GPS Latitude OR
     longitude: Optional[float] = None # GPS Longitude OR
+    
+    # Jurisdiction
+    archbishopric_id: Optional[int] = Field(default=None, foreign_key="archbishopric.id")
+    bishopric_id: Optional[int] = Field(default=None, foreign_key="bishopric.id")
+
+    # Relationships
+    texts: List["CorpusHagio"] = Relationship(back_populates="origin")
+    archbishopric: Optional[Archbishopric] = Relationship(back_populates="origins")
+    bishopric: Optional[Bishopric] = Relationship(back_populates="origins")
 
 
 class CorpusHagio(Table, table=True):
@@ -57,8 +83,21 @@ class CorpusHagio(Table, table=True):
     destinatary_latitude: Optional[float] = None # GPS Latitude DES
     destinatary_longitude: Optional[float] = None # GPS Longitude DES
 
+    # New metadata fields
+    approx_length: Optional[int] = None
+    archbishopric_id: Optional[int] = Field(default=None, foreign_key="archbishopric.id")
+    bishopric_id: Optional[int] = Field(default=None, foreign_key="bishopric.id")
+    source_type: Optional[str] = None
+    subtype: Optional[str] = None
+    prose_verse: Optional[str] = None
+    is_reecriture: Optional[bool] = None
+    ocr_status: Optional[str] = None
+    notes: Optional[str] = None
+
     # Relationships
     origin: Optional[Origin] = Relationship(back_populates="texts")
+    archbishopric: Optional[Archbishopric] = Relationship(back_populates="corpus_hagios")
+    bishopric: Optional[Bishopric] = Relationship(back_populates="corpus_hagios")
     witnesses: List["Witness"] = Relationship(back_populates="text")
     editions: List["Edition"] = Relationship(back_populates="text")
 
@@ -97,6 +136,15 @@ class Manuscript(Table, table=True):
     iiif_url: Optional[str] = None
     
     location_id: int = Field(foreign_key="location.id")
+    unique_id: Optional[str] = Field(default=None, index=True)
+    
+    # New metadata fields
+    preservation_status: Optional[str] = None
+    vernacular_region: Optional[str] = None
+    catalog_link: Optional[str] = None
+    manuscript_type: Optional[str] = None
+    height: Optional[float] = None
+    width: Optional[float] = None
 
     # Relationships
     location: Location = Relationship(back_populates="manuscripts")
@@ -133,6 +181,16 @@ class Witness(Table, table=True):
     text: CorpusHagio = Relationship(back_populates="witnesses")
     manuscript: Manuscript = Relationship(back_populates="witnesses")
     provenance: Optional[Provenance] = Relationship(back_populates="witnesses")
+    
+    # Precise dating and jurisdiction
+    archbishopric_id: Optional[int] = Field(default=None, foreign_key="archbishopric.id")
+    bishopric_id: Optional[int] = Field(default=None, foreign_key="bishopric.id")
+    dating_century: Optional[str] = None
+    dating_range_start: Optional[int] = None
+    dating_range_end: Optional[int] = None
+
+    archbishopric: Optional[Archbishopric] = Relationship(back_populates="witnesses")
+    bishopric: Optional[Bishopric] = Relationship(back_populates="witnesses")
 
 
 class Reference(Table, table=True):
