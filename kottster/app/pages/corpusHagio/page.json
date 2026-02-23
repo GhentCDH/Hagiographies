@@ -1,23 +1,23 @@
 {
   "version": "3.4",
   "type": "table",
-  "title": "Texts",
+  "title": "Corpus hagio",
   "hideInSidebar": false,
   "config": {
     "dataSource": "hagiographies_db",
     "fetchStrategy": "databaseTable",
-    "table": "text",
+    "table": "corpushagio",
     "columns": [
       {
-        "column": "origin_place",
-        "label": "Origin place",
+        "column": "destinatary_latitude",
+        "label": "Destinatary latitude",
         "hiddenInTable": false,
         "hiddenInForm": false,
         "filterable": true,
         "sortable": true,
-        "searchable": true,
+        "searchable": false,
         "fieldInput": {
-          "type": "textarea",
+          "type": "numberInput",
           "asArray": false
         },
         "fieldRequirement": "none",

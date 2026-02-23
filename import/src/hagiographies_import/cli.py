@@ -4,9 +4,9 @@ from rich.logging import RichHandler
 from sqlmodel import SQLModel, Session, select
 
 from .config import EXCEL
-from .db import create_updated_at_trigger, engine
+from .db import engine, create_updated_at_trigger
 from .model import (
-    Text, Manuscript, Witness, Edition, EditionManuscriptLink,
+    CorpusHagio, Manuscript, Witness, Edition, EditionManuscriptLink,
     City, Library, Location, Origin, Reference, Provenance
 )
 
@@ -25,6 +25,32 @@ logging.basicConfig(
 )
 
 logger = logging.getLogger(__name__)
+
+
+def safe_float(value):
+    """Safely convert a value to float, handling malformed strings and scaling."""
+    if pd.isna(value):
+        return None
+    
+    # Pre-process strings
+    if isinstance(value, str):
+        # Remove commas and normalize multiple dots (e.g. '5.189.84')
+        value = value.replace(',', '').strip()
+        if not value: return None
+        parts = value.split('.')
+        if len(parts) > 2:
+            value = parts[0] + '.' + ''.join(parts[1:])
+    
+    try:
+        f_val = float(value)
+        # Check whether the value is very large and needs scaling
+        # Use abs() to handle negative coordinates if any
+        if abs(f_val) > 10000:  # Threshold for "large" coordinates
+            f_val = f_val / 1000000
+        return f_val
+    except (ValueError, TypeError):
+        return None
+
 
 
 def get_or_create(session, model, **kwargs):
@@ -53,14 +79,19 @@ def main():
 
     logger.info(f"Reading Excel file: {EXCEL}")
     
-    # Read Manuscripts sheet with header=0 (Verified)
+    # Read Sheets
     try:
         df_ms = pd.read_excel(EXCEL, sheet_name='Manuscripts', header=0)
     except ValueError:
         logger.error("Sheet 'Manuscripts' not found.")
         return
 
-    # Read Editions sheet
+    try:
+        df_ch = pd.read_excel(EXCEL, sheet_name='Corpus hagio')
+    except ValueError:
+        logger.warning("Sheet 'Corpus hagio' not found. Primary metadata might be missing.")
+        df_ch = pd.DataFrame()
+
     try:
         df_ed = pd.read_excel(EXCEL, sheet_name='Editions')
     except ValueError:
@@ -68,249 +99,194 @@ def main():
         df_ed = pd.DataFrame()
 
     # Identify columns in Manuscripts
-    col_bhl = df_ms.columns[0] # Usually 'Unnamed: 0' or similar if header is empty
+    col_bhl = df_ms.columns[0] 
     col_title = 'Title'
     col_ms_id = 'Unique ID'
     col_collection_id = 'Unique  identifier per collection'
     
-    # Verify columns exist
     if col_collection_id not in df_ms.columns:
-        # Fallback search
         for c in df_ms.columns:
             if 'identifier per collection' in str(c):
                 col_collection_id = c
                 break
     
-    logger.info(f"Using columns: BHL='{col_bhl}', MS_ID='{col_ms_id}', Coll_ID='{col_collection_id}'")
-
     with Session(engine) as session:
-        # 1. Create Texts
-        logger.info("Processing Texts...")
-        existing_texts = {} # map BHL -> Text object
-        
-        # Caches for lookups to reduce DB hits
+        # Caches
         origins_cache = {}
+        existing_texts = {} # map BHL -> CorpusHagio object
 
-        for index, row in df_ms.iterrows():
-            bhl = str(row[col_bhl]).strip()
-            # BHL might be float '29.0', convert to '29'
-            if bhl.endswith('.0'):
-                bhl = bhl[:-2]
-                
-            title = str(row.get(col_title, '')).strip()
+        # 1. Process "Corpus hagio" sheet first (Primary Metadata & Coordinates)
+        if not df_ch.empty:
+            logger.info("Processing Corpus Hagio sheet...")
+            # Detect coordinate columns
+            col_lat_org = 'GPS Latitude OR'
+            col_lon_org = 'GPS Longitude OR'
+            col_lat_des = 'GPS Latitude DES'
+            col_lon_des = 'GPS Longitude DES'
+            col_bhl_ref = 'BHL reference'
             
-            if not bhl or bhl.lower() == 'nan':
-                continue
-                
-            if bhl not in existing_texts:
+            for index, row in df_ch.iterrows():
+                bhl = str(row.get(col_bhl_ref, '')).strip()
+                if bhl.endswith('.0'): bhl = bhl[:-2]
+                if not bhl or bhl.lower() == 'nan': continue
+
+                # Origin
                 origin_name = row.get('Origin')
                 origin_id = None
-                
                 if pd.notna(origin_name):
-                    origin_name_str = str(origin_name).strip()
-                    if origin_name_str:
-                        if origin_name_str not in origins_cache:
-                            origin = get_or_create(session, Origin, name=origin_name_str)
-                            origins_cache[origin_name_str] = origin
-                        origin_id = origins_cache[origin_name_str].id
+                    name_str = str(origin_name).strip()
+                    if name_str:
+                        if name_str not in origins_cache:
+                            # Use get_or_create but update coordinates if present
+                            origin = get_or_create(session, Origin, name=name_str)
+                            origin.latitude = safe_float(row.get(col_lat_org))
+                            origin.longitude = safe_float(row.get(col_lon_org))
+                            origins_cache[name_str] = origin
+                        origin_id = origins_cache[name_str].id
 
-                text = Text(
-                    bhl_number=bhl,
-                    title=title,
-                    origin_id=origin_id
-                )
+                # CorpusHagio entry
+                text = get_or_create(session, CorpusHagio, bhl_number=bhl)
+                text.title = str(row.get('Title', text.title or 'Unknown')).strip()
+                text.author = str(row.get('Author')) if pd.notna(row.get('Author')) else text.author
+                text.dating_rough = str(row.get('Rough chronology')) if pd.notna(row.get('Rough chronology')) else text.dating_rough
+                text.origin_id = origin_id
+                
+                text.primary_destinatary = str(row.get('Primary destinatary')) if pd.notna(row.get('Primary destinatary')) else None
+                text.destinatary_latitude = safe_float(row.get(col_lat_des))
+                text.destinatary_longitude = safe_float(row.get(col_lon_des))
+                
                 session.add(text)
                 existing_texts[bhl] = text
-        
-        session.commit()
-        for text in existing_texts.values():
-            session.refresh(text)
             
-        logger.info(f"Created {len(existing_texts)} Texts.")
+            session.commit()
+            logger.info(f"Processed {len(existing_texts)} entries from Corpus hagio.")
 
-        # 2. Create Manuscripts and Witnesses
-        logger.info("Processing Manuscripts and Witnesses...")
-        existing_manuscripts = {} # map Unique ID (str) -> Manuscript object
-        collection_id_map = {} # map Collection ID (str) -> Manuscript object
-        
-        # Caches
+        # 2. Process Manuscripts (and backfill Texts not in Corpus hagio sheet)
+        logger.info("Processing Manuscripts...")
+        existing_manuscripts = {}
+        collection_id_map = {}
         cities_cache = {}
         libraries_cache = {}
-        locations_cache = {} # key: (city_id, library_id, shelfmark)
+        locations_cache = {}
         provenance_cache = {}
 
         for index, row in df_ms.iterrows():
-            # Manuscript Info
-            ms_unique_id = row.get(col_ms_id)
-            if pd.isna(ms_unique_id):
-                continue
+            bhl = str(row[col_bhl]).strip()
+            if bhl.endswith('.0'): bhl = bhl[:-2]
+            if not bhl or bhl.lower() == 'nan': continue
             
-            # Normalize MS ID
-            try:
-                ms_unique_id_str = str(int(ms_unique_id))
-            except:
-                ms_unique_id_str = str(ms_unique_id).strip()
+            # Backfill if missing
+            if bhl not in existing_texts:
+                origin_name = row.get('Origin')
+                origin_id = None
+                if pd.notna(origin_name):
+                    name_str = str(origin_name).strip()
+                    if name_str:
+                        if name_str not in origins_cache:
+                            origins_cache[name_str] = get_or_create(session, Origin, name=name_str)
+                        origin_id = origins_cache[name_str].id
+                
+                text = get_or_create(session, CorpusHagio, bhl_number=bhl)
+                text.title = str(row.get(col_title, text.title or 'Unknown')).strip()
+                text.origin_id = origin_id
+                session.add(text)
+                existing_texts[bhl] = text
+
+            ms_unique_id = row.get(col_ms_id)
+            if pd.isna(ms_unique_id): continue
+            ms_unique_id_str = str(int(ms_unique_id)) if isinstance(ms_unique_id, (int, float)) else str(ms_unique_id).strip()
             
             if ms_unique_id_str not in existing_manuscripts:
-                # Handle Location Hierarchy
                 city_name = str(row.get('Location', 'Unknown')).strip()
                 library_name = str(row.get('Heritage institution', 'Unknown')).strip()
                 shelfmark = str(row.get('Shelfmark', 'Unknown')).strip()
                 
-                # City
-                if city_name not in cities_cache:
-                    city = get_or_create(session, City, name=city_name)
-                    cities_cache[city_name] = city
-                city_obj = cities_cache[city_name]
+                city = cities_cache.get(city_name) or get_or_create(session, City, name=city_name)
+                cities_cache[city_name] = city
                 
-                # Library
-                if library_name not in libraries_cache:
-                    library = get_or_create(session, Library, name=library_name)
-                    libraries_cache[library_name] = library
-                library_obj = libraries_cache[library_name]
+                library = libraries_cache.get(library_name) or get_or_create(session, Library, name=library_name)
+                libraries_cache[library_name] = library
                 
-                # Location
-                loc_key = (city_obj.id, library_obj.id, shelfmark)
-                if loc_key not in locations_cache:
-                    location = get_or_create(session, Location, city_id=city_obj.id, library_id=library_obj.id, shelfmark=shelfmark)
-                    locations_cache[loc_key] = location
-                location_obj = locations_cache[loc_key]
+                loc_key = (city.id, library.id, shelfmark)
+                location = locations_cache.get(loc_key) or get_or_create(session, Location, city_id=city.id, library_id=library.id, shelfmark=shelfmark)
+                locations_cache[loc_key] = location
 
-                ms = Manuscript(
-                    location_id=location_obj.id,
-                    iiif_url=None # Currently not in Excel?
-                )
+                ms = Manuscript(location_id=location.id)
                 session.add(ms)
-                session.flush() 
-                session.refresh(ms)
-                
+                session.flush()
                 existing_manuscripts[ms_unique_id_str] = ms
                 
-                # Map collection ID
                 coll_id = row.get(col_collection_id)
                 if pd.notna(coll_id):
-                    coll_id_str = str(coll_id).strip()
-                    collection_id_map[coll_id_str] = ms
+                    collection_id_map[str(coll_id).strip()] = ms
             
             manuscript = existing_manuscripts[ms_unique_id_str]
+            text = existing_texts[bhl]
             
-            # Witness Info
-            bhl = str(row[col_bhl]).strip()
-            if bhl.endswith('.0'):
-                bhl = bhl[:-2]
-                
-            if bhl in existing_texts:
-                text = existing_texts[bhl]
-                
-                # Provenance
-                provenance_name = row.get('Provenance general')
-                provenance_id = None
-                if pd.notna(provenance_name):
-                    prov_str = str(provenance_name).strip()
-                    if prov_str:
-                        if prov_str not in provenance_cache:
-                            prov = get_or_create(session, Provenance, name=prov_str)
-                            provenance_cache[prov_str] = prov
-                        provenance_id = provenance_cache[prov_str].id
+            provenance_name = row.get('Provenance general')
+            prov_id = None
+            if pd.notna(provenance_name):
+                p_str = str(provenance_name).strip()
+                if p_str:
+                    prov = provenance_cache.get(p_str) or get_or_create(session, Provenance, name=p_str)
+                    provenance_cache[p_str] = prov
+                    prov_id = prov.id
 
-                witness = Witness(
-                    text_id=text.id,
-                    manuscript_id=manuscript.id,
-                    page_range=str(row.get('Folio or page per BHL', '')) if pd.notna(row.get('Folio or page per BHL')) else None,
-                    dating=str(row.get('Dating', '')) if pd.notna(row.get('Dating')) else None,
-                    provenance_id=provenance_id
-                )
-                session.add(witness)
+            witness = Witness(
+                text_id=text.id,
+                manuscript_id=manuscript.id,
+                page_range=str(row.get('Folio or page per BHL', '')) if pd.notna(row.get('Folio or page per BHL')) else None,
+                dating=str(row.get('Dating', '')) if pd.notna(row.get('Dating')) else None,
+                provenance_id=prov_id
+            )
+            session.add(witness)
         
         session.commit()
-        logger.info(f"Created {len(existing_manuscripts)} Manuscripts.")
 
         # 3. Create Editions
         if not df_ed.empty:
             logger.info("Processing Editions...")
-            count = 0
-            links_count = 0
-            
-            # Identify columns in Editions
-            col_ed_bhl = 'BHL ' # space?
-            if col_ed_bhl not in df_ed.columns:
-                col_ed_bhl = 'BHL'
-            
+            col_ed_bhl = 'BHL' if 'BHL' in df_ed.columns else 'BHL '
             references_cache = {}
 
             for index, row in df_ed.iterrows():
                 bhl = str(row.get(col_ed_bhl, '')).strip()
-                if not bhl or bhl.lower() == 'nan':
-                     continue
+                if bhl.endswith('.0'): bhl = bhl[:-2]
+                if not bhl or bhl.lower() == 'nan' or bhl not in existing_texts: continue
                 
-                if bhl.endswith('.0'):
-                    bhl = bhl[:-2]
-                
-                text_id = existing_texts[bhl].id if bhl in existing_texts else None
-                
-                # Title & Ref
-                title = row.get('Title', 'Unknown')
                 ref_name = row.get('Edition reference')
-                year = row.get('Date')
-                try:
-                    year_int = int(year) if pd.notna(year) else None
-                except:
-                    year_int = None
-                
-                # Reference
                 reference_id = None
                 if pd.notna(ref_name):
-                    ref_str = str(ref_name).strip() or "Unknown"
-                    if ref_str:
-                        if ref_str not in references_cache:
-                            reference = get_or_create(session, Reference, title=ref_str)
-                            references_cache[ref_str] = reference
-                        reference_id = references_cache[ref_str].id
-                else:
-                    # Handle empty reference if needed, maybe create an 'Unknown' reference?
-                    # Or check model if optional? Model says reference_id is Optional.
-                    pass 
+                    r_str = str(ref_name).strip() or "Unknown"
+                    ref = references_cache.get(r_str) or get_or_create(session, Reference, title=r_str)
+                    references_cache[r_str] = ref
+                    reference_id = ref.id
+                
+                year = row.get('Date')
+                try: year_int = int(year) if pd.notna(year) else None
+                except: year_int = None
 
                 edition = Edition(
-                    text_id=text_id,
-                    title=title,
+                    text_id=existing_texts[bhl].id,
+                    title=str(row.get('Title', 'Unknown')),
                     reference_id=reference_id,
                     year=year_int
                 )
                 session.add(edition)
                 session.flush()
-                session.refresh(edition)
                 
-                # Link to Manuscripts using Collection IDs in columns 'MS USED X'
                 linked_ms_ids = set()
                 for i in range(1, 17):
-                    col_name = f'MS USED {i}'
-                    if col_name not in df_ed.columns:
-                        continue
-                        
-                    val = row.get(col_name)
+                    val = row.get(f'MS USED {i}')
                     if pd.notna(val):
-                        # val is the Collection ID (e.g. 'Admont 3')
-                        coll_id_key = str(val).strip()
-                            
-                        # Lookup in collection_id_map
-                        if coll_id_key in collection_id_map:
-                            ms_obj = collection_id_map[coll_id_key]
-                            
-                            # Prevent duplicates for this edition
-                            if ms_obj.id in linked_ms_ids:
-                                continue
-                                
-                            link = EditionManuscriptLink(
-                                edition_id=edition.id,
-                                manuscript_id=ms_obj.id
-                            )
-                            session.add(link)
+                        ms_obj = collection_id_map.get(str(val).strip())
+                        if ms_obj and ms_obj.id not in linked_ms_ids:
+                            session.add(EditionManuscriptLink(edition_id=edition.id, manuscript_id=ms_obj.id))
                             linked_ms_ids.add(ms_obj.id)
-                            links_count += 1
-                count += 1
-            
             session.commit()
-            logger.info(f"Created {count} Editions with {links_count} links.")
 
     logger.info("Import complete.")
+
+
+if __name__ == "__main__":
+    main()

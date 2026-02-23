@@ -2,6 +2,7 @@
   "menuPageOrder": [
     "entry",
     "location",
-    "reference"
+    "reference",
+    "corpusHagio"
   ]
 }

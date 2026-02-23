@@ -37,18 +37,26 @@ class Origin(Table, table=True):
     name: str
 
     # Relationships
-    texts: List["Text"] = Relationship(back_populates="origin")
+    texts: List["CorpusHagio"] = Relationship(back_populates="origin")
+    
+    # Coordinates
+    latitude: Optional[float] = None # GPS Latitude OR
+    longitude: Optional[float] = None # GPS Longitude OR
 
 
-class Text(Table, table=True):
+class CorpusHagio(Table, table=True):
     """Represents a hagiographical text (from Corpus Hagio)."""
     
     bhl_number: str = Field(index=True)
-    title: str
+    title: Optional[str] = None
     author: Optional[str] = None
     dating_rough: Optional[str] = None
     origin_id: Optional[int] = Field(default=None, foreign_key="origin.id")
     
+    primary_destinatary: Optional[str] = None
+    destinatary_latitude: Optional[float] = None # GPS Latitude DES
+    destinatary_longitude: Optional[float] = None # GPS Longitude DES
+
     # Relationships
     origin: Optional[Origin] = Relationship(back_populates="texts")
     witnesses: List["Witness"] = Relationship(back_populates="text")
@@ -114,7 +122,7 @@ class Provenance(Table, table=True):
 class Witness(Table, table=True):
     """Link between a Text and a Manuscript (specific instance of a text)."""
     
-    text_id: int = Field(foreign_key="text.id")
+    text_id: int = Field(foreign_key="corpushagio.id")
     manuscript_id: int = Field(foreign_key="manuscript.id")
     
     page_range: Optional[str] = None
@@ -122,7 +130,7 @@ class Witness(Table, table=True):
     provenance_id: Optional[int] = Field(default=None, foreign_key="provenance.id")
     
     # Relationships
-    text: Text = Relationship(back_populates="witnesses")
+    text: CorpusHagio = Relationship(back_populates="witnesses")
     manuscript: Manuscript = Relationship(back_populates="witnesses")
     provenance: Optional[Provenance] = Relationship(back_populates="witnesses")
 
@@ -138,13 +146,13 @@ class Reference(Table, table=True):
 class Edition(Table, table=True):
     """Represents a published edition of a text."""
     
-    text_id: Optional[int] = Field(default=None, foreign_key="text.id") 
+    text_id: Optional[int] = Field(default=None, foreign_key="corpushagio.id") 
     title: str
     year: Optional[int] = None
     reference_id: Optional[int] = Field(default=None, foreign_key="reference.id")
     
     # Relationships
-    text: Optional[Text] = Relationship(back_populates="editions")
+    text: Optional[CorpusHagio] = Relationship(back_populates="editions")
     reference: Optional[Reference] = Relationship(back_populates="editions")
     # Structural link
     manuscripts_linked: List[EditionManuscriptLink] = Relationship(back_populates="edition")
