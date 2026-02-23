@@ -37,6 +37,21 @@
         },
         "fieldRequirement": "none",
         "formFieldSpan": "12"
+      },
+      {
+        "column": "vernacular_region",
+        "label": "Vernacular region",
+        "hiddenInTable": false,
+        "hiddenInForm": false,
+        "filterable": true,
+        "sortable": true,
+        "searchable": true,
+        "fieldInput": {
+          "type": "textarea",
+          "asArray": false
+        },
+        "fieldRequirement": "none",
+        "formFieldSpan": "12"
       }
     ]
   }
