@@ -4,7 +4,6 @@ import react from '@vitejs/plugin-react';
 
 export default defineConfig({
   root: './app',
-  base: process.env.KOTTSTER_BASE_PATH || '/',
   server: {
     port: 5480,
     open: false,

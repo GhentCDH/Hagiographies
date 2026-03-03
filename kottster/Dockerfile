@@ -19,8 +19,11 @@ FROM base AS prd
 EXPOSE 5480
 ENV PORT=5480
 COPY . .
-ARG KOTTSTER_BASE_PATH
+ARG KOTTSTER_BASE_PATH=""
 ENV KOTTSTER_BASE_PATH=$KOTTSTER_BASE_PATH
+RUN if [ -n "$KOTTSTER_BASE_PATH" ]; then \
+      node -e "const fs=require('fs'); const data=JSON.parse(fs.readFileSync('kottster-app.json')); data.basePath=process.env.KOTTSTER_BASE_PATH; fs.writeFileSync('kottster-app.json', JSON.stringify(data, null, 2));" ; \
+    fi
 RUN npm run build
 ENTRYPOINT ["/sbin/tini", "--"]
 CMD ["npm", "run", "start"]
