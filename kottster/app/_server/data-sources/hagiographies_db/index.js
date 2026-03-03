@@ -8,7 +8,7 @@ import knex from "knex";
 const client = knex({
   client: "better-sqlite3",
   connection: {
-    filename: "/data/hagiographies.db",
+    filename: process.env.DATABASE_PATH || "/data/hagiographies.db",
   },
   useNullAsDefault: true,
 });
