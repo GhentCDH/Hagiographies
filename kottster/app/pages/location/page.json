@@ -22,6 +22,24 @@
         },
         "fieldRequirement": "notEmpty",
         "formFieldSpan": "12"
+      },
+      {
+        "column": "created_at",
+        "hiddenInTable": true
+      },
+      {
+        "column": "updated_at",
+        "hiddenInTable": true
+      },
+      {
+        "column": "id",
+        "hiddenInTable": true
+      }
+    ],
+    "linkedRecordsColumns": [
+      {
+        "relationshipKey": "manuscript__c__location_id",
+        "hiddenInTable": true
       }
     ]
   }

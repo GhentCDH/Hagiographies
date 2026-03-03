@@ -6,6 +6,20 @@
   "config": {
     "dataSource": "hagiographies_db",
     "fetchStrategy": "databaseTable",
-    "table": "bishopric"
+    "table": "bishopric",
+    "columns": [
+      {
+        "column": "updated_at",
+        "hiddenInTable": true
+      },
+      {
+        "column": "created_at",
+        "hiddenInTable": true
+      },
+      {
+        "column": "id",
+        "hiddenInTable": true
+      }
+    ]
   }
 }

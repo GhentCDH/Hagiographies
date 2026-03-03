@@ -1,11 +1,25 @@
 {
-    "version": "3.4",
-    "type": "table",
-    "title": "Witnesses",
-    "hideInSidebar": false,
-    "config": {
-        "dataSource": "hagiographies_db",
-        "fetchStrategy": "databaseTable",
-        "table": "witness"
-    }
+  "version": "3.4",
+  "type": "table",
+  "title": "Witnesses",
+  "hideInSidebar": false,
+  "config": {
+    "dataSource": "hagiographies_db",
+    "fetchStrategy": "databaseTable",
+    "table": "witness",
+    "columns": [
+      {
+        "column": "id",
+        "hiddenInTable": true
+      },
+      {
+        "column": "created_at",
+        "hiddenInTable": true
+      },
+      {
+        "column": "updated_at",
+        "hiddenInTable": true
+      }
+    ]
+  }
 }

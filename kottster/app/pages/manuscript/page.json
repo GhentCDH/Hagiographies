@@ -52,6 +52,18 @@
         },
         "fieldRequirement": "none",
         "formFieldSpan": "12"
+      },
+      {
+        "column": "id",
+        "hiddenInTable": true
+      },
+      {
+        "column": "created_at",
+        "hiddenInTable": true
+      },
+      {
+        "column": "updated_at",
+        "hiddenInTable": true
       }
     ]
   }

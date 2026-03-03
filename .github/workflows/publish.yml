@@ -54,4 +54,3 @@ jobs:
             KOTTSTER_BASE_PATH=${{ vars.KOTTSTER_BASE_PATH || '' }}
           cache-from: type=registry,ref=ghcr.io/ghentcdh/hagiographies:buildcache
           cache-to: type=registry,ref=ghcr.io/ghentcdh/hagiographies:buildcache,mode=max
-          target: prd

@@ -22,6 +22,25 @@
         },
         "fieldRequirement": "none",
         "formFieldSpan": "12"
+      },
+      {
+        "column": "id",
+        "hiddenInTable": true
+      },
+      {
+        "column": "created_at",
+        "hiddenInTable": true
+      },
+      {
+        "column": "updated_at",
+        "hiddenInTable": true
+      }
+    ],
+    "linkedRecordsColumns": [
+      {
+        "relationshipKey": "edition__c__text_id",
+        "label": "Edition",
+        "hiddenInTable": true
       }
     ]
   }

@@ -6,6 +6,20 @@
   "config": {
     "dataSource": "hagiographies_db",
     "fetchStrategy": "databaseTable",
-    "table": "origin"
+    "table": "origin",
+    "columns": [
+      {
+        "column": "id",
+        "hiddenInTable": true
+      },
+      {
+        "column": "created_at",
+        "hiddenInTable": true
+      },
+      {
+        "column": "updated_at",
+        "hiddenInTable": true
+      }
+    ]
   }
 }
