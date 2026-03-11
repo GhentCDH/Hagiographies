@@ -7,8 +7,15 @@ export default defineConfig({
   server: {
     port: 5480,
     open: false,
-    // Required for Docker
     host: '0.0.0.0',
+    base: process.env.VITE_BASE_PATH || '/hagiographies/admin',
+    proxy: {
+      '/hagiographies/admin/kottster-dev-server': {
+        target: 'http://localhost:5481',
+        rewrite: (path) =>
+          path.replace('/hagiographies/admin/kottster-dev-server', '/hagiographies/admin'),
+      },
+    },
   },
   build: {
     outDir: '../dist/client',

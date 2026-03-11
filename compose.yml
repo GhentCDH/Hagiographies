@@ -29,9 +29,16 @@ services:
       - VITE_DOCKER_MODE=true
       - ROOT_USER_PASSWORD=admin
       - DB_PATH=/data/hagiographies.db
+    user: root
     tty: true
     stdin_open: true
-    command: tail -f /dev/null
+    command: ["sh", "/app/scripts/dev.sh"]
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:5480/hagiographies/admin/"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
 
   hagiographies-map:
     build:

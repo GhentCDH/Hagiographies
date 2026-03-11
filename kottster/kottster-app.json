@@ -4,5 +4,6 @@
     "name": "Hagiographies Admin",
     "icon": "https://web.kottster.app/icon.png"
   },
+  "basePath": "/hagiographies/admin",
   "menuPageOrder": []
 }
