@@ -1,54 +1,41 @@
 services:
-  import:
-    container_name: hagiographies-import
+  # ── Data Management (Kottster) ─────────────────────────────────────────────
+  data-management:
     build:
-      context: import/
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: kottster/Dockerfile
     volumes:
+      - ./kottster/app:/app/app
       - ./data:/data
-      - import-venv:/app/.venv
     env_file:
-      - .env
-    command: tail -f /dev/null
-
-  kottster:
-    container_name: hagiographies-kottster
-    build:
-      context: kottster
-      dockerfile: Dockerfile
+      - dev.env
     ports:
       - "5480:5480"
       - "5481:5481"
-    volumes:
-      - ./kottster:/app
-      - /app/node_modules
-      - ./data:/data
-    environment:
-      - PORT=5480
-      - DEV_API_SERVER_PORT=5481
-      - VITE_DOCKER_MODE=true
-      - ROOT_USER_PASSWORD=admin
-      - DB_PATH=/data/hagiographies.db
-    user: root
-    tty: true
-    stdin_open: true
-    command: ["sh", "/app/scripts/dev.sh"]
-    healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:5480/hagiographies/admin/"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-      start_period: 60s
-
-  hagiographies-map:
+      
+  utils:
     build:
       context: .
-      dockerfile: app/Dockerfile
-    ports:
-      - "8001:8000"
+      dockerfile: utils/Dockerfile
     volumes:
-      - ./data:/data:ro
-    restart: unless-stopped
+      - ./utils:/app/
+      - ./data:/data
+      - ./local-map:/local-map
+    env_file:
+      - dev.env
+
+  # ── Gateway & Data Publishing (Caddy) ──────────────────────────────────────
+  gateway:
+    image: caddy:2-alpine
+    ports:
+      - "9160:80"
+    volumes:
+      - ./caddy/:/etc/caddy/:ro
+      - ./local-map:/srv/local-map:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    restart: always
 
 volumes:
-  import-venv:
+  caddy-data:
+  caddy-config:

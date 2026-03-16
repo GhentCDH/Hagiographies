@@ -62,9 +62,9 @@ import pandas as pd
 from rich.logging import RichHandler
 from sqlmodel import SQLModel, Session, select
 
-from .config import EXCEL
-from .db import engine, create_updated_at_trigger
-from .model import (
+from utilities.config import EXCEL
+from utilities.db import engine, create_updated_at_trigger
+from utilities.model import (
     CorpusHagio, Manuscript, Witness, Edition, EditionManuscriptLink,
     City, Library, Location, Origin, Reference, Provenance,
     Archbishopric, Bishopric,

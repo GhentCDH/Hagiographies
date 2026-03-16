@@ -1,0 +1,23 @@
+[project]
+name = "importer"
+version = "0.1.0"
+description = "Hagiographies data import"
+readme = "README.md"
+requires-python = "~=3.13.0"
+dependencies = [
+    "pandas>=2.0.0",
+    "openpyxl>=3.1.0",
+    "utilities",
+    "rich>=13.0.0",
+    "sqlmodel>=0.0.21",
+]
+
+[build-system]
+requires = ["uv_build>=0.9.18,<0.10.0"]
+build-backend = "uv_build"
+
+[project.scripts]
+importer = "importer.cli:main"
+
+[tool.uv.sources]
+utilities = { path = "../utilities", editable = true }

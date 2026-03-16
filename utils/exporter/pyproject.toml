@@ -1,0 +1,24 @@
+[project]
+name = "exporter"
+version = "0.1.0"
+description = "Hagiographies data export"
+readme = "README.md"
+requires-python = "~=3.13.0"
+dependencies = [
+    "python-dotenv>=1.0.1",
+    "rich>=13.9.4",
+    "sqlmodel>=0.0.22",
+    "pandas>=2.2.3",
+    "openpyxl>=3.1.5",
+    "utilities",
+]
+
+[project.scripts]
+export-map = "exporter.export_map:main"
+
+[build-system]
+requires = ["uv_build>=0.9.18,<0.10.0"]
+build-backend = "uv_build"
+
+[tool.uv.sources]
+utilities = { path = "../utilities", editable = true }

@@ -1,5 +1,16 @@
 import { createApp, createIdentityProvider } from '@kottster/server';
 import schema from '../../kottster-app.json';
+import { getEnvOrThrow } from '@kottster/common'
+
+
+const KOTTSTER_SECRET_KEY = getEnvOrThrow('KOTTSTER_SECRET_KEY');
+const KOTTSTER_JWT_SECRET_SALT = getEnvOrThrow('KOTTSTER_JWT_SECRET_SALT');
+const KOTTSTER_API_TOKEN = getEnvOrThrow('KOTTSTER_API_TOKEN');
+
+const KOTTSTER_ROOT_USERNAME = getEnvOrThrow('KOTTSTER_ROOT_USERNAME');
+const KOTTSTER_ROOT_USER_PASSWORD = getEnvOrThrow('KOTTSTER_ROOT_USER_PASSWORD');
+
+const KOTTSTER_IDENTITY_DATABASE_PATH = getEnvOrThrow('KOTTSTER_IDENTITY_DATABASE_PATH');
 
 /*
  * For security, consider moving the secret data to environment variables.
@@ -7,8 +18,8 @@ import schema from '../../kottster-app.json';
  */
 export const app = createApp({
   schema,
-  secretKey: 'Tm8qW3xR7vK9pL2nJ5mD4fA6hY1sC0gE',
-  kottsterApiToken: 'Rw6xN2kP8mT4vB9sE3yD7fH1jL5qA0cU',
+  secretKey: KOTTSTER_SECRET_KEY,
+  kottsterApiToken: KOTTSTER_API_TOKEN,
 
   /*
    * The identity provider configuration.
@@ -18,10 +29,10 @@ export const app = createApp({
     fileName: 'app.db',
 
     passwordHashAlgorithm: 'bcrypt',
-    jwtSecretSalt: 'Qp5kR8mN3xT7wL2v',
+    jwtSecretSalt: KOTTSTER_JWT_SECRET_SALT,
 
     /* The root admin user credentials */
-    rootUsername: 'admin',
-    rootPassword: 'admin',
+    rootUsername: KOTTSTER_ROOT_USERNAME,
+    rootPassword: KOTTSTER_ROOT_USER_PASSWORD,
   }),
 });

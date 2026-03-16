@@ -8,13 +8,10 @@ export default defineConfig({
     port: 5480,
     open: false,
     host: '0.0.0.0',
-    base: process.env.VITE_BASE_PATH || '/hagiographies/admin',
-    proxy: {
-      '/hagiographies/admin/kottster-dev-server': {
-        target: 'http://localhost:5481',
-        rewrite: (path) =>
-          path.replace('/hagiographies/admin/kottster-dev-server', '/hagiographies/admin'),
-      },
+    allowedHosts: ['data-management', 'gateway', 'localhost'],
+    hmr: {
+      path: '/admin/kottster-dev-server',
+      clientPort: 80,
     },
   },
   build: {

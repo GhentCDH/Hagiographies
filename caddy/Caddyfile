@@ -1,0 +1,34 @@
+{
+	auto_https off
+	admin off
+}
+
+:80 {
+	# ── 2. Admin Panel (Stripped Prefix) ──────────────────────────────────────
+	# Strip /admin so the backend (configured with basePath: "") sees root-level paths.
+	# reverse proxy websockets to the data management service
+	@websockets {
+		header Connection *Upgrade*
+		header Upgrade websocket
+	}
+	reverse_proxy @websockets data-management:5480
+
+	# serve index.html for the root path
+	handle / {
+		file_server {
+			root /srv/local-map
+			index index.html
+		}
+	}
+
+	# match static files and serve them directly
+	@file file
+	handle @file {
+		file_server
+	}
+
+	# forward other requests to the data management service
+	handle /* {
+		reverse_proxy data-management:5480
+	}
+}

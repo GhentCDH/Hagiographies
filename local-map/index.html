@@ -1,0 +1,1326 @@
+<!DOCTYPE html>
+<html lang="nl">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Hagiographies</title>
+  <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5/dist/maplibre-gl.css" />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" />
+
+  <style>
+    /* ── Design system ─────────────────────────────────────────── */
+    :root {
+      --bg:          #0d1117;
+      --bg-2:        #161b22;
+      --bg-3:        #1c2330;
+      --border:      #30363d;
+      --border-2:    #21262d;
+      --text:        #e6edf3;
+      --text-2:      #8b949e;
+      --text-3:      #484f58;
+      --accent:      #e6a817;     /* amber */
+      --accent-dim:  #7a5800;
+      --blue:        #388bfd;     /* Hagiographies points */
+      --blue-dim:    #1f4f8b;
+      --red:         #f85149;
+      --green:       #3fb950;
+      --sidebar:     380px;
+      --radius:      6px;
+      --mono:        'IBM Plex Mono', monospace;
+      --sans:        'IBM Plex Sans', sans-serif;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; }
+
+    html, body {
+      margin: 0; padding: 0;
+      font-family: var(--sans);
+      background: var(--bg);
+      color: var(--text);
+      overflow: hidden;
+      height: 100vh;
+    }
+
+    /* ── Layout ────────────────────────────────────────────────── */
+    #app { display: flex; height: 100vh; }
+
+    #map {
+      flex: 1;
+      position: relative;
+    }
+
+    #sidebar {
+      width: var(--sidebar);
+      min-width: var(--sidebar);
+      height: 100vh;
+      background: var(--bg-2);
+      border-left: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* ── Sidebar header ─────────────────────────────────────────── */
+    .s-header {
+      padding: 16px 18px 0;
+      background: var(--bg);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+
+    .s-brand {
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+      margin-bottom: 14px;
+    }
+
+    .s-brand .logo-bantu {
+      font-family: var(--mono);
+      font-size: 13px;
+      color: var(--blue);
+      letter-spacing: .04em;
+    }
+
+    .mode-tabs {
+      display: flex;
+      gap: 0;
+      margin: 0 -18px;
+    }
+
+    .tab-btn {
+      flex: 1;
+      background: none;
+      border: none;
+      border-top: 2px solid transparent;
+      padding: 9px 0;
+      font-family: var(--sans);
+      font-size: 12px;
+      font-weight: 500;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+      color: var(--text-2);
+      cursor: pointer;
+      transition: color .15s, border-color .15s;
+    }
+
+    .tab-btn:hover { color: var(--text); }
+
+    .tab-btn.active[data-mode="hagiographies"] {
+      color: var(--blue);
+      border-top-color: var(--blue);
+    }
+
+    .tab-btn.active[data-mode="search"] {
+      color: var(--accent);
+      border-top-color: var(--accent);
+    }
+
+    /* ── Scrollable panel area ──────────────────────────────────── */
+    .panel {
+      display: none;
+      flex: 1;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .panel.active { display: flex; }
+
+    .panel-scroll {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px 18px;
+    }
+    .panel-scroll::-webkit-scrollbar { width: 5px; }
+    .panel-scroll::-webkit-scrollbar-track { background: transparent; }
+    .panel-scroll::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+    /* ── Empty state ────────────────────────────────────────────── */
+    .empty-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 180px;
+      color: var(--text-3);
+      font-size: 13px;
+      text-align: center;
+      gap: 8px;
+    }
+
+    .empty-state svg { opacity: .3; }
+
+    /* ── Origin detail (Hagiographies panel) ────────────────────────── */
+    .variety-name {
+      font-size: 20px;
+      font-weight: 600;
+      margin: 0 0 8px;
+      line-height: 1.2;
+    }
+
+    .meta-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 5px 8px;
+      margin-bottom: 14px;
+    }
+
+    .badge {
+      font-family: var(--mono);
+      font-size: 10px;
+      padding: 2px 7px;
+      border-radius: 3px;
+      border: 1px solid var(--border);
+      background: var(--bg-3);
+      color: var(--text-2);
+    }
+
+    .badge-blue      { background: #0c2040; border-color: var(--blue-dim);   color: var(--blue); }
+
+    .entries-header {
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      color: var(--text-3);
+      margin: 0 0 8px;
+    }
+
+    .entry-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12.5px;
+    }
+
+    .entry-table th {
+      text-align: left;
+      padding: 6px 8px;
+      background: var(--bg-3);
+      border-bottom: 1px solid var(--border);
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--text-2);
+      letter-spacing: .04em;
+    }
+
+    .entry-table td {
+      padding: 7px 8px;
+      border-bottom: 1px solid var(--border-2);
+      vertical-align: top;
+    }
+
+    .entry-table tr:hover td { background: var(--bg-3); }
+
+    .entry-table td.term {
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--text);
+    }
+
+    /* ── Search panel ────────────────────────────────────── */
+    .evo-section {
+      border-bottom: 1px solid var(--border-2);
+      padding-bottom: 16px;
+      margin-bottom: 16px;
+    }
+
+    .evo-section:last-child { border-bottom: none; margin-bottom: 0; }
+
+    .evo-label {
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      color: var(--text-3);
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .evo-label span {
+      display: inline-block;
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: var(--accent);
+    }
+
+    /* Sub-tabs for search categories */
+    .sub-tabs {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 12px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--border-2);
+    }
+    .sub-tab-btn {
+      background: none;
+      border: 1px solid transparent;
+      color: var(--text-2);
+      font-size: 11px;
+      font-family: var(--mono);
+      cursor: pointer;
+      padding: 3px 6px;
+      border-radius: 4px;
+      transition: all .15s;
+    }
+    .sub-tab-btn:hover { color: var(--text); }
+    .sub-tab-btn.active {
+      color: var(--accent);
+      border-color: var(--accent-dim);
+      background: #2a2000;
+    }
+
+    .filter-group {
+      margin-bottom: 12px;
+    }
+    .filter-group label {
+      display: block;
+      font-size: 10px;
+      color: var(--text-3);
+      text-transform: uppercase;
+      margin-bottom: 4px;
+      font-weight: 500;
+    }
+    .filter-group select, .filter-group input[type="text"] {
+      width: 100%;
+      background: var(--bg-3);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 6px 8px;
+      border-radius: var(--radius);
+      font-size: 12px;
+    }
+    .filter-group .checkbox-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 4px;
+    }
+    .filter-group .checkbox-item {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 12px;
+      color: var(--text-2);
+      cursor: pointer;
+    }
+    .filter-group .checkbox-item input {
+      accent-color: var(--accent);
+    }
+
+    .filter-actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .btn-primary {
+      flex: 1;
+      padding: 8px;
+      background: var(--accent);
+      color: #000;
+      border: none;
+      border-radius: var(--radius);
+      font-family: var(--mono);
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: opacity .15s;
+      letter-spacing: .04em;
+    }
+
+    .btn-primary:hover { opacity: .85; }
+    .btn-primary:disabled { opacity: .4; cursor: not-allowed; }
+
+    .btn-ghost {
+      padding: 8px 12px;
+      background: none;
+      color: var(--text-2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      font-family: var(--mono);
+      font-size: 12px;
+      cursor: pointer;
+      transition: color .15s, border-color .15s;
+    }
+
+    .btn-ghost:hover { color: var(--text); border-color: var(--text-2); }
+
+    .badge-accent    { background: #403000; border-color: var(--accent-dim); color: var(--accent); }
+    .sub-panel { animation: fadeIn .2s; }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+    /* ── Search results ─────────────────────────────────────────── */
+    .results-meta {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 10px;
+    }
+
+    .results-count {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--text-2);
+    }
+
+    .results-count strong {
+      color: var(--accent);
+      font-weight: 500;
+    }
+
+    /* Origin cards (Search results) */
+    .var-card {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 9px 12px;
+      background: var(--bg-3);
+      border: 1px solid var(--border-2);
+      border-radius: var(--radius);
+      margin-bottom: 5px;
+      cursor: pointer;
+      transition: border-color .15s, background .15s;
+    }
+
+    .var-card:hover, .var-card.selected {
+      border-color: var(--blue);
+      background: #0c1e30;
+    }
+
+    .var-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--blue);
+      flex-shrink: 0;
+    }
+
+    .var-info { flex: 1; min-width: 0; }
+
+    .var-name {
+      font-size: 13px;
+      font-weight: 500;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .var-sub {
+      font-size: 11px;
+      color: var(--text-2);
+      margin-top: 1px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .var-count {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--accent);
+      flex-shrink: 0;
+    }
+
+    /* ── Detail overlay ─────────────────────────────────────────── */
+    .detail-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 14px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--border-2);
+    }
+
+    .btn-back {
+      background: none;
+      border: 1px solid var(--border);
+      color: var(--text-2);
+      padding: 4px 9px;
+      border-radius: var(--radius);
+      font-size: 12px;
+      font-family: var(--mono);
+      cursor: pointer;
+      transition: color .15s, border-color .15s;
+      flex-shrink: 0;
+    }
+
+    .btn-back:hover { color: var(--text); border-color: var(--text-2); }
+
+    .detail-title {
+      font-family: var(--mono);
+      font-size: 16px;
+      color: var(--blue);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .detail-block {
+      background: var(--bg-3);
+      border: 1px solid var(--border-2);
+      border-radius: var(--radius);
+      padding: 10px 12px;
+      margin-bottom: 10px;
+    }
+
+    .detail-block-label {
+      font-size: 10px;
+      font-weight: 500;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      color: var(--text-3);
+      margin-bottom: 6px;
+    }
+
+    /* ── Map popup ──────────────────────────────────────────────── */
+    .maplibregl-popup-content {
+      background: var(--bg-2) !important;
+      border: 1px solid var(--border) !important;
+      border-radius: var(--radius) !important;
+      padding: 0 !important;
+      box-shadow: 0 4px 20px rgba(0,0,0,.5) !important;
+    }
+
+    .maplibregl-popup-tip { display: none; }
+
+    .popup-inner {
+      padding: 10px 12px;
+      min-width: 160px;
+    }
+
+    .popup-name {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 3px;
+    }
+
+    .popup-sub {
+      font-size: 11px;
+      color: var(--text-2);
+    }
+
+    .popup-blr {
+      margin-top: 5px;
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--accent);
+    }
+
+    /* ── Map controls ───────────────────────────────────────────── */
+    .maplibregl-ctrl-group {
+      background: var(--bg-2) !important;
+      border: 1px solid var(--border) !important;
+    }
+
+    .maplibregl-ctrl-group button {
+      background: none !important;
+      color: var(--text-2) !important;
+    }
+
+    .maplibregl-ctrl-group button:hover {
+      background: var(--bg-3) !important;
+      color: var(--text) !important;
+    }
+
+    .maplibregl-ctrl-attrib {
+      background: rgba(13,17,23,.8) !important;
+      color: var(--text-3) !important;
+    }
+
+    .maplibregl-ctrl-attrib a { color: var(--text-3) !important; }
+
+    /* ── Legend chip ────────────────────────────────────────────── */
+    #map-legend {
+      position: absolute;
+      bottom: 32px;
+      left: 12px;
+      background: rgba(13,17,23,.88);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 8px 10px;
+      font-size: 11px;
+      backdrop-filter: blur(4px);
+      pointer-events: none;
+    }
+
+    .legend-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--text-2);
+      margin-bottom: 4px;
+    }
+
+    .legend-row:last-child { margin-bottom: 0; }
+
+    .legend-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    /* ── Loading / error ────────────────────────────────────────── */
+    #loading-overlay {
+      position: fixed;
+      inset: 0;
+      background: var(--bg);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      z-index: 9999;
+      transition: opacity .3s;
+    }
+
+    #loading-overlay.hidden { opacity: 0; pointer-events: none; }
+
+    .loading-text {
+      font-family: var(--mono);
+      font-size: 13px;
+      color: var(--text-2);
+    }
+
+    .spinner {
+      width: 24px; height: 24px;
+      border: 2px solid var(--border);
+      border-top-color: var(--blue);
+      border-radius: 50%;
+      animation: spin .7s linear infinite;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+
+<body>
+
+<div id="loading-overlay">
+  <div class="spinner"></div>
+  <div class="loading-text">Data laden…</div>
+</div>
+
+<div id="app">
+  <div id="map">
+    <div id="map-legend">
+      <div class="legend-row"><div class="legend-dot" style="background:#388bfd"></div>Herkomst</div>
+      <div class="legend-row" id="legend-match" style="display:none">
+        <div class="legend-dot" style="background:#f0c040;box-shadow:0 0 5px #f0c040"></div>Zoekresultaat
+      </div>
+    </div>
+  </div>
+
+  <div id="sidebar">
+    <div class="s-header">
+      <div class="s-brand">
+        <span class="logo-bantu">HAGIOGRAPHIES</span>
+      </div>
+      <div class="mode-tabs">
+        <button class="tab-btn active" data-mode="hagiographies" onclick="setMode('hagiographies')">Lijst</button>
+        <button class="tab-btn" data-mode="search" onclick="setMode('search')">Zoeken</button>
+      </div>
+    </div>
+
+    <!-- ── Hagiographies panel ── -->
+    <div class="panel active" id="panel-hagiographies">
+      <div class="panel-scroll" id="hagiographies-content">
+        <div class="empty-state">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/>
+            <line x1="12" y1="16" x2="12.01" y2="16"/>
+          </svg>
+          Klik op een marker om herkomstdetails te zien
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Search panel ── -->
+    <div class="panel" id="panel-search">
+      <div style="padding:14px 18px 0; flex-shrink:0; border-bottom:1px solid var(--border-2);">
+        <div class="sub-tabs">
+          <button class="sub-tab-btn active" data-sub="tekst" onclick="setSubTab('tekst')">Tekst</button>
+          <button class="sub-tab-btn" data-sub="handschrift" onclick="setSubTab('handschrift')">Handschrift</button>
+          <button class="sub-tab-btn" data-sub="editie" onclick="setSubTab('editie')">Editie</button>
+        </div>
+
+        <div id="search-filter-section">
+          <!-- Tekst Filters -->
+          <div class="sub-panel active" id="sub-panel-tekst">
+            <div class="filter-group">
+              <label>Zoeken</label>
+              <input type="text" id="f-query" placeholder="Titel, BHL of auteur...">
+            </div>
+            <div style="display:flex; gap:10px;">
+              <div class="filter-group" style="flex:1">
+                <label>Aartsbisdom</label>
+                <select id="f-arch"><option value="">Alle</option></select>
+              </div>
+              <div class="filter-group" style="flex:1">
+                <label>Bisdom</label>
+                <select id="f-bish"><option value="">Alle</option></select>
+              </div>
+            </div>
+            <div class="filter-group">
+              <label>Bron-type</label>
+              <select id="f-source-type"><option value="">Alle</option></select>
+            </div>
+          </div>
+
+          <!-- Handschrift Filters -->
+          <div class="sub-panel" id="sub-panel-handschrift" style="display:none">
+            <div class="filter-group">
+              <label>Collecties</label>
+              <div class="checkbox-row">
+                <label class="checkbox-item"><input type="checkbox" name="f-coll" value="LEG"> LEG</label>
+                <label class="checkbox-item"><input type="checkbox" name="f-coll" value="DG"> DG</label>
+                <label class="checkbox-item"><input type="checkbox" name="f-coll" value="NASO"> NASO</label>
+              </div>
+            </div>
+            <div class="filter-group">
+              <label>Eeuw</label>
+              <select id="f-century"><option value="">Alle</option></select>
+            </div>
+            <div class="filter-group">
+              <label>Herkomst (Provenance)</label>
+              <select id="f-prov"><option value="">Alle</option></select>
+            </div>
+          </div>
+
+          <!-- Editie Filters -->
+          <div class="sub-panel" id="sub-panel-editie" style="display:none">
+            <div class="filter-group">
+              <label>Moderne Editie</label>
+              <select id="f-edition"><option value="">Alle</option></select>
+            </div>
+          </div>
+
+          <div class="filter-actions" style="margin-bottom:14px">
+            <button class="btn-primary" id="btn-search" onclick="performSearch()">Filteren</button>
+            <button class="btn-ghost" onclick="resetFilter()">Wis</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Results (scrollable) -->
+      <div class="panel-scroll" id="search-results">
+        <div class="empty-state" id="evo-empty">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+          </svg>
+          Voer een zoekterm in
+        </div>
+        <div id="evo-result-body" style="display:none">
+          <div class="results-meta">
+            <div class="results-count" id="evo-count"></div>
+          </div>
+          <div id="evo-list-var"></div>
+        </div>
+        <!-- Detail view (replaces result body) -->
+        <div id="evo-detail" style="display:none"></div>
+      </div>
+
+    </div>
+  </div><!-- /sidebar -->
+</div><!-- /app -->
+
+<script src="https://unpkg.com/maplibre-gl@5/dist/maplibre-gl.js"></script>
+<script src="https://unpkg.com/pmtiles@4/dist/pmtiles.js"></script>
+<script src="https://unpkg.com/@protomaps/basemaps@5/dist/basemaps.js"></script>
+
+<script>
+/* ═══════════════════════════════════════════════════════════════
+   State
+ ═══════════════════════════════════════════════════════════════ */
+let searchResults = null; // {features}
+let selectedVarietyId = null;
+let popup = null;
+let currentSubTab = 'tekst';
+let _lastFilter = {};
+
+/* ═══════════════════════════════════════════════════════════════
+   Map setup
+ ═══════════════════════════════════════════════════════════════ */
+const protocol = new pmtiles.Protocol();
+maplibregl.addProtocol("pmtiles", protocol.tile);
+
+const map = new maplibregl.Map({
+  container: "map",
+  center: [5, 48],
+  zoom: 4,
+  style: {
+    version: 8,
+    glyphs:  "https://protomaps.github.io/basemaps-assets/fonts/{fontstack}/{range}.pbf",
+    sprite:  "https://protomaps.github.io/basemaps-assets/sprites/v4/light",
+    sources: {
+      protomaps: {
+        type: "vector",
+        url:  `pmtiles:///local-map/data/world.pmtiles`,
+        attribution: '<a href="https://protomaps.com">Protomaps</a> © <a href="https://openstreetmap.org">OpenStreetMap</a>',
+      }
+    },
+    layers: basemaps.layers("protomaps", basemaps.namedFlavor("dark"), { lang: "en" }),
+  },
+});
+
+map.addControl(new maplibregl.NavigationControl());
+
+/* ═══════════════════════════════════════════════════════════════
+   Data loading
+ ═══════════════════════════════════════════════════════════════ */
+async function loadData() {
+  const geoRes = await fetch(`local-map/data/hagiographies_map.geojson`).then(r => r.ok ? r.json() : null);
+
+  if (!geoRes) {
+    console.error('GeoJSON not found. Run export-map first.');
+    return null;
+  }
+
+  allFeatures = geoRes.features;
+  initFilterDropdowns(geoRes);
+  return geoRes;
+}
+
+function setSubTab(sub) {
+  currentSubTab = sub;
+  document.querySelectorAll('.sub-tab-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.sub === sub);
+  });
+  document.querySelectorAll('.sub-panel').forEach(p => {
+    p.style.display = p.id === `sub-panel-${sub}` ? 'block' : 'none';
+  });
+}
+
+function initFilterDropdowns(geojson) {
+  const arches = new Set();
+  const bishes = new Set();
+  const sourceTypes = new Set();
+  const centuries = new Set();
+  const provs = new Set();
+  const editions = new Set();
+
+  geojson.features.forEach(f => {
+    const texts = typeof f.properties.texts === 'string' ? JSON.parse(f.properties.texts) : f.properties.texts;
+    texts.forEach(t => {
+      if (t.arch) arches.add(t.arch);
+      if (t.bish) bishes.add(t.bish);
+      if (t.source_type) sourceTypes.add(t.source_type);
+      if (t.centuries) t.centuries.forEach(c => centuries.add(c));
+      if (t.provenances) t.provenances.forEach(p => provs.add(p));
+      if (t.edition_refs) t.edition_refs.forEach(e => editions.add(e));
+    });
+  });
+
+  populateSelect('f-arch', arches);
+  populateSelect('f-bish', bishes);
+  populateSelect('f-source-type', sourceTypes);
+  populateSelect('f-century', centuries);
+  populateSelect('f-prov', provs);
+  populateSelect('f-edition', editions);
+}
+
+function populateSelect(id, set) {
+  const s = document.getElementById(id);
+  if (!s) return;
+  const items = Array.from(set).filter(x => x).sort();
+  items.forEach(item => {
+    const opt = document.createElement('option');
+    opt.value = item;
+    opt.textContent = item;
+    s.appendChild(opt);
+  });
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Map layers
+ ═══════════════════════════════════════════════════════════════ */
+function initMapLayers(geojson) {
+  const emptyFC = { type: 'FeatureCollection', features: [] };
+
+  // ── Hagiographies source (all points) ──
+  map.addSource('hagiographies', {
+    type: 'geojson',
+    data: geojson,
+    cluster: true,
+    clusterMaxZoom: 12,
+    clusterRadius: 45,
+  });
+
+  // ── Search sources (matched / unmatched / highlighted) ──
+  map.addSource('evo-dim',     { type: 'geojson', data: emptyFC });
+  map.addSource('evo-match',   { type: 'geojson', data: emptyFC });
+  map.addSource('evo-select',  { type: 'geojson', data: emptyFC });
+
+  // ─ Hagiographies clusters ─
+  map.addLayer({
+    id: 'h-clusters', type: 'circle', source: 'hagiographies',
+    filter: ['has', 'point_count'],
+    paint: {
+      'circle-color': ['step', ['get', 'point_count'],
+        '#2d5fa6', 50, '#1e7a8c', 200, '#155e75'],
+      'circle-radius': ['step', ['get', 'point_count'], 18, 50, 26, 200, 34],
+      'circle-stroke-width': 1.5, 'circle-stroke-color': '#30363d',
+    }
+  });
+
+  map.addLayer({
+    id: 'h-cluster-label', type: 'symbol', source: 'hagiographies',
+    filter: ['has', 'point_count'],
+    layout: {
+      'text-field': '{point_count_abbreviated}',
+      'text-font': ['Noto Sans Regular'],
+      'text-size': 11,
+    },
+    paint: { 'text-color': '#c9d1d9' }
+  });
+
+  // ─ Hagiographies unclustered ─
+  map.addLayer({
+    id: 'h-points', type: 'circle', source: 'hagiographies',
+    filter: ['!', ['has', 'point_count']],
+    paint: {
+      'circle-color': '#388bfd',
+      'circle-radius': 7,
+      'circle-stroke-width': 1.5,
+      'circle-stroke-color': '#0d1117',
+    }
+  });
+
+  // ─ Search dim layer (non-matching points) ─
+  map.addLayer({
+    id: 'evo-dim', type: 'circle', source: 'evo-dim',
+    paint: {
+      'circle-color': '#2a2d33',
+      'circle-radius': 6,
+      'circle-stroke-width': 1, 'circle-stroke-color': '#1c2330',
+    }
+  });
+
+  // ─ Search matching points ─
+  map.addLayer({
+    id: 'evo-match', type: 'circle', source: 'evo-match',
+    paint: {
+      'circle-color': '#f0c040',
+      'circle-radius': 8,
+      'circle-stroke-width': 2, 'circle-stroke-color': '#0d1117',
+    }
+  });
+
+  // ─ Search selected / highlighted ─
+  map.addLayer({
+    id: 'evo-select', type: 'circle', source: 'evo-select',
+    paint: {
+      'circle-color': '#ffffff',
+      'circle-radius': 10,
+      'circle-stroke-width': 3, 'circle-stroke-color': '#f0c040',
+      'circle-opacity': 1,
+    }
+  });
+
+  // ─ Interactivity: Hagiographies ─
+  map.on('click', 'h-clusters', e => {
+    const f = map.queryRenderedFeatures(e.point, { layers: ['h-clusters'] });
+    const cid = f[0].properties.cluster_id;
+    map.getSource('hagiographies').getClusterExpansionZoom(cid, (err, zoom) => {
+      if (!err) map.easeTo({ center: f[0].geometry.coordinates, zoom });
+    });
+  });
+
+  map.on('click', 'h-points', e => {
+    const props   = e.features[0].properties;
+    const texts   = JSON.parse(props.texts);
+    const coords  = e.features[0].geometry.coordinates.slice();
+    map.flyTo({ center: coords });
+    showHagiographiesDetail(props, texts);
+  });
+
+  // ─ Interactivity: Search ─
+  map.on('click', 'evo-match', e => {
+    const props   = e.features[0].properties;
+    const texts   = JSON.parse(props.texts);
+    const coords  = e.features[0].geometry.coordinates.slice();
+    map.flyTo({ center: coords });
+    showSearchVarietyDetail(props, texts);
+  });
+
+  map.on('click', 'evo-select', e => {
+    const props   = e.features[0].properties;
+    const texts   = JSON.parse(props.texts);
+    const coords  = e.features[0].geometry.coordinates.slice();
+    map.flyTo({ center: coords });
+    showSearchVarietyDetail(props, texts);
+  });
+
+  // ─ Cursors ─
+  ['h-points', 'evo-match', 'evo-select', 'h-clusters'].forEach(layer => {
+    map.on('mouseenter', layer, () => map.getCanvas().style.cursor = 'pointer');
+    map.on('mouseleave', layer, () => map.getCanvas().style.cursor = '');
+  });
+
+  // ─ Hover popup for matches ─
+  map.on('mouseenter', 'evo-match', e => {
+    const p = e.features[0].properties;
+    const texts = JSON.parse(p.texts);
+    const matchedTexts = currentMode === 'search' && searchResults
+      ? texts.filter(t => matchesCurrentSearch(t))
+      : texts;
+
+    const titles = matchedTexts.map(t => t.title).slice(0, 3).join(', ');
+
+    if (popup) popup.remove();
+    popup = new maplibregl.Popup({ closeButton: false, offset: 12 })
+      .setLngLat(e.features[0].geometry.coordinates)
+      .setHTML(`<div class="popup-inner">
+        <div class="popup-name">${p.name}</div>
+        <div class="popup-sub">${p.text_count} teksten</div>
+        ${titles ? `<div class="popup-blr">↳ ${titles}</div>` : ''}
+      </div>`)
+      .addTo(map);
+  });
+
+  map.on('mouseleave', 'evo-match', () => { if (popup) { popup.remove(); popup = null; } });
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Mode switching
+ ═══════════════════════════════════════════════════════════════ */
+function setMode(mode) {
+  currentMode = mode;
+  document.querySelectorAll('.tab-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.mode === mode);
+  });
+  document.querySelectorAll('.panel').forEach(p => {
+    p.classList.toggle('active', p.id === `panel-${mode}`);
+  });
+
+  if (mode === 'hagiographies') {
+    // Show all Hagiographies layers, hide search
+    setLayerVisibility('h-clusters',      'visible');
+    setLayerVisibility('h-cluster-label', 'visible');
+    setLayerVisibility('h-points',        'visible');
+    setLayerVisibility('evo-dim',   'none');
+    setLayerVisibility('evo-match', 'none');
+    setLayerVisibility('evo-select','none');
+    document.getElementById('legend-match').style.display = 'none';
+  } else {
+    // Hide Hagiographies layers; search layers shown only when result exists
+    setLayerVisibility('h-clusters',      'none');
+    setLayerVisibility('h-cluster-label', 'none');
+    setLayerVisibility('h-points',        'none');
+    if (searchResults) applySearchToMap(searchResults);
+  }
+}
+
+function setLayerVisibility(id, val) {
+  if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', val);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Search Logic
+ ═══════════════════════════════════════════════════════════════ */
+function matchesDetailedFilter(t, filter) {
+  const { query, arch, bish, stype, collections, century, prov, edition } = filter;
+  
+  // Tekst filters
+  if (query) {
+    const matchQ = (t.title && t.title.toLowerCase().includes(query)) ||
+                   (t.bhl   && t.bhl.toLowerCase().includes(query)) ||
+                   (t.author && t.author.toLowerCase().includes(query));
+    if (!matchQ) return false;
+  }
+  if (arch  && t.arch !== arch) return false;
+  if (bish  && t.bish !== bish) return false;
+  if (stype && t.source_type !== stype) return false;
+
+  // Handschrift filters
+  if (collections && collections.length > 0) {
+    if (!t.collections || !collections.every(c => t.collections.includes(c))) return false;
+  }
+  if (century && (!t.centuries || !t.centuries.includes(century))) return false;
+  if (prov    && (!t.provenances || !t.provenances.includes(prov))) return false;
+
+  // Editie filters
+  if (edition && (!t.edition_refs || !t.edition_refs.includes(edition))) return false;
+
+  return true;
+}
+
+function matchesCurrentSearch(text) {
+  return matchesDetailedFilter(text, _lastFilter);
+}
+
+function performSearch() {
+  const query = (document.getElementById('f-query').value || "").trim().toLowerCase();
+  const arch  = document.getElementById('f-arch').value;
+  const bish  = document.getElementById('f-bish').value;
+  const stype = document.getElementById('f-source-type').value;
+  
+  const colEls = document.querySelectorAll('input[name="f-coll"]:checked');
+  const collections = Array.from(colEls).map(el => el.value);
+  const century = document.getElementById('f-century').value;
+  const prov    = document.getElementById('f-prov').value;
+  
+  const edition = document.getElementById('f-edition').value;
+
+  _lastFilter = { query, arch, bish, stype, collections, century, prov, edition };
+
+  // Check if any filter is active
+  const hasFilter = query || arch || bish || stype || collections.length > 0 || century || prov || edition;
+
+  if (!hasFilter) {
+    resetFilter();
+    return;
+  }
+
+  const matched = [];
+  const unmatched = [];
+
+  allFeatures.forEach(f => {
+    const texts = typeof f.properties.texts === 'string' ? JSON.parse(f.properties.texts) : f.properties.texts;
+    const hasMatch = texts.some(t => matchesDetailedFilter(t, _lastFilter));
+    if (hasMatch) matched.push(f);
+    else unmatched.push(f);
+  });
+
+  searchResults = { query, matched, unmatched };
+  selectedVarietyId = null;
+
+  applySearchToMap(searchResults);
+  renderSearchResults(searchResults);
+}
+
+function applySearchToMap(results) {
+  const fc = fs => ({ type: 'FeatureCollection', features: fs });
+  map.getSource('evo-dim')   ?.setData(fc(results.unmatched));
+  map.getSource('evo-match') ?.setData(fc(results.matched));
+  map.getSource('evo-select')?.setData(fc([]));
+
+  setLayerVisibility('evo-dim',    'visible');
+  setLayerVisibility('evo-match',  'visible');
+  setLayerVisibility('evo-select', 'visible');
+  document.getElementById('legend-match').style.display = 'flex';
+}
+
+function resetFilter() {
+  document.getElementById('f-query').value = '';
+  document.getElementById('f-arch').value = '';
+  document.getElementById('f-bish').value = '';
+  document.getElementById('f-source-type').value = '';
+  document.getElementById('f-century').value = '';
+  document.getElementById('f-prov').value = '';
+  document.getElementById('f-edition').value = '';
+  document.querySelectorAll('input[name="f-coll"]').forEach(el => el.checked = false);
+
+  searchResults = null;
+  _lastFilter = {};
+
+  const fc = { type: 'FeatureCollection', features: [] };
+  ['evo-dim','evo-match','evo-select'].forEach(s => map.getSource(s)?.setData(fc));
+
+  document.getElementById('evo-empty').style.display = 'flex';
+  document.getElementById('evo-result-body').style.display = 'none';
+  document.getElementById('evo-detail').style.display = 'none';
+  document.getElementById('legend-match').style.display = 'none';
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Results rendering
+ ═══════════════════════════════════════════════════════════════ */
+function renderSearchResults(results) {
+  const { matched } = results;
+
+  document.getElementById('evo-empty').style.display = 'none';
+  document.getElementById('evo-detail').style.display = 'none';
+  document.getElementById('evo-result-body').style.display = 'block';
+
+  document.getElementById('evo-count').innerHTML =
+    `<strong>${matched.length}</strong> herkomstplaatsen gevonden`;
+
+  renderVarietyList(results);
+}
+
+function renderVarietyList(results) {
+  const { matched } = results;
+  const container = document.getElementById('evo-list-var');
+
+  if (!matched.length) {
+    container.innerHTML = '<div class="empty-state" style="height:80px">Geen plaatsen gevonden</div>';
+    return;
+  }
+
+  container.innerHTML = matched.map(f => {
+    const p = f.properties;
+    const texts = typeof p.texts === 'string' ? JSON.parse(p.texts) : p.texts;
+    const matchCount = texts.filter(t => matchesCurrentSearch(t)).length;
+    return `<div class="var-card" id="var-card-${p.id}"
+                onclick="selectVarietyFromList(${p.id})">
+      <div class="var-dot"></div>
+      <div class="var-info">
+        <div class="var-name">${escHtml(p.name)}</div>
+        <div class="var-sub">${p.text_count} teksten</div>
+      </div>
+      <div class="var-count">${matchCount}×</div>
+    </div>`;
+  }).join('');
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Selection handlers
+ ═══════════════════════════════════════════════════════════════ */
+function selectVarietyFromList(id) {
+  if (!searchResults) return;
+  selectedVarietyId = id;
+
+  const feature = searchResults.matched.find(f => f.properties.id === id);
+  if (!feature) return;
+
+  // Highlight on map
+  const fc = fs => ({ type: 'FeatureCollection', features: fs });
+  const rest = searchResults.matched.filter(f => f !== feature);
+  map.getSource('evo-match') ?.setData(fc([...searchResults.unmatched, ...rest]));
+  map.getSource('evo-select')?.setData(fc([feature]));
+
+  map.flyTo({ center: feature.geometry.coordinates, zoom: Math.max(map.getZoom(), 6) });
+
+  const props   = feature.properties;
+  const texts = typeof props.texts === 'string' ? JSON.parse(props.texts) : props.texts;
+  showSearchVarietyDetail(props, texts);
+}
+
+function showSearchVarietyDetail(props, texts) {
+  if (currentMode !== 'search') setMode('search');
+
+  const matchingTexts = texts.filter(t => matchesCurrentSearch(t));
+
+  const rows = texts.map(t => {
+    const isMatch = matchesCurrentSearch(t);
+    const badges = [
+      t.arch ? `<span class="badge">Arc:${t.arch}</span>` : '',
+      t.bish ? `<span class="badge">Bis:${t.bish}</span>` : '',
+      t.source_type ? `<span class="badge badge-accent">${t.source_type}</span>` : '',
+      t.is_reecriture ? `<span class="badge" style="color:var(--red);border-color:var(--red)">Reecriture</span>` : '',
+      ...(t.collections || []).map(c => `<span class="badge badge-blue">${c}</span>`)
+    ].filter(x => x).join(' ');
+
+    return `
+      <tr style="${isMatch ? '' : 'opacity:0.4'}">
+        <td class="term">
+          <div style="font-weight:600">${escHtml(t.bhl || '')}</div>
+          <div style="font-size:10px; margin-top:2px; display:flex; flex-wrap:wrap; gap:4px">
+            ${badges}
+          </div>
+        </td>
+        <td style="padding-top:10px">
+          <div style="font-weight:500">${escHtml(t.title || '')}</div>
+          <div style="font-size:11px; color:var(--text-3); margin-top:2px">${escHtml(t.author || '')}</div>
+        </td>
+        <td>${escHtml(t.dating || '')}</td>
+      </tr>`;
+  }).join('');
+
+  showEvoDetail(`
+    <div style="margin-bottom:14px">
+      <button class="btn-ghost" style="font-size:11px; padding:4px 8px;" onclick="backToResults()">← Terug naar resultaten</button>
+    </div>
+    <div class="variety-info" style="margin-bottom:16px;padding-bottom:14px;border-bottom:1px dashed var(--border-2)">
+      <div class="variety-name">${escHtml(props.name)}</div>
+    </div>
+    <div class="entries-header">
+      ${matchingTexts.length ? `${matchingTexts.length} overeenkomende teksten` : `Alle teksten (${texts.length})`}
+    </div>
+    <table class="entry-table">
+      <thead><tr>
+        <th>Metadata</th><th>Tekst / Auteur</th><th>Datering</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+  `);
+}
+
+function showEvoDetail(html) {
+  document.getElementById('evo-result-body').style.display = 'none';
+  document.getElementById('evo-empty').style.display = 'none';
+  const det = document.getElementById('evo-detail');
+  det.style.display = 'block';
+  det.innerHTML = html;
+}
+
+function backToResults() {
+  document.getElementById('evo-detail').style.display = 'none';
+  document.getElementById('evo-result-body').style.display = 'block';
+
+  // Restore map to full search results
+  if (searchResults) applySearchToMap(searchResults);
+}
+
+function showHagiographiesDetail(props, texts) {
+  setMode('hagiographies');
+  const rows = texts.map(t => {
+    const badges = [
+      t.arch ? `<span class="badge">Arc:${t.arch}</span>` : '',
+      t.bish ? `<span class="badge">Bis:${t.bish}</span>` : '',
+      t.source_type ? `<span class="badge badge-accent">${t.source_type}</span>` : '',
+      ...(t.collections || []).map(c => `<span class="badge badge-blue">${c}</span>`)
+    ].filter(x => x).join(' ');
+
+    return `
+      <tr>
+        <td class="term">
+          <div style="font-weight:600">${escHtml(t.bhl || '')}</div>
+          <div style="font-size:10px; margin-top:2px; display:flex; flex-wrap:wrap; gap:4px">
+            ${badges}
+          </div>
+        </td>
+        <td style="padding-top:10px">
+          <div style="font-weight:500">${escHtml(t.title || '')}</div>
+          <div style="font-size:11px; color:var(--text-3); margin-top:2px">${escHtml(t.author || '')}</div>
+        </td>
+        <td>${escHtml(t.dating || '')}</td>
+      </tr>`;
+  }).join('');
+
+  document.getElementById('hagiographies-content').innerHTML = `
+    <div class="variety-info" style="margin-bottom:16px;padding-bottom:14px;border-bottom:1px dashed var(--border-2)">
+      <div class="variety-name">${escHtml(props.name)}</div>
+    </div>
+    <div class="entries-header">Alle teksten (${texts.length})</div>
+    <table class="entry-table">
+      <thead><tr>
+         <th>Metadata</th><th>Tekst / Auteur</th><th>Datering</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Utilities
+ ═══════════════════════════════════════════════════════════════ */
+function escHtml(str) {
+  if (!str && str !== 0) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Bootstrap
+ ═══════════════════════════════════════════════════════════════ */
+map.on('load', async () => {
+  const geojson = await loadData();
+
+  if (geojson) {
+    initMapLayers(geojson);
+  }
+
+  // Fade out loading overlay
+  const overlay = document.getElementById('loading-overlay');
+  overlay.classList.add('hidden');
+  setTimeout(() => overlay.remove(), 400);
+});
+</script>
+
+</body>
+</html>

@@ -10,3 +10,7 @@ data/hagiographies.csv
 import/erd.mermaid
 
 .claude
+
+*.pmtiles
+*.json
+*.geojson

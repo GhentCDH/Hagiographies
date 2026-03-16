@@ -1,0 +1,23 @@
+[project]
+name = "documenter"
+version = "0.1.0"
+description = "Data documentation tools"
+readme = "README.md"
+requires-python = "~=3.13.0"
+dependencies = [
+    "utilities",
+    "graphviz>=0.21"
+]
+
+[dependency-groups]
+dev = ["eralchemy[graphviz]>=1.6.0"]
+
+[build-system]
+requires = ["uv_build>=0.9.18,<0.10.0"]
+build-backend = "uv_build"
+
+[project.scripts]
+document = "documenter.generate_diagram:main"
+
+[tool.uv.sources]
+utilities = { path = "../utilities", editable = true }
