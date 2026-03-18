@@ -68,16 +68,10 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context:   .
-          file:      kottster/Dockerfile
+          file:      kottster/prd.Dockerfile
           push:      true
           tags:      ${{ steps.meta.outputs.tags }}
           labels:    ${{ steps.meta.outputs.labels }}
-          # Bake KOTTSTER_BASE_PATH in bij build (default for Nomad)
-          build-args: |
-            KOTTSTER_BASE_PATH=/data/admin
-          # Build cache in GHCR to speed up subsequent builds
-          cache-from: type=registry,ref=${{ env.IMAGE }}:buildcache
-          cache-to:   type=registry,ref=${{ env.IMAGE }}:buildcache,mode=max
 
       - name: Image digest
         run: echo "Pushed ${{ env.IMAGE }}:main — digest ${{ steps.build-and-push.outputs.digest }}"

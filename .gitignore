@@ -1,16 +1,32 @@
+# Environment & config
 .env
-*.csv
-*.xlsx
 .python-version
-__pycache__
-kottster/dist
-kottster/app.db
-data/hagiographies.db
-data/hagiographies.csv
-import/erd.mermaid
-
 .claude
 
+# Python
+.venv
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Node.js
+node_modules/
+
+# Build & cache
+kottster/dist/
+nbuild/
+.cache/
+
+# Data & generated files
+*.csv
+*.xlsx
+*.db
+hagiographies_map.geojson
 *.pmtiles
-*.json
-*.geojson
+import/erd.mermaid
+
+# OS generated files
+.DS_Store
+Thumbs.db
+Desktop.ini

@@ -4,8 +4,6 @@
 }
 
 :80 {
-	# ── 2. Admin Panel (Stripped Prefix) ──────────────────────────────────────
-	# Strip /admin so the backend (configured with basePath: "") sees root-level paths.
 	# reverse proxy websockets to the data management service
 	@websockets {
 		header Connection *Upgrade*
@@ -19,6 +17,10 @@
 			root /srv/local-map
 			index index.html
 		}
+	}
+
+	handle /health {
+		respond "OK" 200
 	}
 
 	# match static files and serve them directly

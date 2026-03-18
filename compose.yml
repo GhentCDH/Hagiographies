@@ -13,6 +13,18 @@ services:
       - "5480:5480"
       - "5481:5481"
       
+  data-management-prd:
+    build:
+      context: .
+      dockerfile: kottster/prd.Dockerfile
+    volumes:
+      - ./data:/data
+    env_file:
+      - dev.env
+    ports:
+      - "5490:5480"
+      - "5491:5481"
+
   utils:
     build:
       context: .
@@ -20,7 +32,6 @@ services:
     volumes:
       - ./utils:/app/
       - ./data:/data
-      - ./local-map:/local-map
     env_file:
       - dev.env
 

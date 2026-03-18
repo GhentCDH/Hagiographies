@@ -1,7 +1,4 @@
-KOTTSTER_HOST := "localhost"
-KOTTSTER_PORT := "5490"
-KOTTSTER_PATH := "/admin"
-KOTTSTER_URL  := "http://{{KOTTSTER_HOST}}:{{KOTTSTER_PORT}}{{KOTTSTER_PATH}}"
+KOTTSTER_URL := "http://localhost:9160"
 
 # ── Docker lifecycle ─────────────────────────────────────────────────────────
 
@@ -22,6 +19,10 @@ import:
 
 export-map:
     docker compose run  -w /app/exporter --rm utils  uv run export-map
+    cp data/hagiographies_map.geojson local-map/data/
+
+export:
+    export-map
 
 # ── Kaartdata (pmtiles) ──────────────────────────────────────────────────────
 # Haalt de nieuwste Protomaps Africa-tegel op en zet die in ./local-map/data/
@@ -62,7 +63,7 @@ reinit: rebuild reset-db import export-map map-data
 
 open-admin:
     @echo "Waiting for {{KOTTSTER_URL}}..."
-    @until nc -z {{KOTTSTER_HOST}} {{KOTTSTER_PORT}}; do \
+    @until nc -z {{KOTTSTER_URL}}; do \
       printf "."; sleep 0.5; \
     done
     @echo "\n{{KOTTSTER_URL}} ready!"

@@ -6,4 +6,3 @@ WORKDIR /app
 ENV UV_LINK_MODE=copy
 
 RUN apt-get update && apt-get install -y --no-install-recommends graphviz 
-
