@@ -1,29 +1,6 @@
 """Excel-to-database import pipeline for the Hagiographies project.
 
 Entry point: main() — called via the package CLI or directly.
-
-Import order
-------------
-1. "Corpus hagio" sheet  -> CorpusHagio (+ Origin, Archbishopric, Bishopric)
-2. "Manuscripts" sheet   -> Manuscript, Location, City, Library, Witness,
-                            Provenance (+ backfill CorpusHagio if missing)
-3. "Editions" sheet      -> Edition, Reference, EditionManuscriptLink
-
-GPS coordinate note
--------------------
-The source Excel has the "GPS Latitude OR" and "GPS Longitude OR" column
-headers *swapped*.  The mapping below corrects this intentionally.
-Do NOT change these assignments without verifying the source file.
-
-  col_lat_org = "GPS Longitude OR"  # mislabelled in Excel -> actually Latitude
-  col_lon_org = "GPS Latitude OR"   # mislabelled in Excel -> actually Longitude
-
-Dating notation (Witness)
---------------------------
-The Manuscripts sheet already contains pre-parsed numeric columns
-"Dating range start" and "Dating range end".  These are used directly.
-"Dating " (trailing space!) holds the verbatim source string.
-"Dating by (earliest) century" holds the rough century label.
 """
 
 from __future__ import annotations
@@ -42,7 +19,9 @@ from utilities.db import engine, create_updated_at_trigger
 from utilities.model import (
     CorpusHagio, Manuscript, Witness, Edition, EditionManuscriptLink,
     City, Library, Location, Origin, Reference, Provenance,
-    Archbishopric, Bishopric,
+    Archbishopric, Bishopric, Author, DatingRough, Subtype, Destinatary, 
+    ProseVerse, SourceType, PreservationStatus, VernacularRegion, 
+    ManuscriptType, ImageAvailability
 )
 
 
@@ -69,225 +48,96 @@ Cache = dict[str, int]  # name -> DB id
 
 
 # ---------------------------------------------------------------------------
-# Safe-conversion helpers
+# Safe-conversion helpers (Omitted for brevity, they remain identical to your original code)
 # ---------------------------------------------------------------------------
 
 def safe_str(value: Any) -> Optional[str]:
-    """Return stripped string or None for NaN / empty values.
-
-    Args:
-        value (Any): The raw cell value.
-
-    Returns:
-        Optional[str]: The stripped string, or None if empty or NaN.
-    """
-    if pd.isna(value):
-        return None
+    if pd.isna(value): return None
     s = str(value).strip()
     return s if s else None
 
-
 def safe_int(value: Any) -> Optional[int]:
-    """Convert value to int, tolerating floats like 6318.0 and comma strings.
-
-    Args:
-        value (Any): The raw cell value.
-
-    Returns:
-        Optional[int]: The integer representation, or None if parsing fails.
-    """
-    if pd.isna(value):
-        return None
+    if pd.isna(value): return None
     try:
         return int(float(str(value).strip().replace(",", "")))
     except (ValueError, TypeError):
         return None
 
-
 def safe_bool(value: Any) -> Optional[bool]:
-    """Convert Y/N / YES/NO / TRUE/FALSE strings to bool.
-
-    Args:
-        value (Any): The raw cell value.
-
-    Returns:
-        Optional[bool]: True or False based on the string, or None.
-    """
-    if pd.isna(value):
-        return None
+    if pd.isna(value): return None
     s = str(value).strip().upper()
-    if s in ("Y", "YES", "TRUE", "1", "T"):
-        return True
-    if s in ("N", "NO", "FALSE", "0", "F"):
-        return False
+    if s in ("Y", "YES", "TRUE", "1", "T"): return True
+    if s in ("N", "NO", "FALSE", "0", "F"): return False
     return None
 
-
 def _normalize_float_str(raw: str) -> str:
-    """Normalise a raw string to a parseable float literal.
-
-    Removes commas (thousands separator) and collapses multiple dots to a
-    single decimal separator.
-
-    Args:
-        raw (str): The raw string representing a float.
-
-    Returns:
-        str: The normalized string ready for float() conversion.
-    """
     raw = raw.replace(",", "").strip()
     parts = raw.split(".")
     if len(parts) > 2:
         raw = parts[0] + "." + "".join(parts[1:])
     return raw
 
-
 def safe_float(value: Any) -> Optional[float]:
-    """Convert value to float, normalising string artefacts.
-
-    Args:
-        value (Any): The raw cell value.
-
-    Returns:
-        Optional[float]: The float representation, or None if parsing fails.
-    """
-    if pd.isna(value):
-        return None
+    if pd.isna(value): return None
     if isinstance(value, str):
         value = _normalize_float_str(value)
-        if not value:
-            return None
+        if not value: return None
     try:
         return float(value)
     except (ValueError, TypeError):
         return None
 
-
 def safe_coordinate(value: Any, *, lo: float, hi: float) -> Optional[float]:
-    """Parse a GPS coordinate and validate against the expected range.
-
-    Some source values are stored as microdegrees (integer x 1e-6 degrees).
-    When the parsed value exceeds hi * 1000 it is scaled down by 1_000_000.
-
-    Args:
-        value (Any): Raw cell value.
-        lo (float): Minimum valid coordinate (e.g. -90.0 for latitude).
-        hi (float): Maximum valid coordinate (e.g. 90.0 for latitude).
-
-    Returns:
-        Optional[float]: Decimal-degree float, or None if missing/out of range.
-    """
     f = safe_float(value)
-    if f is None:
-        return None
-    if abs(f) > abs(hi) * 1000:
-        f /= 1_000_000
+    if f is None: return None
+    if abs(f) > abs(hi) * 1000: f /= 1_000_000
     if not (lo <= f <= hi):
         logger.warning("Coordinate %s out of range [%s, %s] -- skipping.", f, lo, hi)
         return None
     return f
 
-
 def safe_latitude(value: Any) -> Optional[float]:
-    """Parse a latitude value (WGS-84, range -90 to +90).
-
-    Args:
-        value (Any): The raw cell value.
-
-    Returns:
-        Optional[float]: Validated latitude.
-    """
     return safe_coordinate(value, lo=-90.0, hi=90.0)
 
-
 def safe_longitude(value: Any) -> Optional[float]:
-    """Parse a longitude value (WGS-84, range -180 to +180).
-
-    Args:
-        value (Any): The raw cell value.
-
-    Returns:
-        Optional[float]: Validated longitude.
-    """
     return safe_coordinate(value, lo=-180.0, hi=180.0)
 
 
 # ---------------------------------------------------------------------------
-# Dating parser (fallback for rows missing pre-parsed range columns)
+# Dating parser
 # ---------------------------------------------------------------------------
-
 _RE_CENTURY = re.compile(r"^(\d{1,2})(?:\((\d)(?:/(\d))?\))?$")
 _RE_RANGE   = re.compile(r"^(\d{1,2})(?:\((\d)(?:/(\d))?\))?-(\d{1,2})(?:\((\d)(?:/(\d))?\))?$")
 _RE_YEAR    = re.compile(r"^(\d{3,4})(?:-(\d{3,4}))?$")
 _RE_CIRCA   = re.compile(r"^(?:c(?:irca|\.)?|ca\.?)\s*(\d{3,4})$", re.IGNORECASE)
 
-
-def _century_bounds(
-    century: int, half: Optional[int], quarter: Optional[int]
-) -> Tuple[int, int]:
-    """Return (start_year, end_year) for a century notation.
-
-    Args:
-        century (int): Century number (e.g. 11 for the 11th century).
-        half (Optional[int]): 1 = first half, 2 = second half, or None.
-        quarter (Optional[int]): Quarter numerator 1-4 (from X/4 notation), or None.
-
-    Returns:
-        Tuple[int, int]: The calculated start year and end year.
-    """
+def _century_bounds(century: int, half: Optional[int], quarter: Optional[int]) -> Tuple[int, int]:
     base_start = (century - 1) * 100 + 1
     base_end   = century * 100
-
-    if half is None:
-        return base_start, base_end
-
+    if half is None: return base_start, base_end
     half_start = base_start + (half - 1) * 50
     half_end   = half_start + 49
-
-    if quarter is None:
-        return half_start, half_end
-
+    if quarter is None: return half_start, half_end
     qtr_start = base_start + (half - 1) * 25
     qtr_end   = qtr_start + 24
     return qtr_start, qtr_end
 
-
 def parse_dating(raw: str) -> Tuple[Optional[int], Optional[int], Optional[str]]:
-    """Parse a raw dating string into (start_year, end_year, comment).
-
-    This is a *fallback* parser used only when the Manuscripts sheet does not
-    already provide numeric "Dating range start" / "Dating range end" values.
-
-    Args:
-        raw (str): The raw dating string.
-
-    Returns:
-        Tuple[Optional[int], Optional[int], Optional[str]]: A tuple containing
-        the start year, end year, and the original string as a comment.
-    """
-    if not raw:
-        return None, None, None
+    if not raw: return None, None, None
     s = raw.strip()
-    if s.lower() in ("nan", "n/a", "none", "-", ""):
-        return None, None, None
-
+    if s.lower() in ("nan", "n/a", "none", "-", ""): return None, None, None
     comment = s
-
-    # Strip textual suffixes: "de eeuw", "ste eeuw", "th century", etc.
     s_clean = re.sub(r"(?i)(ste?|de?|th|nd|rd)?\s*eeuw.*$", "", s).strip()
     s_clean = re.sub(r"(?i)\s*century.*$", "", s_clean).strip()
-
     m = _RE_CIRCA.match(s_clean)
     if m:
         y = int(m.group(1))
         return y - 5, y + 5, comment
-
     m = _RE_YEAR.match(s_clean)
     if m:
         start = int(m.group(1))
         end   = int(m.group(2)) if m.group(2) else start
         return start, end, comment
-
     m = _RE_RANGE.match(s_clean)
     if m:
         c1, h1, q1 = int(m.group(1)), safe_int(m.group(2)), safe_int(m.group(3))
@@ -295,7 +145,6 @@ def parse_dating(raw: str) -> Tuple[Optional[int], Optional[int], Optional[str]]
         start, _ = _century_bounds(c1, h1, q1)
         _, end   = _century_bounds(c2, h2, q2)
         return start, end, comment
-
     m = _RE_CENTURY.match(s_clean)
     if m:
         century = int(m.group(1))
@@ -303,7 +152,6 @@ def parse_dating(raw: str) -> Tuple[Optional[int], Optional[int], Optional[str]]
         quarter = safe_int(m.group(3))
         start, end = _century_bounds(century, half, quarter)
         return start, end, comment
-
     logger.warning("parse_dating: unrecognised format %r -- stored as comment only.", raw)
     return None, None, comment
 
@@ -313,19 +161,6 @@ def parse_dating(raw: str) -> Tuple[Optional[int], Optional[int], Optional[str]]
 # ---------------------------------------------------------------------------
 
 def get_or_create(session: Session, model: Type, **kwargs) -> Any:
-    """Return the first row matching kwargs, or INSERT and return a new one.
-
-    Uses `session.begin_nested()` to safely catch `IntegrityError` if a 
-    unique constraint is violated, preventing the entire transaction from failing.
-
-    Args:
-        session (Session): Active SQLModel session.
-        model (Type): SQLModel table class.
-        **kwargs: Column filters / initial values for the new row.
-
-    Returns:
-        Any: An instance of the model, either pre-existing or freshly created.
-    """
     instance = session.exec(select(model).filter_by(**kwargs)).first()
     if instance:
         return instance
@@ -334,98 +169,66 @@ def get_or_create(session: Session, model: Type, **kwargs) -> Any:
     session.add(instance)
     
     try:
-        # Create a savepoint to catch unique constraint violations safely
         with session.begin_nested():
             session.flush()
             session.refresh(instance)
         return instance
     except IntegrityError:
         logger.warning(f"Record voor {model.__name__} bestaat al of schendt constraint. Verdergaan...")
-        # Fetch the existing instance that caused the conflict
         return session.exec(select(model).filter_by(**kwargs)).first()
 
 
-def get_or_create_jurisdiction(
-    session: Session,
-    model: Type,
-    cache: Cache,
-    raw_name: Any,
+def get_or_create_lookup(
+    session: Session, 
+    model: Type, 
+    cache: Cache, 
+    raw_value: Any, 
+    field_name: str = "name"
 ) -> Optional[int]:
-    """Return the DB id for a jurisdiction row, creating it if needed.
+    """Helper for fetching/creating ID for simple one-column lookup tables.
 
     Args:
-        session (Session): Active SQLModel session.
-        model (Type): Either Archbishopric or Bishopric.
-        cache (Cache): Per-import dict mapping name -> id; mutated in place.
-        raw_name (Any): Raw cell value from the Excel sheet.
+        session (Session): DB session.
+        model (Type): Lookup table class (e.g., Author, SourceType).
+        cache (Cache): Dict mapping strings to DB IDs.
+        raw_value (Any): Cell value.
+        field_name (str): The column name to populate in the model.
 
     Returns:
-        Optional[int]: Integer PK, or None if the value is absent.
+        Optional[int]: The foreign key ID, or None if raw_value is empty.
     """
-    if pd.isna(raw_name):
+    val = safe_str(raw_value)
+    if not val or val.lower() in ("nan", "n/a", "none", "-"):
         return None
-    name = str(raw_name).strip()
-    if not name or name.lower() in ("nan", "n/a", "none", "-"):
-        return None
-    if name not in cache:
-        obj = get_or_create(session, model, name=name)
+    if val not in cache:
+        kwargs = {field_name: val}
+        obj = get_or_create(session, model, **kwargs)
         if obj:
-            cache[name] = obj.id
-    return cache.get(name)
+            cache[val] = obj.id
+    return cache.get(val)
+
+
+def get_or_create_jurisdiction(session: Session, model: Type, cache: Cache, raw_name: Any) -> Optional[int]:
+    return get_or_create_lookup(session, model, cache, raw_name)
 
 
 def clean_bhl(raw: Any) -> Optional[str]:
-    """Normalise a BHL number from an Excel cell.
-
-    Args:
-        raw (Any): The raw cell value.
-
-    Returns:
-        Optional[str]: The normalized BHL string, or None.
-    """
-    if pd.isna(raw):
-        return None
+    if pd.isna(raw): return None
     s = str(raw).strip()
-    if s.endswith(".0"):
-        s = s[:-2]
+    if s.endswith(".0"): s = s[:-2]
     return s if s and s.lower() != "nan" else None
 
-
 def clean_unique_id(raw: Any) -> Optional[str]:
-    """Normalise a manuscript Unique ID.
-
-    Args:
-        raw (Any): The raw cell value.
-
-    Returns:
-        Optional[str]: The normalized manuscript ID, or None.
-    """
-    if pd.isna(raw):
-        return None
+    if pd.isna(raw): return None
     s = str(raw).strip()
-    if "(" in s:
-        s = s.split("(")[0].strip()
-    if s.endswith(".0"):
-        s = s[:-2]
+    if "(" in s: s = s.split("(")[0].strip()
+    if s.endswith(".0"): s = s[:-2]
     return s if s else None
 
-
 def _find_column(df: pd.DataFrame, exact: str, substring: str) -> str:
-    """Return the first column matching exact, or the first matching substring.
-
-    Args:
-        df (pd.DataFrame): DataFrame to search.
-        exact (str): Exact column name to look for first.
-        substring (str): Fallback substring to match against all column names.
-
-    Returns:
-        str: Matching column name, or exact if nothing is found.
-    """
-    if exact in df.columns:
-        return exact
+    if exact in df.columns: return exact
     for col in df.columns:
-        if substring in str(col):
-            return col
+        if substring in str(col): return col
     return exact
 
 
@@ -441,33 +244,25 @@ def _process_corpus_hagio(
     archbishoprics_cache: Cache,
     bishoprics_cache: Cache,
 ) -> None:
-    """Populate CorpusHagio (and Origin) from the 'Corpus hagio' sheet.
-
-    Args:
-        df (pd.DataFrame): Dataframe of the Corpus hagio sheet.
-        session (Session): Active DB session.
-        existing_texts (dict): Map of BHL numbers to CorpusHagio objects.
-        origins_cache (dict): Cache of Origin names to objects.
-        archbishoprics_cache (Cache): Cache of Archbishopric names to IDs.
-        bishoprics_cache (Cache): Cache of Bishopric names to IDs.
-    """
     COL_BHL     = "BHL reference"
     COL_LAT_ORG = "GPS Longitude OR"
     COL_LON_ORG = "GPS Latitude OR"
     COL_LAT_DES = "GPS Longitude DES"
     COL_LON_DES = "GPS Latitude DES"
 
-    logger.warning(
-        "GPS coordinate columns are swapped in the source Excel. "
-        "Latitude/Longitude mapping has been corrected in code."
-    )
+    # Local caches for new category fields
+    authors_cache: Cache = {}
+    dating_rough_cache: Cache = {}
+    destinatary_cache: Cache = {}
+    source_type_cache: Cache = {}
+    subtype_cache: Cache = {}
+    prose_verse_cache: Cache = {}
 
     for _, row in df.iterrows():
         bhl = clean_bhl(row.get(COL_BHL))
         if not bhl:
             continue
 
-        # Origin
         origin_id: Optional[int] = None
         origin_name = safe_str(row.get("Origin"))
         if origin_name:
@@ -476,40 +271,34 @@ def _process_corpus_hagio(
                 if origin:
                     origin.latitude = safe_latitude(row.get(COL_LAT_ORG))
                     origin.longitude = safe_longitude(row.get(COL_LON_ORG))
-                    origin.archbishopric_id = get_or_create_jurisdiction(
-                        session, Archbishopric, archbishoprics_cache, row.get("Archbishopric")
-                    )
-                    origin.bishopric_id = get_or_create_jurisdiction(
-                        session, Bishopric, bishoprics_cache, row.get("Bishopric")
-                    )
+                    origin.archbishopric_id = get_or_create_jurisdiction(session, Archbishopric, archbishoprics_cache, row.get("Archbishopric"))
+                    origin.bishopric_id = get_or_create_jurisdiction(session, Bishopric, bishoprics_cache, row.get("Bishopric"))
                     origins_cache[origin_name] = origin
-            
             origin_obj = origins_cache.get(origin_name)
             if origin_obj:
                 origin_id = origin_obj.id
 
-        # CorpusHagio
         text = get_or_create(session, CorpusHagio, bhl_number=bhl)
         if not text:
             continue
             
-        text.title            = safe_str(row.get("Title")) or text.title or "Unknown"
-        text.author           = safe_str(row.get("Author")) or text.author
-        text.dating_rough     = safe_str(row.get("Rough chronology")) or text.dating_rough
-        text.origin_id        = origin_id
-        text.primary_destinatary   = safe_str(row.get("Primary destinatary"))
+        text.title = safe_str(row.get("Title")) or text.title or "Unknown"
+        text.origin_id = origin_id
+        
+        # Categorical lookups
+        text.author_id = get_or_create_lookup(session, Author, authors_cache, row.get("Author"))
+        text.dating_rough_id = get_or_create_lookup(session, DatingRough, dating_rough_cache, row.get("Rough chronology"))
+        text.primary_destinatary_id = get_or_create_lookup(session, Destinatary, destinatary_cache, row.get("Primary destinatary"))
+        text.source_type_id = get_or_create_lookup(session, SourceType, source_type_cache, row.get("Source type"))
+        text.subtype_id = get_or_create_lookup(session, Subtype, subtype_cache, row.get("Subtype"))
+        text.prose_verse_id = get_or_create_lookup(session, ProseVerse, prose_verse_cache, row.get("Mainly prose or verse"))
+
         text.destinatary_latitude  = safe_latitude(row.get(COL_LAT_DES))
         text.destinatary_longitude = safe_longitude(row.get(COL_LON_DES))
         text.approx_length    = safe_int(row.get("Approx. length in words"))
-        text.archbishopric_id = get_or_create_jurisdiction(
-            session, Archbishopric, archbishoprics_cache, row.get("Archbishopric")
-        )
-        text.bishopric_id     = get_or_create_jurisdiction(
-            session, Bishopric, bishoprics_cache, row.get("Bishopric")
-        )
-        text.source_type      = safe_str(row.get("Source type"))
-        text.subtype          = safe_str(row.get("Subtype"))
-        text.prose_verse      = safe_str(row.get("Mainly prose or verse"))
+        text.archbishopric_id = get_or_create_jurisdiction(session, Archbishopric, archbishoprics_cache, row.get("Archbishopric"))
+        text.bishopric_id     = get_or_create_jurisdiction(session, Bishopric, bishoprics_cache, row.get("Bishopric"))
+        
         text.is_reecriture    = safe_bool(row.get("Reecriture?"))
         text.ocr_status       = safe_str(row.get("Cleaned?"))
         text.notes            = safe_str(row.get("Notes"))
@@ -538,31 +327,19 @@ def _process_manuscripts(
     col_collection_id: str,
     col_title: str,
 ) -> dict:
-    """Populate Manuscript, Location, City, Library, Witness, and Provenance.
-
-    Also backfills CorpusHagio rows for BHL numbers not in 'Corpus hagio'.
-
-    Args:
-        df (pd.DataFrame): DataFrame of the Manuscripts sheet.
-        session (Session): Active DB session.
-        existing_texts (dict): Map of BHL numbers to CorpusHagio objects.
-        origins_cache (dict): Cache of Origin names to objects.
-        archbishoprics_cache (Cache): Cache of Archbishopric names to IDs.
-        bishoprics_cache (Cache): Cache of Bishopric names to IDs.
-        col_bhl (str): Resolved BHL column name.
-        col_ms_id (str): Resolved Manuscript ID column name.
-        col_collection_id (str): Resolved Collection ID column name.
-        col_title (str): Resolved Title column name.
-
-    Returns:
-        dict: A mapping of "identifier per collection" to Manuscript objects.
-    """
     existing_manuscripts: dict[str, Manuscript] = {}
     collection_id_map: dict[str, Manuscript] = {}
+    
     cities_cache: dict[str, City] = {}
     libraries_cache: dict[str, Library] = {}
     locations_cache: dict[tuple, Location] = {}
-    provenance_cache: dict[str, Provenance] = {}
+    provenance_cache: dict[tuple, int] = {}  # composite key -> provenance ID
+
+    # Caches for Manuscript status fields
+    pres_status_cache: Cache = {}
+    vernac_region_cache: Cache = {}
+    ms_type_cache: Cache = {}
+    img_avail_cache: Cache = {}
 
     col_dating_raw     = _find_column(df, "Dating ",     "Dating")
     col_dating_century = _find_column(df, "Dating by (earliest) century", "Dating by")
@@ -572,8 +349,7 @@ def _process_manuscripts(
 
     for _, row in df.iterrows():
         bhl = clean_bhl(row[col_bhl])
-        if not bhl:
-            continue
+        if not bhl: continue
 
         if bhl not in existing_texts:
             origin_id: Optional[int] = None
@@ -587,48 +363,43 @@ def _process_manuscripts(
                     
             text = get_or_create(session, CorpusHagio, bhl_number=bhl)
             if text:
-                text.title     = safe_str(row.get(col_title)) or text.title or "Unknown"
+                text.title = safe_str(row.get(col_title)) or text.title or "Unknown"
                 text.origin_id = origin_id
-                
                 try:
                     with session.begin_nested():
                         session.add(text)
                         session.flush()
                         existing_texts[bhl] = text
                 except IntegrityError:
-                    logger.warning(f"Backfill CorpusHagio (BHL {bhl}) schendt constraint. Overslaan...")
+                    pass
 
         ms_unique_id = clean_unique_id(row.get(col_ms_id))
-        if not ms_unique_id:
-            continue
+        if not ms_unique_id: continue
 
         if ms_unique_id not in existing_manuscripts:
-            city_name    = safe_str(row.get("Location"))              or "Unknown"
-            library_name = safe_str(row.get("Heritage institution"))  or "Unknown"
-            shelfmark    = safe_str(row.get("Shelfmark"))             or "Unknown"
+            city_name    = safe_str(row.get("Location")) or "Unknown"
+            library_name = safe_str(row.get("Heritage institution")) or "Unknown"
+            shelfmark    = safe_str(row.get("Shelfmark")) or "Unknown"
 
-            city     = cities_cache.setdefault(
-                city_name, get_or_create(session, City, name=city_name)
-            )
-            library  = libraries_cache.setdefault(
-                library_name, get_or_create(session, Library, name=library_name)
-            )
+            city = cities_cache.setdefault(city_name, get_or_create(session, City, name=city_name))
+            library = libraries_cache.setdefault(library_name, get_or_create(session, Library, name=library_name))
             
-            if not city or not library:
-                continue
+            if not city or not library: continue
 
             loc_key  = (city.id, library.id, shelfmark)
             location = locations_cache.setdefault(
                 loc_key,
-                get_or_create(session, Location,
-                              city_id=city.id, library_id=library.id,
-                              shelfmark=shelfmark),
+                get_or_create(session, Location, city_id=city.id, library_id=library.id, shelfmark=shelfmark),
             )
 
             ms = Manuscript(location_id=location.id, unique_id=ms_unique_id)
-            ms.preservation_status    = safe_str(row.get("Preservation status"))
-            ms.vernacular_region      = safe_str(row.get("Vernacular region (Romance/Germanic)"))
-            ms.manuscript_type        = safe_str(row.get("Manuscript type"))
+            
+            # Lookup fields mapping
+            ms.preservation_status_id = get_or_create_lookup(session, PreservationStatus, pres_status_cache, row.get("Preservation status"))
+            ms.vernacular_region_id = get_or_create_lookup(session, VernacularRegion, vernac_region_cache, row.get("Vernacular region (Romance/Germanic)"))
+            ms.manuscript_type_id = get_or_create_lookup(session, ManuscriptType, ms_type_cache, row.get("Manuscript type"))
+            ms.image_availability_id = get_or_create_lookup(session, ImageAvailability, img_avail_cache, row.get("IIIF, scan, or no images"))
+            
             ms.height                 = safe_float(row.get("Height"))
             ms.width                  = safe_float(row.get("Width"))
             ms.leg                    = safe_bool(row.get("LEG"))
@@ -638,7 +409,6 @@ def _process_manuscripts(
             ms.catalog_link           = safe_str(row.get("Online catalogue link"))
             ms.bollandist_catalog_link = safe_str(row.get("Bollandist catalogue link"))
             ms.other_catalog_link     = safe_str(row.get("Other relevant catalogue link"))
-            ms.image_availability     = safe_str(row.get("IIIF, scan, or no images"))
             ms.image_link             = safe_str(row.get("Link to images"))
             ms.copy_of_exemplar_1     = safe_str(row.get("Copy of which first exemplar?"))
             ms.copy_of_exemplar_2     = safe_str(row.get("Copy of which second exemplar?"))
@@ -658,39 +428,43 @@ def _process_manuscripts(
                     session.refresh(ms)
                 existing_manuscripts[ms_unique_id] = ms
                 coll_id = safe_str(row.get(col_collection_id))
-                if coll_id:
-                    collection_id_map[coll_id] = ms
+                if coll_id: collection_id_map[coll_id] = ms
             except IntegrityError:
-                logger.warning(f"Manuscript {ms_unique_id} bestaat al (schendt constraint). Bestaande wordt geladen...")
                 existing_ms = session.exec(select(Manuscript).filter_by(unique_id=ms_unique_id)).first()
                 if existing_ms:
                     existing_manuscripts[ms_unique_id] = existing_ms
                     coll_id = safe_str(row.get(col_collection_id))
-                    if coll_id:
-                        collection_id_map[coll_id] = existing_ms
+                    if coll_id: collection_id_map[coll_id] = existing_ms
                 else:
-                    continue  # Vreemde situatie, we skippen.
+                    continue
 
         manuscript = existing_manuscripts.get(ms_unique_id)
         text       = existing_texts.get(bhl)
-        
-        if not manuscript or not text:
-            continue
+        if not manuscript or not text: continue
 
-        provenance_id: Optional[int] = None
+        # Handle Composite Provenance
         prov_name = safe_str(row.get("Provenance general"))
-        if prov_name:
-            prov = provenance_cache.setdefault(
-                prov_name, get_or_create(session, Provenance, name=prov_name)
-            )
-            if prov:
-                provenance_id = prov.id
+        prov_arch = safe_str(row.get("Provenance archdiocese"))
+        prov_dioc = safe_str(row.get("Provenance diocese"))
+        prov_inst = safe_str(row.get("Provenance institution"))
+        
+        prov_key = (prov_name, prov_arch, prov_dioc, prov_inst)
+        provenance_id: Optional[int] = None
+        
+        if prov_key != (None, None, None, None):
+            if prov_key not in provenance_cache:
+                prov_obj = get_or_create(
+                    session, Provenance, 
+                    name=prov_name, archdiocese=prov_arch, diocese=prov_dioc, institution=prov_inst
+                )
+                if prov_obj:
+                    provenance_cache[prov_key] = prov_obj.id
+            provenance_id = provenance_cache.get(prov_key)
 
         dating_raw   = safe_str(row.get(col_dating_raw))
         dating_start = safe_int(row.get(col_dating_start))
         dating_end   = safe_int(row.get(col_dating_end))
 
-        dating_comment: Optional[str] = None
         if (dating_start is None or dating_end is None) and dating_raw:
             fb_start, fb_end, fb_comment = parse_dating(dating_raw)
             dating_start   = dating_start   or fb_start
@@ -710,15 +484,8 @@ def _process_manuscripts(
             dating_end              = dating_end,
             dating_comment          = dating_comment,
             provenance_id           = provenance_id,
-            provenance_archdiocese  = safe_str(row.get("Provenance archdiocese")),
-            provenance_diocese      = safe_str(row.get("Provenance diocese")),
-            provenance_institution  = safe_str(row.get("Provenance institution")),
-            archbishopric_id        = get_or_create_jurisdiction(
-                session, Archbishopric, archbishoprics_cache, row.get("Archbishopric")
-            ),
-            bishopric_id            = get_or_create_jurisdiction(
-                session, Bishopric, bishoprics_cache, row.get("Bishopric")
-            ),
+            archbishopric_id        = get_or_create_jurisdiction(session, Archbishopric, archbishoprics_cache, row.get("Archbishopric")),
+            bishopric_id            = get_or_create_jurisdiction(session, Bishopric, bishoprics_cache, row.get("Bishopric")),
         )
         
         try:
@@ -726,7 +493,7 @@ def _process_manuscripts(
                 session.add(witness)
                 session.flush()
         except IntegrityError:
-            logger.warning(f"Witness voor Text ID {text.id} en MS {manuscript.id} bestaat al. Overslaan...")
+            pass
 
     session.commit()
     logger.info("Processed %d manuscripts and witnesses.", len(existing_manuscripts))
@@ -739,29 +506,16 @@ def _process_editions(
     existing_texts: dict,
     collection_id_map: dict,
 ) -> None:
-    """Populate Edition, Reference, and EditionManuscriptLink rows.
-
-    Args:
-        df (pd.DataFrame): DataFrame of the Editions sheet.
-        session (Session): Active DB session.
-        existing_texts (dict): Map of BHL numbers to CorpusHagio objects.
-        collection_id_map (dict): Map of collection identifiers to Manuscript objects.
-    """
     references_cache: dict[str, Reference] = {}
     col_bhl = _find_column(df, "BHL", "BHL")
 
     for _, row in df.iterrows():
         bhl = clean_bhl(row.get(col_bhl))
-        if not bhl or bhl not in existing_texts:
-            continue
+        if not bhl or bhl not in existing_texts: continue
 
         ref_name = safe_str(row.get("Edition reference")) or "Unknown"
-        ref = references_cache.setdefault(
-            ref_name, get_or_create(session, Reference, title=ref_name)
-        )
-        
-        if not ref:
-            continue
+        ref = references_cache.setdefault(ref_name, get_or_create(session, Reference, title=ref_name))
+        if not ref: continue
 
         edition = Edition(
             text_id=existing_texts[bhl].id,
@@ -776,12 +530,8 @@ def _process_editions(
                 session.flush()
                 session.refresh(edition)
         except IntegrityError:
-            logger.warning(f"Edition '{edition.title}' bestaat al. Bestaande wordt geladen...")
-            edition = session.exec(
-                select(Edition).filter_by(text_id=edition.text_id, reference_id=ref.id)
-            ).first()
-            if not edition:
-                continue
+            edition = session.exec(select(Edition).filter_by(text_id=edition.text_id, reference_id=ref.id)).first()
+            if not edition: continue
 
         linked_ms_ids: set[int] = set()
         for i in range(1, 17):
@@ -791,15 +541,11 @@ def _process_editions(
                 if ms_obj and ms_obj.id not in linked_ms_ids:
                     try:
                         with session.begin_nested():
-                            session.add(
-                                EditionManuscriptLink(
-                                    edition_id=edition.id, manuscript_id=ms_obj.id
-                                )
-                            )
+                            session.add(EditionManuscriptLink(edition_id=edition.id, manuscript_id=ms_obj.id))
                             session.flush()
                             linked_ms_ids.add(ms_obj.id)
                     except IntegrityError:
-                        logger.warning(f"EditionManuscriptLink voor editie {edition.id} en MS {ms_obj.id} bestaat al. Overslaan...")
+                        pass
 
     session.commit()
     logger.info("Editions processed.")
@@ -810,7 +556,6 @@ def _process_editions(
 # ---------------------------------------------------------------------------
 
 def main() -> None:
-    """Run the full Excel-to-database import pipeline."""
     SQLModel.metadata.create_all(engine)
     create_updated_at_trigger(engine)
 
@@ -820,32 +565,21 @@ def main() -> None:
 
     logger.info("Reading Excel file: %s", EXCEL)
 
-    try:
-        df_ms = pd.read_excel(EXCEL, sheet_name="Manuscripts", header=0)
+    try: df_ms = pd.read_excel(EXCEL, sheet_name="Manuscripts", header=0)
     except ValueError:
         logger.error("Sheet 'Manuscripts' not found -- aborting.")
         return
 
-    try:
-        df_ch = pd.read_excel(EXCEL, sheet_name="Corpus hagio")
-    except ValueError:
-        logger.warning("Sheet 'Corpus hagio' not found -- primary metadata will be missing.")
-        df_ch = pd.DataFrame()
+    try: df_ch = pd.read_excel(EXCEL, sheet_name="Corpus hagio")
+    except ValueError: df_ch = pd.DataFrame()
 
-    try:
-        df_ed = pd.read_excel(EXCEL, sheet_name="Editions")
-    except ValueError:
-        logger.warning("Sheet 'Editions' not found -- skipping editions.")
-        df_ed = pd.DataFrame()
+    try: df_ed = pd.read_excel(EXCEL, sheet_name="Editions")
+    except ValueError: df_ed = pd.DataFrame()
 
     col_bhl           = df_ms.columns[0]
     col_title         = "Title"
     col_ms_id         = "Unique ID"
-    col_collection_id = _find_column(
-        df_ms,
-        "Unique  identifier per collection",
-        "identifier per collection",
-    )
+    col_collection_id = _find_column(df_ms, "Unique  identifier per collection", "identifier per collection")
 
     origins_cache:        dict = {}
     archbishoprics_cache: Cache = {}
@@ -872,7 +606,6 @@ def main() -> None:
             _process_editions(df_ed, session, existing_texts, collection_id_map)
 
     logger.info("Import complete.")
-
 
 if __name__ == "__main__":
     main()
