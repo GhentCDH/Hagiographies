@@ -3,7 +3,7 @@ services:
   data-management:
     build:
       context: .
-      dockerfile: docker/kottster.Dockerfile
+      dockerfile: kottster/Dockerfile
     volumes:
       - ./kottster/app:/app/app
       - ./data:/data
@@ -16,7 +16,7 @@ services:
   utils:
     build:
       context: .
-      dockerfile: docker/utils.Dockerfile
+      dockerfile: utils/Dockerfile
     volumes:
       - ./utils:/app/
       - ./data:/data
