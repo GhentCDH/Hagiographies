@@ -107,15 +107,8 @@
 
     .tab-btn:hover { color: var(--text); }
 
-    .tab-btn.active[data-mode="hagiographies"] {
-      color: var(--blue);
-      border-top-color: var(--blue);
-    }
-
-    .tab-btn.active[data-mode="search"] {
-      color: var(--accent);
-      border-top-color: var(--accent);
-    }
+    .tab-btn.active[data-mode="hagiographies"] { color: var(--blue); border-top-color: var(--blue); }
+    .tab-btn.active[data-mode="search"] { color: var(--accent); border-top-color: var(--accent); }
 
     /* ── Scrollable panel area ──────────────────────────────────── */
     .panel {
@@ -147,22 +140,14 @@
       text-align: center;
       gap: 8px;
     }
-
     .empty-state svg { opacity: .3; }
 
-    /* ── Origin detail (Hagiographies panel) ────────────────────────── */
+    /* ── Lists and Tables ──────────────────────────────────────── */
     .variety-name {
       font-size: 20px;
       font-weight: 600;
       margin: 0 0 8px;
       line-height: 1.2;
-    }
-
-    .meta-row {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 5px 8px;
-      margin-bottom: 14px;
     }
 
     .badge {
@@ -173,9 +158,11 @@
       border: 1px solid var(--border);
       background: var(--bg-3);
       color: var(--text-2);
+      display: inline-block;
+      margin-bottom: 4px;
     }
-
-    .badge-blue      { background: #0c2040; border-color: var(--blue-dim);   color: var(--blue); }
+    .badge-blue { background: #0c2040; border-color: var(--blue-dim); color: var(--blue); }
+    .badge-accent { background: #403000; border-color: var(--accent-dim); color: var(--accent); }
 
     .entries-header {
       font-size: 11px;
@@ -191,7 +178,6 @@
       border-collapse: collapse;
       font-size: 12.5px;
     }
-
     .entry-table th {
       text-align: left;
       padding: 6px 8px;
@@ -202,278 +188,68 @@
       color: var(--text-2);
       letter-spacing: .04em;
     }
-
     .entry-table td {
       padding: 7px 8px;
       border-bottom: 1px solid var(--border-2);
       vertical-align: top;
     }
 
-    .entry-table tr:hover td { background: var(--bg-3); }
-
+    /* Klikbare rijen */
+    .clickable-row {
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .clickable-row:hover td {
+      background: var(--bg-3);
+      border-bottom-color: var(--blue);
+    }
     .entry-table td.term {
       font-family: var(--mono);
       font-size: 12px;
       color: var(--text);
     }
 
-    /* ── Search panel ────────────────────────────────────── */
-    .evo-section {
-      border-bottom: 1px solid var(--border-2);
-      padding-bottom: 16px;
-      margin-bottom: 16px;
+    /* ── Detail overlay (Text specific) ────────────────────────── */
+    .text-detail-container {
+      background: var(--bg-2);
+      animation: fadeIn 0.2s;
     }
-
-    .evo-section:last-child { border-bottom: none; margin-bottom: 0; }
-
-    .evo-label {
-      font-size: 11px;
-      font-weight: 500;
-      letter-spacing: .08em;
-      text-transform: uppercase;
-      color: var(--text-3);
-      margin-bottom: 10px;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
-
-    .evo-label span {
-      display: inline-block;
-      width: 6px; height: 6px;
-      border-radius: 50%;
-      background: var(--accent);
-    }
-
-    /* Sub-tabs for search categories */
-    .sub-tabs {
-      display: flex;
-      gap: 10px;
-      margin-bottom: 12px;
-      padding-bottom: 8px;
-      border-bottom: 1px solid var(--border-2);
-    }
-    .sub-tab-btn {
-      background: none;
-      border: 1px solid transparent;
+    .td-header {
+      font-family: var(--mono);
       color: var(--text-2);
       font-size: 11px;
-      font-family: var(--mono);
-      cursor: pointer;
-      padding: 3px 6px;
-      border-radius: 4px;
-      transition: all .15s;
-    }
-    .sub-tab-btn:hover { color: var(--text); }
-    .sub-tab-btn.active {
-      color: var(--accent);
-      border-color: var(--accent-dim);
-      background: #2a2000;
-    }
-
-    .filter-group {
-      margin-bottom: 12px;
-    }
-    .filter-group label {
-      display: block;
-      font-size: 10px;
-      color: var(--text-3);
-      text-transform: uppercase;
       margin-bottom: 4px;
-      font-weight: 500;
     }
-    .filter-group select, .filter-group input[type="text"] {
-      width: 100%;
-      background: var(--bg-3);
-      border: 1px solid var(--border);
-      color: var(--text);
-      padding: 6px 8px;
-      border-radius: var(--radius);
-      font-size: 12px;
-    }
-    .filter-group .checkbox-row {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 10px;
-      margin-top: 4px;
-    }
-    .filter-group .checkbox-item {
-      display: flex;
-      align-items: center;
-      gap: 4px;
-      font-size: 12px;
-      color: var(--text-2);
-      cursor: pointer;
-    }
-    .filter-group .checkbox-item input {
-      accent-color: var(--accent);
-    }
-
-    .filter-actions {
-      display: flex;
-      gap: 8px;
-      margin-top: 12px;
-    }
-
-    .btn-primary {
-      flex: 1;
-      padding: 8px;
-      background: var(--accent);
-      color: #000;
-      border: none;
-      border-radius: var(--radius);
-      font-family: var(--mono);
-      font-size: 12px;
-      font-weight: 500;
-      cursor: pointer;
-      transition: opacity .15s;
-      letter-spacing: .04em;
-    }
-
-    .btn-primary:hover { opacity: .85; }
-    .btn-primary:disabled { opacity: .4; cursor: not-allowed; }
-
-    .btn-ghost {
-      padding: 8px 12px;
-      background: none;
-      color: var(--text-2);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      font-family: var(--mono);
-      font-size: 12px;
-      cursor: pointer;
-      transition: color .15s, border-color .15s;
-    }
-
-    .btn-ghost:hover { color: var(--text); border-color: var(--text-2); }
-
-    .badge-accent    { background: #403000; border-color: var(--accent-dim); color: var(--accent); }
-    .sub-panel { animation: fadeIn .2s; }
-    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-
-    /* ── Search results ─────────────────────────────────────────── */
-    .results-meta {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      margin-bottom: 10px;
-    }
-
-    .results-count {
-      font-family: var(--mono);
-      font-size: 11px;
-      color: var(--text-2);
-    }
-
-    .results-count strong {
-      color: var(--accent);
-      font-weight: 500;
-    }
-
-    /* Origin cards (Search results) */
-    .var-card {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      padding: 9px 12px;
-      background: var(--bg-3);
-      border: 1px solid var(--border-2);
-      border-radius: var(--radius);
-      margin-bottom: 5px;
-      cursor: pointer;
-      transition: border-color .15s, background .15s;
-    }
-
-    .var-card:hover, .var-card.selected {
-      border-color: var(--blue);
-      background: #0c1e30;
-    }
-
-    .var-dot {
-      width: 8px; height: 8px;
-      border-radius: 50%;
-      background: var(--blue);
-      flex-shrink: 0;
-    }
-
-    .var-info { flex: 1; min-width: 0; }
-
-    .var-name {
-      font-size: 13px;
-      font-weight: 500;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-
-    .var-sub {
-      font-size: 11px;
-      color: var(--text-2);
-      margin-top: 1px;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-
-    .var-count {
-      font-family: var(--mono);
-      font-size: 11px;
-      color: var(--accent);
-      flex-shrink: 0;
-    }
-
-    /* ── Detail overlay ─────────────────────────────────────────── */
-    .detail-header {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      margin-bottom: 14px;
-      padding-bottom: 12px;
-      border-bottom: 1px solid var(--border-2);
-    }
-
-    .btn-back {
-      background: none;
-      border: 1px solid var(--border);
-      color: var(--text-2);
-      padding: 4px 9px;
-      border-radius: var(--radius);
-      font-size: 12px;
-      font-family: var(--mono);
-      cursor: pointer;
-      transition: color .15s, border-color .15s;
-      flex-shrink: 0;
-    }
-
-    .btn-back:hover { color: var(--text); border-color: var(--text-2); }
-
-    .detail-title {
-      font-family: var(--mono);
-      font-size: 16px;
+    .td-title {
+      font-size: 18px;
+      font-weight: 600;
       color: var(--blue);
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
+      margin-bottom: 12px;
+      line-height: 1.3;
     }
-
-    .detail-block {
+    .td-section {
       background: var(--bg-3);
-      border: 1px solid var(--border-2);
+      border: 1px solid var(--border);
       border-radius: var(--radius);
-      padding: 10px 12px;
+      padding: 12px;
+      margin-bottom: 12px;
+    }
+    .td-label {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-3);
+      margin-bottom: 4px;
+      font-weight: 600;
+    }
+    .td-value {
+      font-size: 13px;
+      color: var(--text);
       margin-bottom: 10px;
     }
+    .td-value:last-child { margin-bottom: 0; }
 
-    .detail-block-label {
-      font-size: 10px;
-      font-weight: 500;
-      letter-spacing: .08em;
-      text-transform: uppercase;
-      color: var(--text-3);
-      margin-bottom: 6px;
-    }
-
-    /* ── Map popup ──────────────────────────────────────────────── */
+    /* ── Map controls & Legend ──────────────────────────────────── */
     .maplibregl-popup-content {
       background: var(--bg-2) !important;
       border: 1px solid var(--border) !important;
@@ -481,57 +257,12 @@
       padding: 0 !important;
       box-shadow: 0 4px 20px rgba(0,0,0,.5) !important;
     }
-
     .maplibregl-popup-tip { display: none; }
+    .popup-inner { padding: 10px 12px; min-width: 160px; }
+    .popup-name { font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 3px; }
+    .popup-sub { font-size: 11px; color: var(--text-2); }
+    .popup-blr { margin-top: 5px; font-family: var(--mono); font-size: 11px; color: var(--accent); }
 
-    .popup-inner {
-      padding: 10px 12px;
-      min-width: 160px;
-    }
-
-    .popup-name {
-      font-size: 13px;
-      font-weight: 600;
-      color: var(--text);
-      margin-bottom: 3px;
-    }
-
-    .popup-sub {
-      font-size: 11px;
-      color: var(--text-2);
-    }
-
-    .popup-blr {
-      margin-top: 5px;
-      font-family: var(--mono);
-      font-size: 11px;
-      color: var(--accent);
-    }
-
-    /* ── Map controls ───────────────────────────────────────────── */
-    .maplibregl-ctrl-group {
-      background: var(--bg-2) !important;
-      border: 1px solid var(--border) !important;
-    }
-
-    .maplibregl-ctrl-group button {
-      background: none !important;
-      color: var(--text-2) !important;
-    }
-
-    .maplibregl-ctrl-group button:hover {
-      background: var(--bg-3) !important;
-      color: var(--text) !important;
-    }
-
-    .maplibregl-ctrl-attrib {
-      background: rgba(13,17,23,.8) !important;
-      color: var(--text-3) !important;
-    }
-
-    .maplibregl-ctrl-attrib a { color: var(--text-3) !important; }
-
-    /* ── Legend chip ────────────────────────────────────────────── */
     #map-legend {
       position: absolute;
       bottom: 32px;
@@ -539,114 +270,91 @@
       background: rgba(13,17,23,.88);
       border: 1px solid var(--border);
       border-radius: var(--radius);
-      padding: 8px 10px;
+      padding: 10px 12px;
       font-size: 11px;
       backdrop-filter: blur(4px);
       pointer-events: none;
     }
-
-    .legend-row {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      color: var(--text-2);
-      margin-bottom: 4px;
-    }
-
+    .legend-row { display: flex; align-items: center; gap: 8px; color: var(--text-2); margin-bottom: 6px; }
     .legend-row:last-child { margin-bottom: 0; }
+    .legend-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+    .legend-cluster { width: 14px; height: 14px; border-radius: 50%; border: 1.5px solid #30363d; }
 
-    .legend-dot {
-      width: 8px; height: 8px;
-      border-radius: 50%;
-      flex-shrink: 0;
-    }
-
-    /* ── Loading / error ────────────────────────────────────────── */
-    #loading-overlay {
-      position: fixed;
-      inset: 0;
-      background: var(--bg);
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      gap: 12px;
-      z-index: 9999;
-      transition: opacity .3s;
-    }
-
-    #loading-overlay.hidden { opacity: 0; pointer-events: none; }
-
-    .loading-text {
-      font-family: var(--mono);
-      font-size: 13px;
+    .btn-ghost {
+      padding: 6px 10px;
+      background: none;
       color: var(--text-2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      font-family: var(--mono);
+      font-size: 11px;
+      cursor: pointer;
+      transition: color .15s, border-color .15s;
     }
+    .btn-ghost:hover { color: var(--text); border-color: var(--text-2); }
 
-    .spinner {
-      width: 24px; height: 24px;
-      border: 2px solid var(--border);
-      border-top-color: var(--blue);
-      border-radius: 50%;
-      animation: spin .7s linear infinite;
-    }
-
-    @keyframes spin { to { transform: rotate(360deg); } }
+    /* Search Filters Layout (Beknopt gehouden voor dit voorbeeld) */
+    .sub-tabs { display: flex; gap: 10px; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid var(--border-2); }
+    .sub-tab-btn { background: none; border: 1px solid transparent; color: var(--text-2); font-size: 11px; font-family: var(--mono); cursor: pointer; padding: 3px 6px; border-radius: 4px; }
+    .sub-tab-btn.active { color: var(--accent); border-color: var(--accent-dim); background: #2a2000; }
+    .filter-group { margin-bottom: 12px; }
+    .filter-group label { display: block; font-size: 10px; color: var(--text-3); text-transform: uppercase; margin-bottom: 4px; font-weight: 500; }
+    .filter-group select, .filter-group input[type="text"] { width: 100%; background: var(--bg-3); border: 1px solid var(--border); color: var(--text); padding: 6px 8px; border-radius: var(--radius); font-size: 12px; }
+    .filter-actions { display: flex; gap: 8px; margin-top: 12px; }
+    .btn-primary { flex: 1; padding: 8px; background: var(--accent); color: #000; border: none; border-radius: var(--radius); font-family: var(--mono); font-size: 12px; font-weight: 500; cursor: pointer; }
+    
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
   </style>
 </head>
 
 <body>
 
-<div id="loading-overlay">
-  <div class="spinner"></div>
-  <div class="loading-text">Data laden…</div>
-</div>
-
 <div id="app">
   <div id="map">
     <div id="map-legend">
-      <div class="legend-row"><div class="legend-dot" style="background:#388bfd"></div>Herkomst</div>
+      <div class="legend-row">
+        <div class="legend-cluster" style="background:#2d5fa6"></div>
+        Groep van plaatsen (getal = aantal)
+      </div>
+      <div class="legend-row">
+        <div class="legend-dot" style="background:#388bfd"></div>
+        Individuele herkomstplaats
+      </div>
       <div class="legend-row" id="legend-match" style="display:none">
-        <div class="legend-dot" style="background:#f0c040;box-shadow:0 0 5px #f0c040"></div>Zoekresultaat
+        <div class="legend-dot" style="background:#f0c040;box-shadow:0 0 5px #f0c040"></div>
+        Zoekresultaat
       </div>
     </div>
   </div>
 
   <div id="sidebar">
     <div class="s-header">
-      <div class="s-brand">
-        <span class="logo-bantu">HAGIOGRAPHIES</span>
-      </div>
+      <div class="s-brand"><span class="logo-bantu">HAGIOGRAPHIES</span></div>
       <div class="mode-tabs">
         <button class="tab-btn active" data-mode="hagiographies" onclick="setMode('hagiographies')">Lijst</button>
         <button class="tab-btn" data-mode="search" onclick="setMode('search')">Zoeken</button>
       </div>
     </div>
 
-    <!-- ── Hagiographies panel ── -->
     <div class="panel active" id="panel-hagiographies">
       <div class="panel-scroll" id="hagiographies-content">
         <div class="empty-state">
           <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-            <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/>
-            <line x1="12" y1="16" x2="12.01" y2="16"/>
+            <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
           </svg>
-          Klik op een marker om herkomstdetails te zien
+          Klik op een plaats op de kaart om de teksten te zien.
         </div>
       </div>
     </div>
 
-    <!-- ── Search panel ── -->
     <div class="panel" id="panel-search">
       <div style="padding:14px 18px 0; flex-shrink:0; border-bottom:1px solid var(--border-2);">
         <div class="sub-tabs">
           <button class="sub-tab-btn active" data-sub="tekst" onclick="setSubTab('tekst')">Tekst</button>
           <button class="sub-tab-btn" data-sub="handschrift" onclick="setSubTab('handschrift')">Handschrift</button>
-          <button class="sub-tab-btn" data-sub="editie" onclick="setSubTab('editie')">Editie</button>
         </div>
 
         <div id="search-filter-section">
-          <!-- Tekst Filters -->
           <div class="sub-panel active" id="sub-panel-tekst">
             <div class="filter-group">
               <label>Zoeken</label>
@@ -662,70 +370,34 @@
                 <select id="f-bish"><option value="">Alle</option></select>
               </div>
             </div>
-            <div class="filter-group">
-              <label>Bron-type</label>
-              <select id="f-source-type"><option value="">Alle</option></select>
-            </div>
           </div>
-
-          <!-- Handschrift Filters -->
           <div class="sub-panel" id="sub-panel-handschrift" style="display:none">
-            <div class="filter-group">
-              <label>Collecties</label>
-              <div class="checkbox-row">
-                <label class="checkbox-item"><input type="checkbox" name="f-coll" value="LEG"> LEG</label>
-                <label class="checkbox-item"><input type="checkbox" name="f-coll" value="DG"> DG</label>
-                <label class="checkbox-item"><input type="checkbox" name="f-coll" value="NASO"> NASO</label>
-              </div>
-            </div>
             <div class="filter-group">
               <label>Eeuw</label>
               <select id="f-century"><option value="">Alle</option></select>
             </div>
             <div class="filter-group">
-              <label>Herkomst (Provenance)</label>
+              <label>Herkomst</label>
               <select id="f-prov"><option value="">Alle</option></select>
             </div>
           </div>
-
-          <!-- Editie Filters -->
-          <div class="sub-panel" id="sub-panel-editie" style="display:none">
-            <div class="filter-group">
-              <label>Moderne Editie</label>
-              <select id="f-edition"><option value="">Alle</option></select>
-            </div>
-          </div>
-
           <div class="filter-actions" style="margin-bottom:14px">
-            <button class="btn-primary" id="btn-search" onclick="performSearch()">Filteren</button>
+            <button class="btn-primary" onclick="performSearch()">Filteren</button>
             <button class="btn-ghost" onclick="resetFilter()">Wis</button>
           </div>
         </div>
       </div>
 
-      <!-- Results (scrollable) -->
       <div class="panel-scroll" id="search-results">
-        <div class="empty-state" id="evo-empty">
-          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-            <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
-          </svg>
-          Voer een zoekterm in
-        </div>
+        <div class="empty-state" id="evo-empty">Voer een zoekterm in om resultaten te zien.</div>
         <div id="evo-result-body" style="display:none">
-          <div class="results-meta">
-            <div class="results-count" id="evo-count"></div>
-          </div>
+          <div id="evo-count" style="font-family:var(--mono); font-size:11px; color:var(--text-2); margin-bottom:10px"></div>
           <div id="evo-list-var"></div>
         </div>
-        <!-- Detail view (replaces result body) -->
         <div id="evo-detail" style="display:none"></div>
       </div>
-
     </div>
-  </div><!-- /sidebar -->
-</div><!-- /app -->
-
-<script src="https://unpkg.com/maplibre-gl@5/dist/maplibre-gl.js"></script>
+  </div></div><script src="https://unpkg.com/maplibre-gl@5/dist/maplibre-gl.js"></script>
 <script src="https://unpkg.com/pmtiles@4/dist/pmtiles.js"></script>
 <script src="https://unpkg.com/@protomaps/basemaps@5/dist/basemaps.js"></script>
 
@@ -733,594 +405,371 @@
 /* ═══════════════════════════════════════════════════════════════
    State
  ═══════════════════════════════════════════════════════════════ */
-let searchResults = null; // {features}
-let selectedVarietyId = null;
+let allFeatures = [];
+let searchResults = null;
 let popup = null;
-let currentSubTab = 'tekst';
+let currentMode = 'hagiographies';
+let _activeTextList = []; // Bewaart de huidige lijst teksten voor detailweergave
 let _lastFilter = {};
 
-/* ═══════════════════════════════════════════════════════════════
-   Map setup
- ═══════════════════════════════════════════════════════════════ */
 const protocol = new pmtiles.Protocol();
 maplibregl.addProtocol("pmtiles", protocol.tile);
 
 const map = new maplibregl.Map({
-  container: "map",
-  center: [5, 48],
-  zoom: 4,
+  container: "map", center: [5, 48], zoom: 4,
   style: {
     version: 8,
     glyphs:  "https://protomaps.github.io/basemaps-assets/fonts/{fontstack}/{range}.pbf",
     sprite:  "https://protomaps.github.io/basemaps-assets/sprites/v4/light",
     sources: {
       protomaps: {
-        type: "vector",
-        url:  `pmtiles:///local-map/data/world.pmtiles`,
-        attribution: '<a href="https://protomaps.com">Protomaps</a> © <a href="https://openstreetmap.org">OpenStreetMap</a>',
+        type: "vector", url: `pmtiles:///local-map/data/world.pmtiles`,
+        attribution: '<a href="https://protomaps.com">Protomaps</a> © OSM',
       }
     },
     layers: basemaps.layers("protomaps", basemaps.namedFlavor("dark"), { lang: "en" }),
   },
 });
-
 map.addControl(new maplibregl.NavigationControl());
 
 /* ═══════════════════════════════════════════════════════════════
-   Data loading
+   Data loading & Map Layers
  ═══════════════════════════════════════════════════════════════ */
-async function loadData() {
+map.on('load', async () => {
   const geoRes = await fetch(`local-map/data/hagiographies_map.geojson`).then(r => r.ok ? r.json() : null);
-
-  if (!geoRes) {
-    console.error('GeoJSON not found. Run export-map first.');
-    return null;
+  if (geoRes) {
+    allFeatures = geoRes.features;
+    initFilterDropdowns(geoRes);
+    initMapLayers(geoRes);
   }
-
-  allFeatures = geoRes.features;
-  initFilterDropdowns(geoRes);
-  return geoRes;
-}
-
-function setSubTab(sub) {
-  currentSubTab = sub;
-  document.querySelectorAll('.sub-tab-btn').forEach(b => {
-    b.classList.toggle('active', b.dataset.sub === sub);
-  });
-  document.querySelectorAll('.sub-panel').forEach(p => {
-    p.style.display = p.id === `sub-panel-${sub}` ? 'block' : 'none';
-  });
-}
+});
 
 function initFilterDropdowns(geojson) {
-  const arches = new Set();
-  const bishes = new Set();
-  const sourceTypes = new Set();
-  const centuries = new Set();
-  const provs = new Set();
-  const editions = new Set();
-
+  const arches = new Set(), bishes = new Set(), centuries = new Set(), provs = new Set();
   geojson.features.forEach(f => {
     const texts = typeof f.properties.texts === 'string' ? JSON.parse(f.properties.texts) : f.properties.texts;
     texts.forEach(t => {
       if (t.arch) arches.add(t.arch);
       if (t.bish) bishes.add(t.bish);
-      if (t.source_type) sourceTypes.add(t.source_type);
       if (t.centuries) t.centuries.forEach(c => centuries.add(c));
       if (t.provenances) t.provenances.forEach(p => provs.add(p));
-      if (t.edition_refs) t.edition_refs.forEach(e => editions.add(e));
     });
   });
-
-  populateSelect('f-arch', arches);
-  populateSelect('f-bish', bishes);
-  populateSelect('f-source-type', sourceTypes);
-  populateSelect('f-century', centuries);
-  populateSelect('f-prov', provs);
-  populateSelect('f-edition', editions);
+  populateSelect('f-arch', arches); populateSelect('f-bish', bishes);
+  populateSelect('f-century', centuries); populateSelect('f-prov', provs);
 }
 
 function populateSelect(id, set) {
   const s = document.getElementById(id);
   if (!s) return;
-  const items = Array.from(set).filter(x => x).sort();
-  items.forEach(item => {
-    const opt = document.createElement('option');
-    opt.value = item;
-    opt.textContent = item;
-    s.appendChild(opt);
+  Array.from(set).filter(x => x).sort().forEach(item => {
+    s.appendChild(new Option(item, item));
   });
 }
 
-/* ═══════════════════════════════════════════════════════════════
-   Map layers
- ═══════════════════════════════════════════════════════════════ */
 function initMapLayers(geojson) {
   const emptyFC = { type: 'FeatureCollection', features: [] };
 
-  // ── Hagiographies source (all points) ──
-  map.addSource('hagiographies', {
-    type: 'geojson',
-    data: geojson,
-    cluster: true,
-    clusterMaxZoom: 12,
-    clusterRadius: 45,
-  });
+  map.addSource('hagiographies', { type: 'geojson', data: geojson, cluster: true, clusterMaxZoom: 12, clusterRadius: 45 });
+  map.addSource('evo-dim', { type: 'geojson', data: emptyFC });
+  map.addSource('evo-match', { type: 'geojson', data: emptyFC });
 
-  // ── Search sources (matched / unmatched / highlighted) ──
-  map.addSource('evo-dim',     { type: 'geojson', data: emptyFC });
-  map.addSource('evo-match',   { type: 'geojson', data: emptyFC });
-  map.addSource('evo-select',  { type: 'geojson', data: emptyFC });
-
-  // ─ Hagiographies clusters ─
+  // Clusters
   map.addLayer({
-    id: 'h-clusters', type: 'circle', source: 'hagiographies',
-    filter: ['has', 'point_count'],
-    paint: {
-      'circle-color': ['step', ['get', 'point_count'],
-        '#2d5fa6', 50, '#1e7a8c', 200, '#155e75'],
-      'circle-radius': ['step', ['get', 'point_count'], 18, 50, 26, 200, 34],
-      'circle-stroke-width': 1.5, 'circle-stroke-color': '#30363d',
-    }
+    id: 'h-clusters', type: 'circle', source: 'hagiographies', filter: ['has', 'point_count'],
+    paint: { 'circle-color': ['step', ['get', 'point_count'], '#2d5fa6', 15, '#1e7a8c', 50, '#155e75'], 'circle-radius': ['step', ['get', 'point_count'], 18, 15, 24, 50, 30], 'circle-stroke-width': 1.5, 'circle-stroke-color': '#30363d' }
   });
-
   map.addLayer({
-    id: 'h-cluster-label', type: 'symbol', source: 'hagiographies',
-    filter: ['has', 'point_count'],
-    layout: {
-      'text-field': '{point_count_abbreviated}',
-      'text-font': ['Noto Sans Regular'],
-      'text-size': 11,
-    },
-    paint: { 'text-color': '#c9d1d9' }
+    id: 'h-cluster-label', type: 'symbol', source: 'hagiographies', filter: ['has', 'point_count'],
+    layout: { 'text-field': '{point_count_abbreviated}', 'text-size': 12 }, paint: { 'text-color': '#fff' }
   });
 
-  // ─ Hagiographies unclustered ─
+  // Points
   map.addLayer({
-    id: 'h-points', type: 'circle', source: 'hagiographies',
-    filter: ['!', ['has', 'point_count']],
-    paint: {
-      'circle-color': '#388bfd',
-      'circle-radius': 7,
-      'circle-stroke-width': 1.5,
-      'circle-stroke-color': '#0d1117',
-    }
+    id: 'h-points', type: 'circle', source: 'hagiographies', filter: ['!', ['has', 'point_count']],
+    paint: { 'circle-color': '#388bfd', 'circle-radius': 7, 'circle-stroke-width': 1.5, 'circle-stroke-color': '#0d1117' }
   });
 
-  // ─ Search dim layer (non-matching points) ─
-  map.addLayer({
-    id: 'evo-dim', type: 'circle', source: 'evo-dim',
-    paint: {
-      'circle-color': '#2a2d33',
-      'circle-radius': 6,
-      'circle-stroke-width': 1, 'circle-stroke-color': '#1c2330',
-    }
-  });
+  // Search Results
+  map.addLayer({ id: 'evo-dim', type: 'circle', source: 'evo-dim', paint: { 'circle-color': '#2a2d33', 'circle-radius': 6, 'circle-stroke-width': 1, 'circle-stroke-color': '#1c2330' } });
+  map.addLayer({ id: 'evo-match', type: 'circle', source: 'evo-match', paint: { 'circle-color': '#f0c040', 'circle-radius': 8, 'circle-stroke-width': 2, 'circle-stroke-color': '#0d1117' } });
 
-  // ─ Search matching points ─
-  map.addLayer({
-    id: 'evo-match', type: 'circle', source: 'evo-match',
-    paint: {
-      'circle-color': '#f0c040',
-      'circle-radius': 8,
-      'circle-stroke-width': 2, 'circle-stroke-color': '#0d1117',
-    }
-  });
-
-  // ─ Search selected / highlighted ─
-  map.addLayer({
-    id: 'evo-select', type: 'circle', source: 'evo-select',
-    paint: {
-      'circle-color': '#ffffff',
-      'circle-radius': 10,
-      'circle-stroke-width': 3, 'circle-stroke-color': '#f0c040',
-      'circle-opacity': 1,
-    }
-  });
-
-  // ─ Interactivity: Hagiographies ─
+  // Interactions
   map.on('click', 'h-clusters', e => {
     const f = map.queryRenderedFeatures(e.point, { layers: ['h-clusters'] });
     const cid = f[0].properties.cluster_id;
     map.getSource('hagiographies').getClusterExpansionZoom(cid, (err, zoom) => {
-      if (!err) map.easeTo({ center: f[0].geometry.coordinates, zoom });
+      if (!err) map.easeTo({ center: f[0].geometry.coordinates, zoom: zoom + 1 });
     });
   });
 
-  map.on('click', 'h-points', e => {
-    const props   = e.features[0].properties;
-    const texts   = JSON.parse(props.texts);
-    const coords  = e.features[0].geometry.coordinates.slice();
-    map.flyTo({ center: coords });
-    showHagiographiesDetail(props, texts);
-  });
-
-  // ─ Interactivity: Search ─
-  map.on('click', 'evo-match', e => {
-    const props   = e.features[0].properties;
-    const texts   = JSON.parse(props.texts);
-    const coords  = e.features[0].geometry.coordinates.slice();
-    map.flyTo({ center: coords });
-    showSearchVarietyDetail(props, texts);
-  });
-
-  map.on('click', 'evo-select', e => {
-    const props   = e.features[0].properties;
-    const texts   = JSON.parse(props.texts);
-    const coords  = e.features[0].geometry.coordinates.slice();
-    map.flyTo({ center: coords });
-    showSearchVarietyDetail(props, texts);
-  });
-
-  // ─ Cursors ─
-  ['h-points', 'evo-match', 'evo-select', 'h-clusters'].forEach(layer => {
-    map.on('mouseenter', layer, () => map.getCanvas().style.cursor = 'pointer');
-    map.on('mouseleave', layer, () => map.getCanvas().style.cursor = '');
-  });
-
-  // ─ Hover popup for matches ─
-  map.on('mouseenter', 'evo-match', e => {
-    const p = e.features[0].properties;
-    const texts = JSON.parse(p.texts);
-    const matchedTexts = currentMode === 'search' && searchResults
-      ? texts.filter(t => matchesCurrentSearch(t))
-      : texts;
-
-    const titles = matchedTexts.map(t => t.title).slice(0, 3).join(', ');
-
+  // Cluster Hover Uitleg
+  map.on('mouseenter', 'h-clusters', e => {
+    map.getCanvas().style.cursor = 'pointer';
+    const count = e.features[0].properties.point_count;
     if (popup) popup.remove();
-    popup = new maplibregl.Popup({ closeButton: false, offset: 12 })
+    popup = new maplibregl.Popup({ closeButton: false, offset: 15 })
       .setLngLat(e.features[0].geometry.coordinates)
-      .setHTML(`<div class="popup-inner">
-        <div class="popup-name">${p.name}</div>
-        <div class="popup-sub">${p.text_count} teksten</div>
-        ${titles ? `<div class="popup-blr">↳ ${titles}</div>` : ''}
-      </div>`)
+      .setHTML(`<div class="popup-inner"><div class="popup-name">Groep van ${count} plaatsen</div><div class="popup-sub">Klik om in te zoomen</div></div>`)
       .addTo(map);
   });
+  map.on('mouseleave', 'h-clusters', () => { map.getCanvas().style.cursor = ''; if (popup) popup.remove(); });
 
-  map.on('mouseleave', 'evo-match', () => { if (popup) { popup.remove(); popup = null; } });
+  // Point Clicks
+  map.on('click', 'h-points', e => handlePointClick(e.features[0]));
+  map.on('click', 'evo-match', e => handlePointClick(e.features[0]));
+  
+  ['h-points', 'evo-match'].forEach(l => {
+    map.on('mouseenter', l, () => map.getCanvas().style.cursor = 'pointer');
+    map.on('mouseleave', l, () => map.getCanvas().style.cursor = '');
+  });
+}
+
+// 1. Zorgt voor de juiste zoom op de kaart als je op een bolletje klikt
+function handlePointClick(feature) {
+  const props = feature.properties;
+  const texts = typeof props.texts === 'string' ? JSON.parse(props.texts) : props.texts;
+  
+  // Dwing het inzoomen af naar niveau 12 (tenzij de gebruiker al verder is ingezoomd)
+  const targetZoom = map.getZoom() < 12 ? 12 : map.getZoom();
+  
+  map.flyTo({ 
+    center: feature.geometry.coordinates, 
+    zoom: targetZoom,
+    speed: 1.2,
+    essential: true // Negeert browser instellingen voor verminderde beweging
+  });
+  
+  if (currentMode === 'search') {
+    // Zoek het ID op in de lijst
+    showSearchVarietyDetail(props.id);
+  } else {
+    showHagiographiesDetail(props, texts);
+  }
 }
 
 /* ═══════════════════════════════════════════════════════════════
-   Mode switching
+   Sidebar Rendering
+ ═══════════════════════════════════════════════════════════════ */
+function showHagiographiesDetail(props, texts) {
+  _activeTextList = texts; // Opslaan voor detailweergave
+  const rows = buildTableRows(texts);
+  document.getElementById('hagiographies-content').innerHTML = `
+    <div id="list-view">
+      <div class="variety-name">${escHtml(props.name)}</div>
+      <div class="entries-header" style="margin-bottom:12px">${texts.length} Teksten op deze locatie</div>
+      <table class="entry-table">
+        <thead><tr><th>BHL</th><th>Tekst / Auteur</th><th>Datering</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+    <div id="single-text-view" style="display:none"></div>
+  `;
+}
+
+function buildTableRows(texts) {
+  return texts.map((t, idx) => {
+    const badges = [];
+    if (t.source_type) badges.push(`<span class="badge badge-accent">${t.source_type}</span>`);
+    if (t.collections) t.collections.forEach(c => badges.push(`<span class="badge badge-blue">${c}</span>`));
+
+    return `
+      <tr class="clickable-row" onclick="showTextDetail(${idx})">
+        <td class="term">
+          <strong>${escHtml(t.bhl || '-')}</strong>
+          <div style="margin-top:4px">${badges.join(' ')}</div>
+        </td>
+        <td>
+          <div style="font-weight:500; color:var(--text)">${escHtml(t.title || 'Onbekend')}</div>
+          <div style="font-size:11px; color:var(--text-3); margin-top:2px">${escHtml(t.author || '')}</div>
+        </td>
+        <td>${escHtml(t.dating || '-')}</td>
+      </tr>`;
+  }).join('');
+}
+
+// Open de indiviuele tekst weergave
+function showTextDetail(index) {
+  const t = _activeTextList[index];
+  
+  const geoTags = [t.arch ? `Aartsbisdom: ${t.arch}` : '', t.bish ? `Bisdom: ${t.bish}` : ''].filter(x=>x).join('<br>');
+  const provs = (t.provenances || []).join(', ') || '-';
+  const edities = (t.edition_refs || []).join('<br>') || 'Geen gekende edities';
+  
+  const html = `
+    <div class="text-detail-container">
+      <button class="btn-ghost" style="margin-bottom:16px" onclick="backToList()">← Terug naar lijst</button>
+      
+      <div class="td-header">BHL ${escHtml(t.bhl || 'Onbekend')}</div>
+      <div class="td-title">${escHtml(t.title || 'Zonder titel')}</div>
+      
+      <div class="td-section">
+        <div class="td-label">Auteur & Datering</div>
+        <div class="td-value">${escHtml(t.author || 'Onbekend')} <span style="color:var(--text-3)">•</span> ${escHtml(t.dating || 'Geen datering')}</div>
+        
+        <div class="td-label">Karakteristieken</div>
+        <div class="td-value">
+          Type: ${escHtml(t.source_type || '-')} <br>
+          Subtype: ${escHtml(t.subtype || '-')}
+        </div>
+      </div>
+
+      <div class="td-section">
+        <div class="td-label">Geografie & Herkomst</div>
+        <div class="td-value" style="font-size:12px; color:var(--text-2)">
+          ${geoTags ? geoTags + '<br><br>' : ''}
+          <strong>Gevonden in (Provenance):</strong><br> ${escHtml(provs)}
+        </div>
+      </div>
+
+      <div class="td-section">
+        <div class="td-label">Moderne Edities</div>
+        <div class="td-value" style="font-size:11px; font-family:var(--mono); color:var(--text-2)">
+          ${edities}
+        </div>
+      </div>
+    </div>
+  `;
+
+  // Zoek uit in welk panel we zitten
+  const container = currentMode === 'search' ? document.getElementById('evo-detail') : document.getElementById('hagiographies-content');
+  
+  // Verberg lijst, toon detail
+  container.querySelector('#list-view').style.display = 'none';
+  const detailView = container.querySelector('#single-text-view');
+  detailView.innerHTML = html;
+  detailView.style.display = 'block';
+}
+
+function backToList() {
+  const container = currentMode === 'search' ? document.getElementById('evo-detail') : document.getElementById('hagiographies-content');
+  container.querySelector('#single-text-view').style.display = 'none';
+  container.querySelector('#list-view').style.display = 'block';
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Mode & Search (Beknopt)
  ═══════════════════════════════════════════════════════════════ */
 function setMode(mode) {
   currentMode = mode;
-  document.querySelectorAll('.tab-btn').forEach(b => {
-    b.classList.toggle('active', b.dataset.mode === mode);
-  });
-  document.querySelectorAll('.panel').forEach(p => {
-    p.classList.toggle('active', p.id === `panel-${mode}`);
-  });
-
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.mode === mode));
+  document.querySelectorAll('.panel').forEach(p => p.classList.toggle('active', p.id === `panel-${mode}`));
+  
   if (mode === 'hagiographies') {
-    // Show all Hagiographies layers, hide search
-    setLayerVisibility('h-clusters',      'visible');
-    setLayerVisibility('h-cluster-label', 'visible');
-    setLayerVisibility('h-points',        'visible');
-    setLayerVisibility('evo-dim',   'none');
-    setLayerVisibility('evo-match', 'none');
-    setLayerVisibility('evo-select','none');
+    map.setLayoutProperty('h-clusters', 'visibility', 'visible');
+    map.setLayoutProperty('h-cluster-label', 'visibility', 'visible');
+    map.setLayoutProperty('h-points', 'visibility', 'visible');
+    map.setLayoutProperty('evo-dim', 'visibility', 'none');
+    map.setLayoutProperty('evo-match', 'visibility', 'none');
     document.getElementById('legend-match').style.display = 'none';
   } else {
-    // Hide Hagiographies layers; search layers shown only when result exists
-    setLayerVisibility('h-clusters',      'none');
-    setLayerVisibility('h-cluster-label', 'none');
-    setLayerVisibility('h-points',        'none');
-    if (searchResults) applySearchToMap(searchResults);
+    map.setLayoutProperty('h-clusters', 'visibility', 'none');
+    map.setLayoutProperty('h-cluster-label', 'visibility', 'none');
+    map.setLayoutProperty('h-points', 'visibility', 'none');
+    if (searchResults) {
+      map.setLayoutProperty('evo-dim', 'visibility', 'visible');
+      map.setLayoutProperty('evo-match', 'visibility', 'visible');
+      document.getElementById('legend-match').style.display = 'flex';
+    }
   }
 }
 
-function setLayerVisibility(id, val) {
-  if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', val);
+function setSubTab(sub) {
+  document.querySelectorAll('.sub-tab-btn').forEach(b => b.classList.toggle('active', b.dataset.sub === sub));
+  document.querySelectorAll('.sub-panel').forEach(p => p.style.display = p.id === `sub-panel-${sub}` ? 'block' : 'none');
 }
 
-/* ═══════════════════════════════════════════════════════════════
-   Search Logic
- ═══════════════════════════════════════════════════════════════ */
-function matchesDetailedFilter(t, filter) {
-  const { query, arch, bish, stype, collections, century, prov, edition } = filter;
-  
-  // Tekst filters
-  if (query) {
-    const matchQ = (t.title && t.title.toLowerCase().includes(query)) ||
-                   (t.bhl   && t.bhl.toLowerCase().includes(query)) ||
-                   (t.author && t.author.toLowerCase().includes(query));
-    if (!matchQ) return false;
-  }
-  if (arch  && t.arch !== arch) return false;
-  if (bish  && t.bish !== bish) return false;
-  if (stype && t.source_type !== stype) return false;
-
-  // Handschrift filters
-  if (collections && collections.length > 0) {
-    if (!t.collections || !collections.every(c => t.collections.includes(c))) return false;
-  }
-  if (century && (!t.centuries || !t.centuries.includes(century))) return false;
-  if (prov    && (!t.provenances || !t.provenances.includes(prov))) return false;
-
-  // Editie filters
-  if (edition && (!t.edition_refs || !t.edition_refs.includes(edition))) return false;
-
-  return true;
-}
-
-function matchesCurrentSearch(text) {
-  return matchesDetailedFilter(text, _lastFilter);
-}
-
+// 2. Aangepast zodat de onclick in de lijst netjes alleen het ID doorgeeft
 function performSearch() {
-  const query = (document.getElementById('f-query').value || "").trim().toLowerCase();
-  const arch  = document.getElementById('f-arch').value;
-  const bish  = document.getElementById('f-bish').value;
-  const stype = document.getElementById('f-source-type').value;
+  const q = document.getElementById('f-query').value.toLowerCase();
+  const arch = document.getElementById('f-arch').value;
+  const bish = document.getElementById('f-bish').value;
   
-  const colEls = document.querySelectorAll('input[name="f-coll"]:checked');
-  const collections = Array.from(colEls).map(el => el.value);
-  const century = document.getElementById('f-century').value;
-  const prov    = document.getElementById('f-prov').value;
-  
-  const edition = document.getElementById('f-edition').value;
+  if (!q && !arch && !bish) { resetFilter(); return; }
 
-  _lastFilter = { query, arch, bish, stype, collections, century, prov, edition };
-
-  // Check if any filter is active
-  const hasFilter = query || arch || bish || stype || collections.length > 0 || century || prov || edition;
-
-  if (!hasFilter) {
-    resetFilter();
-    return;
-  }
-
-  const matched = [];
-  const unmatched = [];
-
+  const matched = [], unmatched = [];
   allFeatures.forEach(f => {
     const texts = typeof f.properties.texts === 'string' ? JSON.parse(f.properties.texts) : f.properties.texts;
-    const hasMatch = texts.some(t => matchesDetailedFilter(t, _lastFilter));
-    if (hasMatch) matched.push(f);
-    else unmatched.push(f);
+    const isMatch = texts.some(t => {
+      if (q && !((t.title||'').toLowerCase().includes(q) || (t.bhl||'').toLowerCase().includes(q) || (t.author||'').toLowerCase().includes(q))) return false;
+      if (arch && t.arch !== arch) return false;
+      if (bish && t.bish !== bish) return false;
+      return true;
+    });
+    if (isMatch) matched.push(f); else unmatched.push(f);
   });
 
-  searchResults = { query, matched, unmatched };
-  selectedVarietyId = null;
-
-  applySearchToMap(searchResults);
-  renderSearchResults(searchResults);
+  searchResults = { matched, unmatched };
+  map.getSource('evo-dim').setData({ type: 'FeatureCollection', features: unmatched });
+  map.getSource('evo-match').setData({ type: 'FeatureCollection', features: matched });
+  
+  document.getElementById('evo-empty').style.display = 'none';
+  document.getElementById('evo-detail').style.display = 'none';
+  document.getElementById('evo-result-body').style.display = 'block';
+  document.getElementById('evo-count').innerHTML = `<strong>${matched.length}</strong> plaatsen gevonden`;
+  
+  document.getElementById('evo-list-var').innerHTML = matched.map(f => `
+    <div class="clickable-row" style="padding:10px; border:1px solid var(--border); border-radius:6px; margin-bottom:6px; background:var(--bg-3)" onclick="showSearchVarietyDetail(${f.properties.id})">
+      <strong>${escHtml(f.properties.name)}</strong><br>
+      <span style="font-size:11px; color:var(--text-2)">${f.properties.text_count} teksten</span>
+    </div>
+  `).join('');
+  
+  setMode('search');
 }
 
-function applySearchToMap(results) {
-  const fc = fs => ({ type: 'FeatureCollection', features: fs });
-  map.getSource('evo-dim')   ?.setData(fc(results.unmatched));
-  map.getSource('evo-match') ?.setData(fc(results.matched));
-  map.getSource('evo-select')?.setData(fc([]));
+// 3. Zorgt dat klikken op een item in de zoeklijst óók de kaart inzoomt
+function showSearchVarietyDetail(id) {
+  const f = searchResults.matched.find(x => x.properties.id === id);
+  if (!f) return;
+  
+  const targetZoom = map.getZoom() < 12 ? 12 : map.getZoom();
 
-  setLayerVisibility('evo-dim',    'visible');
-  setLayerVisibility('evo-match',  'visible');
-  setLayerVisibility('evo-select', 'visible');
-  document.getElementById('legend-match').style.display = 'flex';
+  // Inzoomen op de kaart wanneer je in de zoeklijst klikt
+  map.flyTo({ 
+    center: f.geometry.coordinates, 
+    zoom: targetZoom,
+    speed: 1.2,
+    essential: true
+  });
+
+  const texts = typeof f.properties.texts === 'string' ? JSON.parse(f.properties.texts) : f.properties.texts;
+  _activeTextList = texts;
+
+  document.getElementById('evo-result-body').style.display = 'none';
+  const det = document.getElementById('evo-detail');
+  det.style.display = 'block';
+  
+  det.innerHTML = `
+    <div id="list-view">
+      <button class="btn-ghost" style="margin-bottom:12px" onclick="document.getElementById('evo-detail').style.display='none'; document.getElementById('evo-result-body').style.display='block'">← Terug naar resultaten</button>
+      <div class="variety-name">${escHtml(f.properties.name)}</div>
+      <table class="entry-table" style="margin-top:10px">
+        <thead><tr><th>BHL</th><th>Titel</th><th>Datering</th></tr></thead>
+        <tbody>${buildTableRows(texts)}</tbody>
+      </table>
+    </div>
+    <div id="single-text-view" style="display:none"></div>
+  `;
 }
 
 function resetFilter() {
   document.getElementById('f-query').value = '';
   document.getElementById('f-arch').value = '';
   document.getElementById('f-bish').value = '';
-  document.getElementById('f-source-type').value = '';
-  document.getElementById('f-century').value = '';
-  document.getElementById('f-prov').value = '';
-  document.getElementById('f-edition').value = '';
-  document.querySelectorAll('input[name="f-coll"]').forEach(el => el.checked = false);
-
   searchResults = null;
-  _lastFilter = {};
-
-  const fc = { type: 'FeatureCollection', features: [] };
-  ['evo-dim','evo-match','evo-select'].forEach(s => map.getSource(s)?.setData(fc));
-
+  map.getSource('evo-dim').setData({ type: 'FeatureCollection', features: [] });
+  map.getSource('evo-match').setData({ type: 'FeatureCollection', features: [] });
   document.getElementById('evo-empty').style.display = 'flex';
   document.getElementById('evo-result-body').style.display = 'none';
   document.getElementById('evo-detail').style.display = 'none';
   document.getElementById('legend-match').style.display = 'none';
 }
 
-/* ═══════════════════════════════════════════════════════════════
-   Results rendering
- ═══════════════════════════════════════════════════════════════ */
-function renderSearchResults(results) {
-  const { matched } = results;
-
-  document.getElementById('evo-empty').style.display = 'none';
-  document.getElementById('evo-detail').style.display = 'none';
-  document.getElementById('evo-result-body').style.display = 'block';
-
-  document.getElementById('evo-count').innerHTML =
-    `<strong>${matched.length}</strong> herkomstplaatsen gevonden`;
-
-  renderVarietyList(results);
-}
-
-function renderVarietyList(results) {
-  const { matched } = results;
-  const container = document.getElementById('evo-list-var');
-
-  if (!matched.length) {
-    container.innerHTML = '<div class="empty-state" style="height:80px">Geen plaatsen gevonden</div>';
-    return;
-  }
-
-  container.innerHTML = matched.map(f => {
-    const p = f.properties;
-    const texts = typeof p.texts === 'string' ? JSON.parse(p.texts) : p.texts;
-    const matchCount = texts.filter(t => matchesCurrentSearch(t)).length;
-    return `<div class="var-card" id="var-card-${p.id}"
-                onclick="selectVarietyFromList(${p.id})">
-      <div class="var-dot"></div>
-      <div class="var-info">
-        <div class="var-name">${escHtml(p.name)}</div>
-        <div class="var-sub">${p.text_count} teksten</div>
-      </div>
-      <div class="var-count">${matchCount}×</div>
-    </div>`;
-  }).join('');
-}
-
-/* ═══════════════════════════════════════════════════════════════
-   Selection handlers
- ═══════════════════════════════════════════════════════════════ */
-function selectVarietyFromList(id) {
-  if (!searchResults) return;
-  selectedVarietyId = id;
-
-  const feature = searchResults.matched.find(f => f.properties.id === id);
-  if (!feature) return;
-
-  // Highlight on map
-  const fc = fs => ({ type: 'FeatureCollection', features: fs });
-  const rest = searchResults.matched.filter(f => f !== feature);
-  map.getSource('evo-match') ?.setData(fc([...searchResults.unmatched, ...rest]));
-  map.getSource('evo-select')?.setData(fc([feature]));
-
-  map.flyTo({ center: feature.geometry.coordinates, zoom: Math.max(map.getZoom(), 6) });
-
-  const props   = feature.properties;
-  const texts = typeof props.texts === 'string' ? JSON.parse(props.texts) : props.texts;
-  showSearchVarietyDetail(props, texts);
-}
-
-function showSearchVarietyDetail(props, texts) {
-  if (currentMode !== 'search') setMode('search');
-
-  const matchingTexts = texts.filter(t => matchesCurrentSearch(t));
-
-  const rows = texts.map(t => {
-    const isMatch = matchesCurrentSearch(t);
-    const badges = [
-      t.arch ? `<span class="badge">Arc:${t.arch}</span>` : '',
-      t.bish ? `<span class="badge">Bis:${t.bish}</span>` : '',
-      t.source_type ? `<span class="badge badge-accent">${t.source_type}</span>` : '',
-      t.is_reecriture ? `<span class="badge" style="color:var(--red);border-color:var(--red)">Reecriture</span>` : '',
-      ...(t.collections || []).map(c => `<span class="badge badge-blue">${c}</span>`)
-    ].filter(x => x).join(' ');
-
-    return `
-      <tr style="${isMatch ? '' : 'opacity:0.4'}">
-        <td class="term">
-          <div style="font-weight:600">${escHtml(t.bhl || '')}</div>
-          <div style="font-size:10px; margin-top:2px; display:flex; flex-wrap:wrap; gap:4px">
-            ${badges}
-          </div>
-        </td>
-        <td style="padding-top:10px">
-          <div style="font-weight:500">${escHtml(t.title || '')}</div>
-          <div style="font-size:11px; color:var(--text-3); margin-top:2px">${escHtml(t.author || '')}</div>
-        </td>
-        <td>${escHtml(t.dating || '')}</td>
-      </tr>`;
-  }).join('');
-
-  showEvoDetail(`
-    <div style="margin-bottom:14px">
-      <button class="btn-ghost" style="font-size:11px; padding:4px 8px;" onclick="backToResults()">← Terug naar resultaten</button>
-    </div>
-    <div class="variety-info" style="margin-bottom:16px;padding-bottom:14px;border-bottom:1px dashed var(--border-2)">
-      <div class="variety-name">${escHtml(props.name)}</div>
-    </div>
-    <div class="entries-header">
-      ${matchingTexts.length ? `${matchingTexts.length} overeenkomende teksten` : `Alle teksten (${texts.length})`}
-    </div>
-    <table class="entry-table">
-      <thead><tr>
-        <th>Metadata</th><th>Tekst / Auteur</th><th>Datering</th>
-      </tr></thead>
-      <tbody>${rows}</tbody>
-    </table>
-  `);
-}
-
-function showEvoDetail(html) {
-  document.getElementById('evo-result-body').style.display = 'none';
-  document.getElementById('evo-empty').style.display = 'none';
-  const det = document.getElementById('evo-detail');
-  det.style.display = 'block';
-  det.innerHTML = html;
-}
-
-function backToResults() {
-  document.getElementById('evo-detail').style.display = 'none';
-  document.getElementById('evo-result-body').style.display = 'block';
-
-  // Restore map to full search results
-  if (searchResults) applySearchToMap(searchResults);
-}
-
-function showHagiographiesDetail(props, texts) {
-  setMode('hagiographies');
-  const rows = texts.map(t => {
-    const badges = [
-      t.arch ? `<span class="badge">Arc:${t.arch}</span>` : '',
-      t.bish ? `<span class="badge">Bis:${t.bish}</span>` : '',
-      t.source_type ? `<span class="badge badge-accent">${t.source_type}</span>` : '',
-      ...(t.collections || []).map(c => `<span class="badge badge-blue">${c}</span>`)
-    ].filter(x => x).join(' ');
-
-    return `
-      <tr>
-        <td class="term">
-          <div style="font-weight:600">${escHtml(t.bhl || '')}</div>
-          <div style="font-size:10px; margin-top:2px; display:flex; flex-wrap:wrap; gap:4px">
-            ${badges}
-          </div>
-        </td>
-        <td style="padding-top:10px">
-          <div style="font-weight:500">${escHtml(t.title || '')}</div>
-          <div style="font-size:11px; color:var(--text-3); margin-top:2px">${escHtml(t.author || '')}</div>
-        </td>
-        <td>${escHtml(t.dating || '')}</td>
-      </tr>`;
-  }).join('');
-
-  document.getElementById('hagiographies-content').innerHTML = `
-    <div class="variety-info" style="margin-bottom:16px;padding-bottom:14px;border-bottom:1px dashed var(--border-2)">
-      <div class="variety-name">${escHtml(props.name)}</div>
-    </div>
-    <div class="entries-header">Alle teksten (${texts.length})</div>
-    <table class="entry-table">
-      <thead><tr>
-         <th>Metadata</th><th>Tekst / Auteur</th><th>Datering</th>
-      </tr></thead>
-      <tbody>${rows}</tbody>
-    </table>`;
-}
-
-/* ═══════════════════════════════════════════════════════════════
-   Utilities
- ═══════════════════════════════════════════════════════════════ */
 function escHtml(str) {
   if (!str && str !== 0) return '';
-  return String(str)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
+  return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
-
-/* ═══════════════════════════════════════════════════════════════
-   Bootstrap
- ═══════════════════════════════════════════════════════════════ */
-map.on('load', async () => {
-  const geojson = await loadData();
-
-  if (geojson) {
-    initMapLayers(geojson);
-  }
-
-  // Fade out loading overlay
-  const overlay = document.getElementById('loading-overlay');
-  overlay.classList.add('hidden');
-  setTimeout(() => overlay.remove(), 400);
-});
 </script>
-
 </body>
 </html>
