@@ -30,3 +30,6 @@ import/erd.mermaid
 .DS_Store
 Thumbs.db
 Desktop.ini
+
+# VSCode
+.vscode/
