@@ -8,7 +8,7 @@ const KOTTSTER_JWT_SECRET_SALT = getEnvOrThrow('KOTTSTER_JWT_SECRET_SALT');
 const KOTTSTER_API_TOKEN = getEnvOrThrow('KOTTSTER_API_TOKEN');
 
 const KOTTSTER_ROOT_USERNAME = getEnvOrThrow('KOTTSTER_ROOT_USERNAME');
-const KOTTSTER_ROOT_USER_PASSWORD = getEnvOrThrow('KOTTSTER_ROOT_USER_PASSWORD');
+const KOTTSTER_ROOT_PASSWORD = getEnvOrThrow('KOTTSTER_ROOT_PASSWORD');
 
 const KOTTSTER_IDENTITY_DATABASE_PATH = getEnvOrThrow('KOTTSTER_IDENTITY_DATABASE_PATH');
 
@@ -33,6 +33,6 @@ export const app = createApp({
 
     /* The root admin user credentials */
     rootUsername: KOTTSTER_ROOT_USERNAME,
-    rootPassword: KOTTSTER_ROOT_USER_PASSWORD,
+    rootPassword: KOTTSTER_ROOT_PASSWORD,
   }),
 });
