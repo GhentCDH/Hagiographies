@@ -45,7 +45,8 @@ def _build_feature(origin: Origin, texts: List[CorpusHagio]) -> Dict[str, Any]:
         if any(w.manuscript.naso for w in t.witnesses if w.manuscript): collections.append("NASO")
 
         # Aggregate unique provenance labels and centuries from witnesses
-        provenances = sorted(list(set(w.provenance.name for w in t.witnesses if w.provenance)))
+        # Let op: we checken nu expliciet op w.provenance.name omdat dit veld Optional is geworden
+        provenances = sorted(list(set(w.provenance.name for w in t.witnesses if w.provenance and w.provenance.name)))
         centuries   = sorted(list(set(w.dating_century for w in t.witnesses if w.dating_century)))
 
         # Aggregate modern edition references
@@ -55,10 +56,12 @@ def _build_feature(origin: Origin, texts: List[CorpusHagio]) -> Dict[str, Any]:
             "id":            t.id,
             "bhl":           t.bhl_number,
             "title":         t.title,
-            "author":        t.author,
-            "dating":        t.dating_rough,
-            "source_type":   t.source_type,
-            "subtype":       t.subtype,
+            # Haal de .name op uit de nieuwe lookup tabellen:
+            "author":        t.author.name if t.author else None,
+            "dating":        t.dating_rough.name if t.dating_rough else None,
+            "source_type":   t.source_type.name if t.source_type else None,
+            "subtype":       t.subtype.name if t.subtype else None,
+            
             "is_reecriture": t.is_reecriture,
             "arch":          t.archbishopric.name if t.archbishopric else None,
             "bish":          t.bishopric.name if t.bishopric else None,
