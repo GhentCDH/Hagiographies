@@ -1,10 +1,12 @@
 {
   "menuPageOrder": [
-    "entry",
+    "manuscript",
     "location",
     "corpusHagio",
     "archbishopric",
     "bishopric",
-    "origin"
+    "origin",
+    "witness",
+    "edition"
   ]
 }

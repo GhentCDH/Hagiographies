@@ -65,6 +65,13 @@
         "column": "updated_at",
         "hiddenInTable": true
       }
+    ],
+    "linkedRecordsColumns": [
+      {
+        "relationshipKey": "editionmanuscriptlink__c__manuscript_id",
+        "label": "Editionmanuscriptlink",
+        "hiddenInTable": false
+      }
     ]
   }
 }
