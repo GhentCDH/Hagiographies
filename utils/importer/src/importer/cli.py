@@ -48,6 +48,11 @@ from utilities.model import (
     ManuscriptType,
     Milieu,
     ChurchEntity,
+    ManuscriptIdentifier,
+    DatingCentury,
+    ImageAvailability,
+    VernacularRegion,
+    ProvenanceGeneral,
 )
 
 # ---------------------------------------------------------------------------
@@ -433,6 +438,86 @@ def _get_or_create_church_entity(session: Session, name: Optional[str], is_arch:
     return ce.id
 
 
+def _get_or_create_ms_identifier(session: Session, title: Optional[str], bhl: Optional[str], cache: Dict[str, ManuscriptIdentifier]) -> Optional[int]:
+    if not title: return None
+    title = title.strip()
+    bhl = bhl.strip() if bhl else None
+    key = f"{title}|{bhl or ''}"
+    if key in cache: return cache[key].id
+    existing = session.exec(select(ManuscriptIdentifier).where(ManuscriptIdentifier.title == title, ManuscriptIdentifier.bhl_number == bhl)).first()
+    if existing:
+        cache[key] = existing
+        return existing.id
+    obj = ManuscriptIdentifier(title=title, bhl_number=bhl, identifier=f"{title} ({bhl})" if bhl else title)
+    session.add(obj)
+    session.flush()
+    cache[key] = obj
+    return obj.id
+
+
+def _get_or_create_dating_century(session: Session, century_val: Optional[Any], cache: Dict[int, DatingCentury]) -> Optional[int]:
+    if century_val is None or str(century_val).strip() == "": return None
+    try:
+        century = int(float(century_val))
+    except (ValueError, TypeError):
+        return None
+    if century in cache: return cache[century].id
+    existing = session.exec(select(DatingCentury).where(DatingCentury.century == century)).first()
+    if existing:
+        cache[century] = existing
+        return existing.id
+    obj = DatingCentury(century=century)
+    session.add(obj)
+    session.flush()
+    cache[century] = obj
+    return obj.id
+
+
+def _get_or_create_image_availability(session: Session, availability: Optional[str], cache: Dict[str, ImageAvailability]) -> Optional[int]:
+    if not availability: return None
+    availability = availability.strip()
+    if availability in cache: return cache[availability].id
+    existing = session.exec(select(ImageAvailability).where(ImageAvailability.availability == availability)).first()
+    if existing:
+        cache[availability] = existing
+        return existing.id
+    obj = ImageAvailability(availability=availability)
+    session.add(obj)
+    session.flush()
+    cache[availability] = obj
+    return obj.id
+
+
+def _get_or_create_vernacular_region(session: Session, region: Optional[str], cache: Dict[str, VernacularRegion]) -> Optional[int]:
+    if not region: return None
+    region = region.strip()
+    if region in cache: return cache[region].id
+    existing = session.exec(select(VernacularRegion).where(VernacularRegion.region == region)).first()
+    if existing:
+        cache[region] = existing
+        return existing.id
+    obj = VernacularRegion(region=region)
+    session.add(obj)
+    session.flush()
+    cache[region] = obj
+    return obj.id
+
+
+def _get_or_create_provenance_general(session: Session, description: Optional[str], cache: Dict[str, ProvenanceGeneral]) -> Optional[int]:
+    if not description: return None
+    description = description.strip()
+    if description in cache: return cache[description].id
+    existing = session.exec(select(ProvenanceGeneral).where(ProvenanceGeneral.description == description)).first()
+    if existing:
+        cache[description] = existing
+        return existing.id
+    obj = ProvenanceGeneral(description=description)
+    session.add(obj)
+    session.flush()
+    cache[description] = obj
+    return obj.id
+
+
 def _add_manuscript_resource(
     ms: Manuscript,
     url: str,
@@ -764,6 +849,11 @@ def import_manuscripts(
     inst_cache: Dict[str, Institution] = {}
     church_cache: Dict[str, ChurchEntity] = {}
     mt_cache: Dict[str, ManuscriptType] = {}
+    ms_ident_cache: Dict[str, ManuscriptIdentifier] = {}
+    century_cache: Dict[int, DatingCentury] = {}
+    image_avail_cache: Dict[str, ImageAvailability] = {}
+    vernacular_cache: Dict[str, VernacularRegion] = {}
+    prov_gen_cache: Dict[str, ProvenanceGeneral] = {}
 
     stats: Dict[str, int] = {
         "manuscripts_inserted": 0,
@@ -829,13 +919,20 @@ def import_manuscripts(
                     prov_dio_id = _get_or_create_church_entity(session, cval(row, "Provenance diocese"), False, church_cache)
                     prov_inst_id = _get_or_create_institution(session, cval(row, "Provenance institution"), None, inst_cache)
                     
+                    # New normalized lookups
+                    ms_title_str = cval(row, "Title")
+                    ms_ident_id = _get_or_create_ms_identifier(session, ms_title_str, col_a_value, ms_ident_cache)
+                    century_id = _get_or_create_dating_century(session, row.get(_COL_MS_DATING_CENTURY).value if _COL_MS_DATING_CENTURY in row else None, century_cache)
+                    image_avail_id = _get_or_create_image_availability(session, cval(row, _COL_MS_IMAGE_AVAIL), image_avail_cache)
+                    vernacular_id = _get_or_create_vernacular_region(session, cval(row, _COL_MS_VERNACULAR), vernacular_cache)
+                    prov_gen_id = _get_or_create_provenance_general(session, cval(row, "Provenance general"), prov_gen_cache)
+
                     ms_typo_id = _get_or_create_manuscript_type(session, cval(row, "Manuscript type"), mt_cache)
 
                     ms = Manuscript(
                         ms_number_per_bhl=ms_number,
                         unique_id=uid_raw,
-                        bhl_number=col_a_value,
-                        title=cval(row, "Title"),
+                        ms_identifier_id=ms_ident_id,
                         collection_identifier=cval(row, _COL_MS_COLLECTION_ID),
                         text_archdiocese_id=txt_arch_id,
                         text_bishopric_id=txt_bish_id,
@@ -848,14 +945,14 @@ def import_manuscripts(
                         heritage_institution_id=heri_inst_id,
                         shelfmark=cval(row, "Shelfmark"),
                         folio_pages=cval(row, _COL_MS_FOLIO),
-                        dating_century=cint(row, _COL_MS_DATING_CENTURY),
+                        dating_century_id=century_id,
                         dating_precise=cval(row, "Dating"),
-                        provenance_general=cval(row, "Provenance general"),
+                        provenance_general_id=prov_gen_id,
                         provenance_archdiocese_id=prov_arch_id,
                         provenance_diocese_id=prov_dio_id,
                         provenance_institution_id=prov_inst_id,
-                        vernacular_region=cval(row, _COL_MS_VERNACULAR),
-                        image_availability=cval(row, _COL_MS_IMAGE_AVAIL),
+                        vernacular_region_id=vernacular_id,
+                        image_availability_id=image_avail_id,
                         notes=cval(row, "Notes"),
                         witness_relation_notes=cval(row, _COL_MS_RELATIONS),
                         manuscript_type_id=ms_typo_id,
@@ -864,6 +961,7 @@ def import_manuscripts(
                         text_id=text_obj.id if text_obj else None,
                     )
                     session.add(ms)
+                    session.flush()
                     session.flush()
                     if uid_raw is not None:
                         ms_cache[uid_raw] = ms

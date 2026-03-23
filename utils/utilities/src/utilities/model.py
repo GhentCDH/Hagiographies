@@ -129,6 +129,43 @@ class ChurchEntity(Table, table=True):
     )
 
 
+class ManuscriptIdentifier(Table, table=True):
+    """Normalized manuscript identifier (Title + BHL)."""
+    __table_args__ = (UniqueConstraint("title", "bhl_number"), _STRICT)
+    title: str = _text(index=True)
+    bhl_number: Optional[str] = _text(index=True)
+    identifier: str = _text(index=True) 
+    manuscripts: List["Manuscript"] = Relationship(back_populates="ms_identifier_obj")
+
+
+class DatingCentury(Table, table=True):
+    """Normalized dating century."""
+    __table_args__ = (UniqueConstraint("century"), _STRICT)
+    century: int = Field(index=True, sa_type=Integer())
+    manuscripts: List["Manuscript"] = Relationship(back_populates="dating_century_obj")
+
+
+class ImageAvailability(Table, table=True):
+    """Normalized image availability status."""
+    __table_args__ = (UniqueConstraint("availability"), _STRICT)
+    availability: str = _text(index=True)
+    manuscripts: List["Manuscript"] = Relationship(back_populates="image_availability_obj")
+
+
+class VernacularRegion(Table, table=True):
+    """Normalized vernacular region."""
+    __table_args__ = (UniqueConstraint("region"), _STRICT)
+    region: str = _text(index=True)
+    manuscripts: List["Manuscript"] = Relationship(back_populates="vernacular_region_obj")
+
+
+class ProvenanceGeneral(Table, table=True):
+    """Normalized provenance general description."""
+    __table_args__ = (UniqueConstraint("description"), _STRICT)
+    description: str = _text(index=True)
+    manuscripts: List["Manuscript"] = Relationship(back_populates="provenance_general_obj")
+
+
 # ---------------------------------------------------------------------------
 # Text  (Tab 3 — Corpus hagio)
 # ---------------------------------------------------------------------------
@@ -262,10 +299,9 @@ class Manuscript(Table, table=True):
     ms_number_per_bhl: Optional[str] = _text(default=None)
     unique_id: Optional[int] = Field(default=None, unique=True, index=True)
     
-    # New fields from tab audit
-    bhl_number: Optional[str] = _text(default=None, index=True) # Unnamed first column
-    title: Optional[str] = _text(default=None)
-    
+    ms_identifier_id: Optional[int] = Field(default=None, foreign_key="manuscriptidentifier.id")
+    ms_identifier_obj: Optional[ManuscriptIdentifier] = Relationship(back_populates="manuscripts")
+
     collection_identifier: Optional[str] = _text(default=None)
 
     # Localization info from text (Normalized)
@@ -283,16 +319,20 @@ class Manuscript(Table, table=True):
     shelfmark: Optional[str] = _text(default=None)
     folio_pages: Optional[str] = _text(default=None)
 
-    dating_century: Optional[int] = Field(default=None, sa_type=Integer())
+    dating_century_id: Optional[int] = Field(default=None, foreign_key="datingcentury.id")
+    dating_century_obj: Optional[DatingCentury] = Relationship(back_populates="manuscripts")
     dating_precise: Optional[str] = _text(default=None)
 
-    provenance_general: Optional[str] = _text(default=None)
+    provenance_general_id: Optional[int] = Field(default=None, foreign_key="provenancegeneral.id")
+    provenance_general_obj: Optional[ProvenanceGeneral] = Relationship(back_populates="manuscripts")
     provenance_archdiocese_id: Optional[int] = Field(default=None, foreign_key="churchentity.id")
     provenance_diocese_id: Optional[int] = Field(default=None, foreign_key="churchentity.id")
     provenance_institution_id: Optional[int] = Field(default=None, foreign_key="institution.id")
-    vernacular_region: Optional[str] = _text(default=None)
+    vernacular_region_id: Optional[int] = Field(default=None, foreign_key="vernacularregion.id")
+    vernacular_region_obj: Optional[VernacularRegion] = Relationship(back_populates="manuscripts")
 
-    image_availability: Optional[str] = _text(default=None)
+    image_availability_id: Optional[int] = Field(default=None, foreign_key="imageavailability.id")
+    image_availability_obj: Optional[ImageAvailability] = Relationship(back_populates="manuscripts")
     notes: Optional[str] = _text(default=None)
     witness_relation_notes: Optional[str] = _text(default=None) # index 30
     manuscript_type_id: Optional[int] = Field(default=None, foreign_key="manuscripttype.id")

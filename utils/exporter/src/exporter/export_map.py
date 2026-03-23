@@ -45,8 +45,8 @@ def _build_feature(place: Place, texts: List[Text]) -> Dict[str, Any]:
         if any(m.checked_naso for m in t.manuscripts): collections.append("NASO")
 
         # Aggregate unique provenance labels and centuries from witnesses
-        provenances = sorted(list(set(m.provenance_general for m in t.manuscripts if m.provenance_general)))
-        centuries   = sorted(list(set(m.dating_century for m in t.manuscripts if m.dating_century)))
+        provenances = sorted(list(set(m.provenance_general_obj.description for m in t.manuscripts if m.provenance_general_obj)))
+        centuries   = sorted(list(set(m.dating_century_obj.century for m in t.manuscripts if m.dating_century_obj)))
 
         # Aggregate modern edition references
         editions = sorted(list(set(e.bibliographic_reference for e in t.editions if e.bibliographic_reference)))
