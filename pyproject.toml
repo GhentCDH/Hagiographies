@@ -8,5 +8,4 @@ dependencies = [
     "dotenv>=0.9.9",
 ]
 
-[tool.uv.workspace]
-members = ["utils/importer", "utils/utilities", "utils/documenter", "utils/exporter"]
+

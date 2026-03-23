@@ -18,7 +18,7 @@ from sqlmodel import Session, select
 
 from utilities.config import DATA_ROOT
 from utilities.db import engine
-from utilities.model import Origin, CorpusHagio
+from utilities.model import Place, Text
 
 # ---------------------------------------------------------------------------
 # Logging
@@ -35,36 +35,34 @@ OUTPUT = Path("/local-map/data/hagiographies_map.geojson")
 # Helpers
 # ---------------------------------------------------------------------------
 
-def _build_feature(origin: Origin, texts: List[CorpusHagio]) -> Dict[str, Any]:
+def _build_feature(place: Place, texts: List[Text]) -> Dict[str, Any]:
     text_data = []
     for t in texts:
         # Aggregate collection flags from all manuscripts witnessing this text
         collections = []
-        if any(w.manuscript.leg for w in t.witnesses if w.manuscript): collections.append("LEG")
-        if any(w.manuscript.dg for w in t.witnesses if w.manuscript):  collections.append("DG")
-        if any(w.manuscript.naso for w in t.witnesses if w.manuscript): collections.append("NASO")
+        if any(m.checked_leg for m in t.manuscripts): collections.append("LEG")
+        if any(m.checked_dg for m in t.manuscripts):  collections.append("DG")
+        if any(m.checked_naso for m in t.manuscripts): collections.append("NASO")
 
         # Aggregate unique provenance labels and centuries from witnesses
-        # Let op: we checken nu expliciet op w.provenance.name omdat dit veld Optional is geworden
-        provenances = sorted(list(set(w.provenance.name for w in t.witnesses if w.provenance and w.provenance.name)))
-        centuries   = sorted(list(set(w.dating_century for w in t.witnesses if w.dating_century)))
+        provenances = sorted(list(set(m.provenance_general for m in t.manuscripts if m.provenance_general)))
+        centuries   = sorted(list(set(m.dating_century for m in t.manuscripts if m.dating_century)))
 
         # Aggregate modern edition references
-        editions = sorted(list(set(e.reference.title for e in t.editions if e.reference)))
+        editions = sorted(list(set(e.bibliographic_reference for e in t.editions if e.bibliographic_reference)))
 
         text_data.append({
             "id":            t.id,
             "bhl":           t.bhl_number,
             "title":         t.title,
-            # Haal de .name op uit de nieuwe lookup tabellen:
-            "author":        t.author.name if t.author else None,
-            "dating":        t.dating_rough.name if t.dating_rough else None,
+            "author":        t.author_obj.name if t.author_obj else None,
+            "dating":        t.dating_rough,
             "source_type":   t.source_type.name if t.source_type else None,
             "subtype":       t.subtype.name if t.subtype else None,
             
-            "is_reecriture": t.is_reecriture,
-            "arch":          t.archbishopric.name if t.archbishopric else None,
-            "bish":          t.bishopric.name if t.bishopric else None,
+            "is_reecriture": t.reecriture,
+            "arch":          t.origin_archdiocese.name if t.origin_archdiocese else None,
+            "bish":          None, # Bishopric normalized into ChurchEntity if needed
             "collections":   collections,
             "provenances":   provenances,
             "centuries":     centuries,
@@ -75,11 +73,11 @@ def _build_feature(origin: Origin, texts: List[CorpusHagio]) -> Dict[str, Any]:
         "type": "Feature",
         "geometry": {
             "type": "Point",
-            "coordinates": [origin.longitude, origin.latitude],
+            "coordinates": [place.lon, place.lat],
         },
         "properties": {
-            "id":         origin.id,
-            "name":       origin.name,
+            "id":         place.id,
+            "name":       place.name,
             "texts":      text_data,
             "text_count": len(text_data),
         },
@@ -95,15 +93,15 @@ def main() -> None:
     OUTPUT.parent.mkdir(parents=True, exist_ok=True)
 
     with Session(engine, expire_on_commit=False) as session:
-        # Get all origins with coordinates
-        origins = session.exec(
-            select(Origin).where(Origin.latitude != None, Origin.longitude != None)
+        # Get all places with coordinates
+        places = session.exec(
+            select(Place).where(Place.lat != None, Place.lon != None)
         ).all()
 
         features: List[Dict[str, Any]] = []
-        for o in origins:
-            # texts relationship is pre-defined in SQLModel
-            features.append(_build_feature(o, o.texts))
+        for p in places:
+            # texts relationship is pre-defined in Place
+            features.append(_build_feature(p, p.texts))
 
     geojson = {
         "type": "FeatureCollection",
@@ -112,7 +110,7 @@ def main() -> None:
 
     OUTPUT.write_text(json.dumps(geojson, ensure_ascii=False, indent=2), encoding="utf-8")
     logger.info(f"Saved: {OUTPUT}")
-    logger.info(f"  Features: {len(features)} origins with coordinates")
+    logger.info(f"  Features: {len(features)} places with coordinates")
 
 
 if __name__ == "__main__":

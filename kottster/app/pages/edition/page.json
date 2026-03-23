@@ -6,6 +6,13 @@
   "config": {
     "dataSource": "hagiographies_db",
     "fetchStrategy": "databaseTable",
-    "table": "edition"
+    "table": "edition",
+    "linkedRecordsColumns": [
+      {
+        "relationshipKey": "editionmanuscriptlink__c__edition_id",
+        "label": "Manuscript",
+        "hiddenInTable": false
+      }
+    ]
   }
 }
