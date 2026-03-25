@@ -1,17 +1,43 @@
 {
   "version": "3.4",
   "type": "table",
-  "title": "Edition",
+  "title": "Editions",
   "hideInSidebar": false,
   "config": {
     "dataSource": "hagiographies_db",
     "fetchStrategy": "databaseTable",
     "table": "edition",
-    "linkedRecordsColumns": [
+    "columns": [
+      { "column": "id", "label": "ID", "hidden": true },
+      { "column": "created_at", "label": "Created At", "hidden": true },
+      { "column": "updated_at", "label": "Updated At", "hidden": true },
+      { "column": "bhl_number", "label": "BHL", "position": 0, "searchable": true, "fieldInput": { "type": "textarea" } },
+      { "column": "title", "label": "Title", "position": 1, "searchable": true, "fieldInput": { "type": "textarea" } },
+      { "column": "edition_reference_per_text", "label": "Ed. reference per text", "position": 2, "fieldInput": { "type": "textarea" } },
+      { "column": "checked_dg", "label": "DG", "position": 3, "fieldInput": { "type": "numberInput" } },
+      { "column": "checked_naso", "label": "NASO", "position": 4, "fieldInput": { "type": "numberInput" } },
+      { "column": "checked_isb", "label": "ISB", "position": 5, "fieldInput": { "type": "numberInput" } },
+      { "column": "checked_ed_sec", "label": "ED/SEC", "position": 6, "fieldInput": { "type": "numberInput" } },
+      { "column": "unique_id_numeric", "label": "Unique ED ID", "position": 7, "fieldInput": { "type": "numberInput" } },
+      { "column": "unique_id_descriptive", "label": "Unique ED identifier", "position": 8, "fieldInput": { "type": "textarea" } },
+      { "column": "year_of_publication", "label": "Date", "position": 9, "fieldInput": { "type": "numberInput" } },
+      { "column": "bibliographic_reference", "label": "Edition reference", "position": 10, "fieldInput": { "type": "textarea" } },
+      { "column": "page_range", "label": "Pages", "position": 11, "fieldInput": { "type": "textarea" } },
+      { "column": "is_reprint", "label": "Reprint?", "position": 12, "fieldInput": { "type": "numberInput" } },
+      { "column": "reprint_identically_typeset", "label": "If reprint, identically typeset?", "position": 13, "fieldInput": { "type": "numberInput" } },
+      { "column": "reprint_newly_typeset", "label": "If reprint, newly typeset?", "position": 14, "fieldInput": { "type": "numberInput" } },
+      { "column": "reprint_of", "label": "Reprint of what?", "position": 15, "fieldInput": { "type": "textarea" } },
+      { "column": "has_transcription", "label": "Transcribed?", "position": 16, "fieldInput": { "type": "numberInput" } },
+      { "column": "transcription_notes", "label": "Transcription notes", "position": 17, "fieldInput": { "type": "textarea" } },
+      { "column": "collated", "label": "Collation done?", "position": 18, "fieldInput": { "type": "numberInput" } },
+      { "column": "edition_refs", "label": "Edition refs", "position": 19, "fieldInput": { "type": "textarea" } },
+      { "column": "notes", "label": "Notes", "position": 20, "fieldInput": { "type": "textarea" } },
       {
-        "relationshipKey": "editionmanuscriptlink__c__edition_id",
-        "label": "Manuscript",
-        "hiddenInTable": false
+        "column": "text_id",
+        "label": "Linked Text",
+        "position": 21,
+        "relationshipPreviewColumns": ["title"],
+        "fieldInput": { "type": "recordSelect", "asArray": false }
       }
     ]
   }

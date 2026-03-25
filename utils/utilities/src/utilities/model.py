@@ -1,22 +1,6 @@
 # utilities/model.py
 # ---------------------------------------------------------------------------
 # SQLModel models for the Hagiographies project.
-#
-# Three core entities map to the three Excel tabs:
-#   Text          -> Tab 3 "Corpus hagio"   (one row per BHL text)
-#   Manuscript    -> Tab 1 "Manuscripts"     (one row per material witness)
-#   Edition       -> Tab 2 "Editions"        (one row per edition)
-#
-# Normalised satellite tables:
-#   Image                      -> col AB (image URLs) + col AA (type)
-#   ExternalResource           -> cols X, Y, Z (catalogue/Bollandist links)
-#   ManuscriptExternalResource -> M2M join Manuscript <-> ExternalResource
-#   EditionExternalResource    -> M2M join Edition    <-> ExternalResource
-#   ManuscriptRelation         -> copy/exemplar relations (replaces 10 flat cols)
-#   EditionManuscript          -> M2M join Edition <-> Manuscript (cols W-AL)
-#
-# SQLite STRICT mode throughout. BOOLEAN -> INTEGER (0/1).
-# TEXT instead of VARCHAR, REAL instead of FLOAT (STRICT compatibility).
 # ---------------------------------------------------------------------------
 
 from datetime import datetime
@@ -64,21 +48,13 @@ class Table(SQLModel):
 # ---------------------------------------------------------------------------
 
 class Place(Table, table=True):
-    """Normalized location/place."""
     __table_args__ = (UniqueConstraint("name"), _STRICT)
     name: str = _text(index=True)
     lat: Optional[float] = _real(default=None)
     lon: Optional[float] = _real(default=None)
 
-    # Reverse relationships for map exporter
-    texts: List["Text"] = Relationship(
-        back_populates="origin_location",
-        sa_relationship_kwargs={"foreign_keys": "[Text.origin_location_id]"}
-    )
-
 
 class Institution(Table, table=True):
-    """Normalized institution (heritage, provenance, etc.)."""
     __table_args__ = (UniqueConstraint("name"), _STRICT)
     name: str = _text(index=True)
     place_id: Optional[int] = Field(default=None, foreign_key="place.id")
@@ -86,51 +62,41 @@ class Institution(Table, table=True):
 
 
 class Author(Table, table=True):
-    """Normalized author."""
     __table_args__ = (UniqueConstraint("name"), _STRICT)
     name: str = _text(index=True)
-    
     texts: List["Text"] = Relationship(back_populates="author_obj")
 
 
 class Typology(Table, table=True):
-    """Normalized source type and subtype."""
     __table_args__ = (UniqueConstraint("name"), _STRICT)
     name: str = _text(index=True)
     parent_id: Optional[int] = Field(default=None, foreign_key="typology.id")
+    
+    # Self-referential relationship fix
+    parent: Optional["Typology"] = Relationship(
+        back_populates="children",
+        sa_relationship_kwargs={"remote_side": "Typology.id"}
+    )
+    children: List["Typology"] = Relationship(back_populates="parent")
 
 
 class ManuscriptType(Table, table=True):
-    """Normalized manuscript type."""
     __table_args__ = (UniqueConstraint("name"), _STRICT)
     name: str = _text(index=True)
 
 
 class Milieu(Table, table=True):
-    """Normalized milieu (Monastic, Clerical, etc.)."""
     __table_args__ = (UniqueConstraint("name"), _STRICT)
     name: str = _text(index=True)
 
 
 class ChurchEntity(Table, table=True):
-    """Normalized Archbishopric/Bishopric."""
-    __table_args__ = (UniqueConstraint("name"), _STRICT)
+    __table_args__ = (UniqueConstraint("name", "is_archdiocese"), _STRICT)
     name: str = _text(index=True)
     is_archdiocese: int = Field(default=0, sa_type=Integer())
 
-    # Reverse relationships
-    texts_as_archdiocese: List["Text"] = Relationship(
-        back_populates="origin_archdiocese",
-        sa_relationship_kwargs={"foreign_keys": "[Text.origin_archdiocese_id]"}
-    )
-    texts_as_diocese: List["Text"] = Relationship(
-        back_populates="origin_diocese",
-        sa_relationship_kwargs={"foreign_keys": "[Text.origin_diocese_id]"}
-    )
-
 
 class ManuscriptIdentifier(Table, table=True):
-    """Normalized manuscript identifier (Title + BHL)."""
     __table_args__ = (UniqueConstraint("title", "bhl_number"), _STRICT)
     title: str = _text(index=True)
     bhl_number: Optional[str] = _text(index=True)
@@ -139,31 +105,78 @@ class ManuscriptIdentifier(Table, table=True):
 
 
 class DatingCentury(Table, table=True):
-    """Normalized dating century."""
     __table_args__ = (UniqueConstraint("century"), _STRICT)
     century: int = Field(index=True, sa_type=Integer())
-    manuscripts: List["Manuscript"] = Relationship(back_populates="dating_century_obj")
+    manuscripts: List["Manuscript"] = Relationship(back_populates="dating_century_rel")
 
 
 class ImageAvailability(Table, table=True):
-    """Normalized image availability status."""
     __table_args__ = (UniqueConstraint("availability"), _STRICT)
     availability: str = _text(index=True)
-    manuscripts: List["Manuscript"] = Relationship(back_populates="image_availability_obj")
+    manuscripts: List["Manuscript"] = Relationship(back_populates="image_availability_rel")
 
 
 class VernacularRegion(Table, table=True):
-    """Normalized vernacular region."""
     __table_args__ = (UniqueConstraint("region"), _STRICT)
     region: str = _text(index=True)
-    manuscripts: List["Manuscript"] = Relationship(back_populates="vernacular_region_obj")
+    manuscripts: List["Manuscript"] = Relationship(back_populates="vernacular_region_rel")
 
 
 class ProvenanceGeneral(Table, table=True):
-    """Normalized provenance general description."""
     __table_args__ = (UniqueConstraint("description"), _STRICT)
     description: str = _text(index=True)
-    manuscripts: List["Manuscript"] = Relationship(back_populates="provenance_general_obj")
+    manuscripts: List["Manuscript"] = Relationship(back_populates="provenance_general_rel")
+
+
+class TextType(Table, table=True):
+    """Normalized text type (e.g., Prose or Verse)."""
+    __table_args__ = (UniqueConstraint("name"), _STRICT)
+    name: str = _text(index=True)
+
+
+class ImageType(Table, table=True):
+    """Normalized image type (e.g., scan, iiif, iphone_photo)."""
+    __table_args__ = (UniqueConstraint("name"), _STRICT)
+    name: str = _text(index=True)
+
+
+# ---------------------------------------------------------------------------
+# M2M Join Tables (Defined EARLY for link_model compatibility)
+# ---------------------------------------------------------------------------
+
+class EditionManuscript(SQLModel, table=True):
+    """Many-to-many join: Edition <-> Manuscript."""
+    __table_args__ = _STRICT
+
+    edition_id: int = Field(sa_type=Integer(), foreign_key="edition.id", primary_key=True)
+    manuscript_id: int = Field(sa_type=Integer(), foreign_key="manuscript.id", primary_key=True)
+    inspection_status: Optional[str] = _text(default="unknown")
+
+    # Using strings for forward references to classes defined later
+    edition: "Edition" = Relationship(back_populates="manuscript_links")
+    manuscript: "Manuscript" = Relationship(back_populates="edition_links")
+
+
+class ManuscriptExternalResource(SQLModel, table=True):
+    """Many-to-many join: Manuscript <-> ExternalResource."""
+    __table_args__ = _STRICT
+
+    manuscript_id: int = Field(sa_type=Integer(), foreign_key="manuscript.id", primary_key=True)
+    resource_id: int = Field(sa_type=Integer(), foreign_key="externalresource.id", primary_key=True)
+
+    manuscript: "Manuscript" = Relationship(back_populates="external_links")
+    resource: "ExternalResource" = Relationship(back_populates="manuscript_links")
+
+
+class EditionExternalResource(SQLModel, table=True):
+    """Many-to-many join: Edition <-> ExternalResource."""
+    __table_args__ = _STRICT
+
+    edition_id: int = Field(sa_type=Integer(), foreign_key="edition.id", primary_key=True)
+    resource_id: int = Field(sa_type=Integer(), foreign_key="externalresource.id", primary_key=True)
+
+    edition: "Edition" = Relationship(back_populates="external_resources")
+    resource: "ExternalResource" = Relationship(back_populates="edition_links")
 
 
 # ---------------------------------------------------------------------------
@@ -171,10 +184,6 @@ class ProvenanceGeneral(Table, table=True):
 # ---------------------------------------------------------------------------
 
 class Text(Table, table=True):
-    """
-    One row per hagiographical text identified by a BHL number (or BHL vacat).
-    Maps to Tab 3 "Corpus hagio" of the Excel file.
-    """
     __table_args__ = _STRICT
 
     bhl_number: Optional[str] = _text(default=None, index=True)
@@ -192,7 +201,7 @@ class Text(Table, table=True):
 
     # Chronology
     dating_quarter_century: Optional[str] = _text(default=None)
-    dating_rough: Optional[str] = _text(default=None)  # maps to "Rough chronology"
+    dating_rough: Optional[str] = _text(default=None)
     dating_precise: Optional[str] = _text(default=None)
 
     # Provenance of creation (Normalized)
@@ -215,7 +224,9 @@ class Text(Table, table=True):
     # Typology (Normalized)
     source_type_id: Optional[int] = Field(default=None, foreign_key="typology.id")
     subtype_id: Optional[int] = Field(default=None, foreign_key="typology.id")
-    prose_or_verse: Optional[str] = _text(default=None)
+    
+    # TextType (Normalized from Prose or Verse)
+    text_type_id: Optional[int] = Field(default=None, foreign_key="texttype.id")
     
     reecriture: Optional[int] = Field(default=None, sa_type=Integer())
     reecriture_of: Optional[str] = _text(default=None)
@@ -246,42 +257,44 @@ class Text(Table, table=True):
     key_bibliography: Optional[str] = _text(default=None)
     notes: Optional[str] = _text(default=None)
 
-    # Relationships
+    # Core Relationships
     manuscripts: List["Manuscript"] = Relationship(back_populates="text")
     editions: List["Edition"] = Relationship(back_populates="text")
-    
-    # Normalized relationships
-    origin_archdiocese: Optional[ChurchEntity] = Relationship(
-        back_populates="texts_as_archdiocese",
-        sa_relationship_kwargs={"foreign_keys": "[Text.origin_archdiocese_id]"}
-    )
-    origin_diocese: Optional[ChurchEntity] = Relationship(
-        back_populates="texts_as_diocese",
-        sa_relationship_kwargs={"foreign_keys": "[Text.origin_diocese_id]"}
-    )
-    origin_location: Optional[Place] = Relationship(
-        back_populates="texts",
-        sa_relationship_kwargs={"foreign_keys": "[Text.origin_location_id]"}
-    )
-    primary_destinatary_location: Optional[Place] = Relationship(
-        sa_relationship_kwargs={"foreign_keys": "[Text.primary_destinatary_location_id]"}
-    )
     author_obj: Optional[Author] = Relationship(back_populates="texts")
-    author_location: Optional[Place] = Relationship(
-        sa_relationship_kwargs={"foreign_keys": "[Text.author_location_id]"}
-    )
-    author_education_location: Optional[Place] = Relationship(
-        sa_relationship_kwargs={"foreign_keys": "[Text.author_education_location_id]"}
-    )
-    author_earlier_location: Optional[Place] = Relationship(
-        sa_relationship_kwargs={"foreign_keys": "[Text.author_earlier_location_id]"}
-    )
     milieu: Optional[Milieu] = Relationship()
+    
+    # Typology & TextType Relationships (Fixed for uniqueness/admin UI)
     source_type: Optional[Typology] = Relationship(
-        sa_relationship_kwargs={"foreign_keys": "[Text.source_type_id]"}
+        sa_relationship_kwargs={"primaryjoin": "Text.source_type_id == Typology.id", "uselist": False}
     )
     subtype: Optional[Typology] = Relationship(
-        sa_relationship_kwargs={"foreign_keys": "[Text.subtype_id]"}
+        sa_relationship_kwargs={"primaryjoin": "Text.subtype_id == Typology.id", "uselist": False}
+    )
+    text_type: Optional[TextType] = Relationship(
+        sa_relationship_kwargs={"primaryjoin": "Text.text_type_id == TextType.id", "uselist": False}
+    )
+
+    # Normalized relationships fixed with strict primaryjoin and uselist=False
+    origin_archdiocese_rel: Optional[ChurchEntity] = Relationship(
+        sa_relationship_kwargs={"primaryjoin": "Text.origin_archdiocese_id == ChurchEntity.id", "uselist": False}
+    )
+    origin_diocese_rel: Optional[ChurchEntity] = Relationship(
+        sa_relationship_kwargs={"primaryjoin": "Text.origin_diocese_id == ChurchEntity.id", "uselist": False}
+    )
+    origin_location: Optional[Place] = Relationship(
+        sa_relationship_kwargs={"primaryjoin": "Text.origin_location_id == Place.id", "uselist": False}
+    )
+    primary_destinatary_location: Optional[Place] = Relationship(
+        sa_relationship_kwargs={"primaryjoin": "Text.primary_destinatary_location_id == Place.id", "uselist": False}
+    )
+    author_location: Optional[Place] = Relationship(
+        sa_relationship_kwargs={"primaryjoin": "Text.author_location_id == Place.id", "uselist": False}
+    )
+    author_education_location: Optional[Place] = Relationship(
+        sa_relationship_kwargs={"primaryjoin": "Text.author_education_location_id == Place.id", "uselist": False}
+    )
+    author_earlier_location: Optional[Place] = Relationship(
+        sa_relationship_kwargs={"primaryjoin": "Text.author_earlier_location_id == Place.id", "uselist": False}
     )
 
 
@@ -290,10 +303,6 @@ class Text(Table, table=True):
 # ---------------------------------------------------------------------------
 
 class Manuscript(Table, table=True):
-    """
-    One row per material witness (= one text in one physical book).
-    Maps to Tab 1 "Manuscripts" of the Excel file.
-    """
     __table_args__ = _STRICT
 
     ms_number_per_bhl: Optional[str] = _text(default=None)
@@ -304,7 +313,6 @@ class Manuscript(Table, table=True):
 
     collection_identifier: Optional[str] = _text(default=None)
 
-    # Localization info from text (Normalized)
     text_archdiocese_id: Optional[int] = Field(default=None, foreign_key="churchentity.id")
     text_bishopric_id: Optional[int] = Field(default=None, foreign_key="churchentity.id")
     text_origin_id: Optional[int] = Field(default=None, foreign_key="place.id")
@@ -320,21 +328,21 @@ class Manuscript(Table, table=True):
     folio_pages: Optional[str] = _text(default=None)
 
     dating_century_id: Optional[int] = Field(default=None, foreign_key="datingcentury.id")
-    dating_century_obj: Optional[DatingCentury] = Relationship(back_populates="manuscripts")
+    dating_century_rel: Optional[DatingCentury] = Relationship(back_populates="manuscripts")
     dating_precise: Optional[str] = _text(default=None)
 
     provenance_general_id: Optional[int] = Field(default=None, foreign_key="provenancegeneral.id")
-    provenance_general_obj: Optional[ProvenanceGeneral] = Relationship(back_populates="manuscripts")
+    provenance_general_rel: Optional[ProvenanceGeneral] = Relationship(back_populates="manuscripts")
     provenance_archdiocese_id: Optional[int] = Field(default=None, foreign_key="churchentity.id")
     provenance_diocese_id: Optional[int] = Field(default=None, foreign_key="churchentity.id")
     provenance_institution_id: Optional[int] = Field(default=None, foreign_key="institution.id")
     vernacular_region_id: Optional[int] = Field(default=None, foreign_key="vernacularregion.id")
-    vernacular_region_obj: Optional[VernacularRegion] = Relationship(back_populates="manuscripts")
+    vernacular_region_rel: Optional[VernacularRegion] = Relationship(back_populates="manuscripts")
 
     image_availability_id: Optional[int] = Field(default=None, foreign_key="imageavailability.id")
-    image_availability_obj: Optional[ImageAvailability] = Relationship(back_populates="manuscripts")
+    image_availability_rel: Optional[ImageAvailability] = Relationship(back_populates="manuscripts")
     notes: Optional[str] = _text(default=None)
-    witness_relation_notes: Optional[str] = _text(default=None) # index 30
+    witness_relation_notes: Optional[str] = _text(default=None)
     manuscript_type_id: Optional[int] = Field(default=None, foreign_key="manuscripttype.id")
 
     dimension_width_cm: Optional[float] = _real(default=None)
@@ -343,55 +351,54 @@ class Manuscript(Table, table=True):
     text_id: Optional[int] = Field(default=None, foreign_key="text.id")
     text: Optional[Text] = Relationship(back_populates="manuscripts")
     
-    # Normalized relationships
+    # Link table relations
+    images: List["Image"] = Relationship(back_populates="manuscript")
+    external_links: List["ManuscriptExternalResource"] = Relationship(back_populates="manuscript")
+    edition_links: List["EditionManuscript"] = Relationship(back_populates="manuscript")
+    
+    # Handig voor uitlezen in Python, nu met de direct meegegeven Class
+    editions_direct: List["Edition"] = Relationship(
+        link_model=EditionManuscript,
+        sa_relationship_kwargs={"overlaps": "edition_links,manuscript"}
+    )
+
+    # Relationships with explicit uselist=False to fix admin panels
     text_archdiocese: Optional[ChurchEntity] = Relationship(
-        sa_relationship_kwargs={"foreign_keys": "[Manuscript.text_archdiocese_id]"}
+        sa_relationship_kwargs={"primaryjoin": "Manuscript.text_archdiocese_id == ChurchEntity.id", "uselist": False}
     )
     text_bishopric: Optional[ChurchEntity] = Relationship(
-        sa_relationship_kwargs={"foreign_keys": "[Manuscript.text_bishopric_id]"}
+        sa_relationship_kwargs={"primaryjoin": "Manuscript.text_bishopric_id == ChurchEntity.id", "uselist": False}
     )
     text_origin: Optional[Place] = Relationship(
-        sa_relationship_kwargs={"foreign_keys": "[Manuscript.text_origin_id]"}
+        sa_relationship_kwargs={"primaryjoin": "Manuscript.text_origin_id == Place.id", "uselist": False}
     )
     collection_location: Optional[Place] = Relationship(
-        sa_relationship_kwargs={"foreign_keys": "[Manuscript.collection_location_id]"}
+        sa_relationship_kwargs={"primaryjoin": "Manuscript.collection_location_id == Place.id", "uselist": False}
     )
     heritage_institution: Optional[Institution] = Relationship(
-        sa_relationship_kwargs={"foreign_keys": "[Manuscript.heritage_institution_id]"}
+        sa_relationship_kwargs={"primaryjoin": "Manuscript.heritage_institution_id == Institution.id", "uselist": False}
     )
     provenance_archdiocese: Optional[ChurchEntity] = Relationship(
-        sa_relationship_kwargs={"foreign_keys": "[Manuscript.provenance_archdiocese_id]"}
+        sa_relationship_kwargs={"primaryjoin": "Manuscript.provenance_archdiocese_id == ChurchEntity.id", "uselist": False}
     )
     provenance_diocese: Optional[ChurchEntity] = Relationship(
-        sa_relationship_kwargs={"foreign_keys": "[Manuscript.provenance_diocese_id]"}
+        sa_relationship_kwargs={"primaryjoin": "Manuscript.provenance_diocese_id == ChurchEntity.id", "uselist": False}
     )
     provenance_institution: Optional[Institution] = Relationship(
-        sa_relationship_kwargs={"foreign_keys": "[Manuscript.provenance_institution_id]"}
+        sa_relationship_kwargs={"primaryjoin": "Manuscript.provenance_institution_id == Institution.id", "uselist": False}
     )
-    manuscript_type: Optional[ManuscriptType] = Relationship()
+    manuscript_type: Optional[ManuscriptType] = Relationship(
+        sa_relationship_kwargs={"primaryjoin": "Manuscript.manuscript_type_id == ManuscriptType.id", "uselist": False}
+    )
 
-    images: List["Image"] = Relationship(back_populates="manuscript")
-    external_links: List["ManuscriptExternalResource"] = Relationship(
-        back_populates="manuscript"
-    )
-    edition_links: List["EditionManuscript"] = Relationship(
-        back_populates="manuscript"
-    )
-    
-    # Relationships with other manuscripts (Copies/Exemplars)
+    # Best-practice relations to other manuscripts (no double primaryjoin)
     outgoing_relations: List["ManuscriptRelation"] = Relationship(
         back_populates="source_manuscript",
-        sa_relationship_kwargs={
-            "foreign_keys": "[ManuscriptRelation.source_manuscript_id]",
-            "primaryjoin": "Manuscript.id == ManuscriptRelation.source_manuscript_id",
-        },
+        sa_relationship_kwargs={"foreign_keys": "[ManuscriptRelation.source_manuscript_id]"}
     )
     incoming_relations: List["ManuscriptRelation"] = Relationship(
         back_populates="target_manuscript",
-        sa_relationship_kwargs={
-            "foreign_keys": "[ManuscriptRelation.target_manuscript_id]",
-            "primaryjoin": "Manuscript.id == ManuscriptRelation.target_manuscript_id",
-        },
+        sa_relationship_kwargs={"foreign_keys": "[ManuscriptRelation.target_manuscript_id]"}
     )
 
 
@@ -400,17 +407,19 @@ class Manuscript(Table, table=True):
 # ---------------------------------------------------------------------------
 
 class Image(Table, table=True):
-    """
-    An image linked to a manuscript.
-    """
     __table_args__ = (
         UniqueConstraint("manuscript_id", "url"),
         _STRICT,
     )
 
     url: str = _text()
-    image_type: str = _text()  # scan | iphone_photo | iiif
     comment: Optional[str] = _text(default=None)
+
+    # Normalized ImageType
+    image_type_id: Optional[int] = Field(default=None, foreign_key="imagetype.id")
+    image_type: Optional[ImageType] = Relationship(
+        sa_relationship_kwargs={"primaryjoin": "Image.image_type_id == ImageType.id", "uselist": False}
+    )
 
     manuscript_id: Optional[int] = Field(default=None, foreign_key="manuscript.id")
     manuscript: Optional[Manuscript] = Relationship(back_populates="images")
@@ -421,55 +430,15 @@ class Image(Table, table=True):
 # ---------------------------------------------------------------------------
 
 class ExternalResource(Table, table=True):
-    """
-    Normalised external URL.
-    """
-    __table_args__ = (
-        UniqueConstraint("url"),
-        _STRICT,
-    )
+    __table_args__ = (UniqueConstraint("url"), _STRICT)
 
     url: str = _text()
-    resource_type: str = _text() # iiif_scan | bollandist_catalog | catalog_link | scan | other
+    resource_type: str = _text()
     comment: Optional[str] = _text(default=None)
     alive: int = Field(default=1, sa_type=Integer())
 
-    manuscript_links: List["ManuscriptExternalResource"] = Relationship(
-        back_populates="resource"
-    )
-    edition_links: List["EditionExternalResource"] = Relationship(
-        back_populates="resource"
-    )
-
-
-# ---------------------------------------------------------------------------
-# ManuscriptExternalResource  (M2M join)
-# ---------------------------------------------------------------------------
-
-class ManuscriptExternalResource(SQLModel, table=True):
-    """Many-to-many join: Manuscript <-> ExternalResource."""
-    __table_args__ = _STRICT
-
-    manuscript_id: int = Field(foreign_key="manuscript.id", primary_key=True)
-    resource_id: int = Field(foreign_key="externalresource.id", primary_key=True)
-
-    manuscript: Manuscript = Relationship(back_populates="external_links")
-    resource: ExternalResource = Relationship(back_populates="manuscript_links")
-
-
-# ---------------------------------------------------------------------------
-# EditionExternalResource  (M2M join)
-# ---------------------------------------------------------------------------
-
-class EditionExternalResource(SQLModel, table=True):
-    """Many-to-many join: Edition <-> ExternalResource."""
-    __table_args__ = _STRICT
-
-    edition_id: int = Field(foreign_key="edition.id", primary_key=True)
-    resource_id: int = Field(foreign_key="externalresource.id", primary_key=True)
-
-    edition: "Edition" = Relationship(back_populates="external_resources")
-    resource: ExternalResource = Relationship(back_populates="edition_links")
+    manuscript_links: List["ManuscriptExternalResource"] = Relationship(back_populates="resource")
+    edition_links: List["EditionExternalResource"] = Relationship(back_populates="resource")
 
 
 # ---------------------------------------------------------------------------
@@ -477,38 +446,25 @@ class EditionExternalResource(SQLModel, table=True):
 # ---------------------------------------------------------------------------
 
 class ManuscriptRelation(Table, table=True):
-    """
-    Normalised relation between two manuscripts.
-    """
     __table_args__ = (
         UniqueConstraint("source_manuscript_id", "target_manuscript_id", "relation_type"),
         _STRICT,
     )
 
-    source_manuscript_id: int = Field(
-        sa_type=Integer(), foreign_key="manuscript.id", index=True
-    )
-    target_manuscript_id: int = Field(
-        sa_type=Integer(), foreign_key="manuscript.id", index=True
-    )
-    relation_type: str = _text() # copy_of | exemplar_of
-    certainty: Optional[str] = _text(default=None) # certain | probable | uncertain
+    source_manuscript_id: int = Field(sa_type=Integer(), foreign_key="manuscript.id", index=True)
+    target_manuscript_id: int = Field(sa_type=Integer(), foreign_key="manuscript.id", index=True)
+    relation_type: str = _text()
+    certainty: Optional[str] = _text(default=None)
     notes: Optional[str] = _text(default=None)
     source_reference: Optional[str] = _text(default=None)
 
     source_manuscript: Manuscript = Relationship(
         back_populates="outgoing_relations",
-        sa_relationship_kwargs={
-            "foreign_keys": "[ManuscriptRelation.source_manuscript_id]",
-            "primaryjoin": "ManuscriptRelation.source_manuscript_id == Manuscript.id",
-        },
+        sa_relationship_kwargs={"foreign_keys": "[ManuscriptRelation.source_manuscript_id]"}
     )
     target_manuscript: Manuscript = Relationship(
         back_populates="incoming_relations",
-        sa_relationship_kwargs={
-            "foreign_keys": "[ManuscriptRelation.target_manuscript_id]",
-            "primaryjoin": "ManuscriptRelation.target_manuscript_id == Manuscript.id",
-        },
+        sa_relationship_kwargs={"foreign_keys": "[ManuscriptRelation.target_manuscript_id]"}
     )
 
 
@@ -517,16 +473,12 @@ class ManuscriptRelation(Table, table=True):
 # ---------------------------------------------------------------------------
 
 class Edition(Table, table=True):
-    """
-    One row per edition of a hagiographical text.
-    Maps to Tab 2 "Editions" of the Excel file.
-    """
     __table_args__ = _STRICT
 
     bhl_number: Optional[str] = _text(default=None, index=True)
     title: Optional[str] = _text(default=None)
     edition_identifier: Optional[str] = _text(default=None)
-    edition_reference_per_text: Optional[str] = _text(default=None) # Col 2
+    edition_reference_per_text: Optional[str] = _text(default=None)
 
     checked_leg: Optional[int] = Field(default=None, sa_type=Integer())
     checked_dg: Optional[int] = Field(default=None, sa_type=Integer())
@@ -541,6 +493,8 @@ class Edition(Table, table=True):
     page_range: Optional[str] = _text(default=None)
 
     is_reprint: Optional[int] = Field(default=None, sa_type=Integer())
+    reprint_identically_typeset: Optional[int] = Field(default=None, sa_type=Integer())
+    reprint_newly_typeset: Optional[int] = Field(default=None, sa_type=Integer())
     reprint_of: Optional[str] = _text(default=None)
     reprint_notes: Optional[str] = _text(default=None)
 
@@ -556,28 +510,7 @@ class Edition(Table, table=True):
     text: Optional[Text] = Relationship(back_populates="editions")
     
     manuscript_links: List["EditionManuscript"] = Relationship(back_populates="edition")
-    external_resources: List["EditionExternalResource"] = Relationship(
-        back_populates="edition"
-    )
-
-
-# ---------------------------------------------------------------------------
-# EditionManuscript  (M2M join with inspection_status)
-# ---------------------------------------------------------------------------
-
-class EditionManuscript(SQLModel, table=True):
-    """
-    Many-to-many join: Edition <-> Manuscript.
-    """
-    __table_args__ = _STRICT
-
-    edition_id: int = Field(
-        sa_type=Integer(), foreign_key="edition.id", primary_key=True
-    )
-    manuscript_id: int = Field(
-        sa_type=Integer(), foreign_key="manuscript.id", primary_key=True
-    )
-    inspection_status: Optional[str] = _text(default="unknown")
-
-    edition: Edition = Relationship(back_populates="manuscript_links")
-    manuscript: Manuscript = Relationship(back_populates="edition_links")
+    external_resources: List["EditionExternalResource"] = Relationship(back_populates="edition")
+    
+    # Handig voor uitlezen in Python, nu met de direct meegegeven Class
+    manuscripts_direct: List["Manuscript"] = Relationship(link_model=EditionManuscript)

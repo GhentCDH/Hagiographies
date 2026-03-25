@@ -24,6 +24,11 @@ export-map:
 export:
     export-map
 
+# ── Modelgeneratie ───────────────────────────────────────────────────────────
+
+generate-diagram:
+    docker compose run  -w /app/documenter --rm utils  uv run document
+
 # ── Kaartdata (pmtiles) ──────────────────────────────────────────────────────
 # Haalt de nieuwste Protomaps Africa-tegel op en zet die in ./local-map/data/
 map-data:

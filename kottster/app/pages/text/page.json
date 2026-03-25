@@ -1,0 +1,119 @@
+{
+  "version": "3.4",
+  "type": "table",
+  "title": "Text",
+  "hideInSidebar": false,
+  "config": {
+    "dataSource": "hagiographies_db",
+    "fetchStrategy": "databaseTable",
+    "table": "text",
+    "columns": [
+      { "column": "id", "label": "ID", "hidden": true },
+      { "column": "created_at", "label": "Created At", "hidden": true },
+      { "column": "updated_at", "label": "Updated At", "hidden": true },
+      { "column": "bhl_number", "label": "BHL Reference", "position": 0, "fieldInput": { "type": "textarea" } },
+      { "column": "title", "label": "Title", "position": 1, "fieldInput": { "type": "textarea" } },
+      { "column": "word_count", "label": "Approx. word count", "position": 2, "fieldInput": { "type": "numberInput" } },
+      { "column": "code", "label": "Code", "position": 3, "fieldInput": { "type": "textarea" } },
+      { "column": "checked_bhl", "label": "Check BHL", "position": 4, "fieldInput": { "type": "numberInput" } },
+      { "column": "checked_isb", "label": "Check ISB", "position": 5, "fieldInput": { "type": "numberInput" } },
+      { "column": "checked_naso", "label": "Check NASO", "position": 6, "fieldInput": { "type": "numberInput" } },
+      { "column": "checked_dg", "label": "Check DG", "position": 7, "fieldInput": { "type": "numberInput" } },
+      { "column": "checked_philippart", "label": "Check Philippart", "position": 8, "fieldInput": { "type": "numberInput" } },
+      { "column": "checked_secondary", "label": "Check secondary lit", "position": 9, "fieldInput": { "type": "numberInput" } },
+      { "column": "checked_leg", "label": "Check LEG", "position": 10, "fieldInput": { "type": "numberInput" } },
+      { "column": "origin_precise", "label": "Precise origin?", "position": 11, "fieldInput": { "type": "numberInput" } },
+      { "column": "destinatary_precise", "label": "Precise destinatary?", "position": 12, "fieldInput": { "type": "numberInput" } },
+      { "column": "author_locally_based", "label": "Locally based?", "position": 13, "fieldInput": { "type": "numberInput" } },
+      { "column": "dating_rough", "label": "Rough chronology", "position": 14, "fieldInput": { "type": "textarea" } },
+      { "column": "dating_precise", "label": "Dating", "position": 15, "fieldInput": { "type": "textarea" } },
+      {
+        "column": "origin_archdiocese_id",
+        "label": "Origin Archbishopric",
+        "position": 16,
+        "relationshipPreviewColumns": ["name"],
+        "fieldInput": { "type": "recordSelect", "asArray": false }
+      },
+      {
+        "column": "origin_diocese_id",
+        "label": "Origin Bishopric",
+        "position": 17,
+        "relationshipPreviewColumns": ["name"],
+        "fieldInput": { "type": "recordSelect", "asArray": false }
+      },
+      {
+        "column": "origin_location_id",
+        "label": "Origin Location",
+        "position": 18,
+        "relationshipPreviewColumns": ["name"],
+        "fieldInput": { "type": "recordSelect", "asArray": false }
+      },
+      {
+        "column": "primary_destinatary_location_id",
+        "label": "Primary destinatary",
+        "position": 19,
+        "relationshipPreviewColumns": ["name"],
+        "fieldInput": { "type": "recordSelect", "asArray": false }
+      },
+      {
+        "column": "author_id",
+        "label": "Author",
+        "position": 20,
+        "relationshipPreviewColumns": ["name"],
+        "fieldInput": { "type": "recordSelect", "asArray": false }
+      },
+      {
+        "column": "author_education_location_id",
+        "label": "Education",
+        "position": 21,
+        "relationshipPreviewColumns": ["name"],
+        "fieldInput": { "type": "recordSelect", "asArray": false }
+      },
+      {
+        "column": "author_earlier_location_id",
+        "label": "Antecedents",
+        "position": 22,
+        "relationshipPreviewColumns": ["name"],
+        "fieldInput": { "type": "recordSelect", "asArray": false }
+      },
+      {
+        "column": "author_milieu_id",
+        "label": "Milieu",
+        "position": 23,
+        "relationshipPreviewColumns": ["name"],
+        "fieldInput": { "type": "recordSelect", "asArray": false }
+      },
+      {
+        "column": "source_type_id",
+        "label": "Source type",
+        "position": 24,
+        "relationshipPreviewColumns": ["name"],
+        "fieldInput": { "type": "recordSelect", "asArray": false }
+      },
+      {
+        "column": "subtype_id",
+        "label": "Subtype",
+        "position": 25,
+        "relationshipPreviewColumns": ["name"],
+        "fieldInput": { "type": "recordSelect", "asArray": false }
+      },
+      { "column": "prose_or_verse", "label": "Prose or verse", "position": 26, "fieldInput": { "type": "textarea" } },
+      { "column": "reecriture", "label": "Réécriture?", "position": 27, "fieldInput": { "type": "numberInput" } },
+      { "column": "reecriture_of", "label": "Of which text(s)?", "position": 28, "fieldInput": { "type": "textarea" } },
+      { "column": "based_on_pre880", "label": "Based on pre-880?", "position": 29, "fieldInput": { "type": "numberInput" } },
+      { "column": "preferred_edition", "label": "Edition reference", "position": 30, "fieldInput": { "type": "textarea" } },
+      { "column": "edition_link_aass", "label": "Direct AASS link", "position": 31, "fieldInput": { "type": "textarea" } },
+      { "column": "edition_link_other", "label": "Direct other links", "position": 32, "fieldInput": { "type": "textarea" } },
+      { "column": "edition_link_mgh", "label": "MGH", "position": 33, "fieldInput": { "type": "textarea" } },
+      { "column": "ocr_pre_1800", "label": "OCR pre-1800", "position": 34, "fieldInput": { "type": "numberInput" } },
+      { "column": "ocr_post_1800", "label": "OCR post-1800", "position": 35, "fieldInput": { "type": "numberInput" } },
+      { "column": "has_full_ocr", "label": "Full OCR available?", "position": 36, "fieldInput": { "type": "numberInput" } },
+      { "column": "ocr_cleaned", "label": "Cleaned?", "position": 37, "fieldInput": { "type": "numberInput" } },
+      { "column": "ocr_comments", "label": "Comments OCR", "position": 38, "fieldInput": { "type": "textarea" } },
+      { "column": "edition_link_1", "label": "Edition link 1", "position": 39, "fieldInput": { "type": "textarea" } },
+      { "column": "edition_link_2", "label": "Edition link 2", "position": 40, "fieldInput": { "type": "textarea" } },
+      { "column": "key_bibliography", "label": "Key bibliography", "position": 41, "fieldInput": { "type": "textarea" } },
+      { "column": "notes", "label": "Notes", "position": 42, "fieldInput": { "type": "textarea" } }
+    ]
+  }
+}
