@@ -1,20 +1,30 @@
 # Hagiographies
 
-Excel-to-SQLite import pipeline with a Kottster admin panel for browsing hagiographic data.
+Excel-to-SQLite import pipeline with a Kottster admin panel and MapLibre map for browsing hagiographic data.
 
 ## Setup
 
 ```sh
 just rebuild   # build Docker containers
-just import    # create tables and import CSV data
+just import    # create tables and import Excel data
 just kottster  # start Kottster dev server on port 5480
 ```
 
 ## Project Structure
 
-- `import/` — Python service that imports CSV data into SQLite
-- `kottster/` — Kottster admin UI for browsing the database
-- `data/` — SQLite database and CSV files (gitignored)
+```
+├── utils/                 # Python utilities (Docker)
+│   ├── importer/          #   Excel → SQLite import
+│   ├── exporter/          #   SQLite → GeoJSON export
+│   ├── documenter/        #   Schema diagram generator
+│   └── utilities/         #   Shared model & db config
+├── kottster/              # Admin UI (React/Kottster 3)
+├── local-map/             # MapLibre map frontend
+├── caddy/                 # Reverse proxy config
+├── data/                  # SQLite db & data files (gitignored)
+├── compose.yml            # Docker Compose services
+└── justfile               # Task runner commands
+```
 
 ## Credits
 
