@@ -35,21 +35,28 @@ OUTPUT = Path("/local-map/data/hagiographies_map.geojson")
 # Helpers
 # ---------------------------------------------------------------------------
 
-def _build_feature(place: Place, texts: List[Text]) -> Dict[str, Any]:
+def _build_feature(session: Session, place: Place, texts: List[Text]) -> Dict[str, Any]:
+    from utilities.model import Manuscript, ManuscriptText, Edition
     text_data = []
     for t in texts:
-        # Aggregate collection flags from all manuscripts witnessing this text
-        collections = []
-        if any(m.checked_leg for m in t.manuscripts): collections.append("LEG")
-        if any(m.checked_dg for m in t.manuscripts):  collections.append("DG")
-        if any(m.checked_naso for m in t.manuscripts): collections.append("NASO")
+        # Query manuscripts witnessing this text
+        manuscripts = session.exec(
+            select(Manuscript).join(ManuscriptText).where(ManuscriptText.text_id == t.id)
+        ).all()
 
-        # Aggregate unique provenance labels and centuries from witnesses
-        provenances = sorted(list(set(m.provenance_general.description for m in t.manuscripts if m.provenance_general)))
-        centuries   = sorted(list(set(m.dating_century.century for m in t.manuscripts if m.dating_century)))
+        # Aggregate collection flags
+        collections = []
+        if any(m.checked_leg for m in manuscripts): collections.append("LEG")
+        if any(m.checked_dg for m in manuscripts):  collections.append("DG")
+        if any(m.checked_naso for m in manuscripts): collections.append("NASO")
+
+        # Aggregate unique provenance labels and centuries
+        provenances = sorted(list(set(m.provenance_general.description for m in manuscripts if m.provenance_general)))
+        centuries   = sorted(list(set(m.dating_century.century for m in manuscripts if m.dating_century)))
 
         # Aggregate modern edition references
-        editions = sorted(list(set(e.bibliographic_reference for e in t.editions if e.bibliographic_reference)))
+        editions = session.exec(select(Edition).where(Edition.text_id == t.id)).all()
+        edition_refs = sorted(list(set(e.bibliographic_reference for e in editions if e.bibliographic_reference)))
 
         text_data.append({
             "id":            t.id,
@@ -62,11 +69,11 @@ def _build_feature(place: Place, texts: List[Text]) -> Dict[str, Any]:
             
             "is_reecriture": t.reecriture,
             "arch":          t.origin_archdiocese.name if t.origin_archdiocese else None,
-            "bish":          None, # Bishopric normalized into ChurchEntity if needed
+            "bish":          None,
             "collections":   collections,
             "provenances":   provenances,
             "centuries":     centuries,
-            "edition_refs":  editions,
+            "edition_refs":  edition_refs,
         })
 
     return {
@@ -100,8 +107,11 @@ def main() -> None:
 
         features: List[Dict[str, Any]] = []
         for p in places:
-            # texts_as_origin relationship is pre-defined in Place
-            features.append(_build_feature(p, p.texts_as_origin))
+            # Explicitly query texts for this origin
+            texts = session.exec(
+                select(Text).where(Text.origin_location_id == p.id)
+            ).all()
+            features.append(_build_feature(session, p, texts))
 
     geojson = {
         "type": "FeatureCollection",

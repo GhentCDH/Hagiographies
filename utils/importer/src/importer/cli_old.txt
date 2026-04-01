@@ -1118,6 +1118,17 @@ def import_manuscripts(
                         provenance_archdiocese_id=prov_arch_id,
                         provenance_diocese_id=prov_dio_id,
                         provenance_institution_id=prov_inst_id,
+                        text_archdiocese_id=_get_or_create_church_entity(
+                            session, cval(row, "Archbishopric"), True, church_cache
+                        ),
+                        text_bishopric_id=_get_or_create_church_entity(
+                            session, cval(row, "Bishopric"), False, church_cache
+                        ),
+                        text_origin_id=_get_or_create_place(
+                            session, cval(row, "Origin"), place_cache
+                        ),
+                        ms_number_per_bhl=cval(row, "MS N° per BHL number"),
+                        folio_pages=cval(row, "Folio or page per BHL"),
                         vernacular_region_id=vernacular_id,
                         image_availability_id=image_avail_id,
                         notes=cval(row, "Notes"),
