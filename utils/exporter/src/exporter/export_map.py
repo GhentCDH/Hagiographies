@@ -45,8 +45,8 @@ def _build_feature(place: Place, texts: List[Text]) -> Dict[str, Any]:
         if any(m.checked_naso for m in t.manuscripts): collections.append("NASO")
 
         # Aggregate unique provenance labels and centuries from witnesses
-        provenances = sorted(list(set(m.provenance_general_rel.description for m in t.manuscripts if m.provenance_general_rel)))
-        centuries   = sorted(list(set(m.dating_century_rel.century for m in t.manuscripts if m.dating_century_rel)))
+        provenances = sorted(list(set(m.provenance_general.description for m in t.manuscripts if m.provenance_general)))
+        centuries   = sorted(list(set(m.dating_century.century for m in t.manuscripts if m.dating_century)))
 
         # Aggregate modern edition references
         editions = sorted(list(set(e.bibliographic_reference for e in t.editions if e.bibliographic_reference)))
@@ -61,7 +61,7 @@ def _build_feature(place: Place, texts: List[Text]) -> Dict[str, Any]:
             "subtype":       t.subtype.name if t.subtype else None,
             
             "is_reecriture": t.reecriture,
-            "arch":          t.origin_archdiocese_rel.name if t.origin_archdiocese_rel else None,
+            "arch":          t.origin_archdiocese.name if t.origin_archdiocese else None,
             "bish":          None, # Bishopric normalized into ChurchEntity if needed
             "collections":   collections,
             "provenances":   provenances,
@@ -100,8 +100,8 @@ def main() -> None:
 
         features: List[Dict[str, Any]] = []
         for p in places:
-            # texts_as_origin_rel relationship is pre-defined in Place
-            features.append(_build_feature(p, p.texts_as_origin_rel))
+            # texts_as_origin relationship is pre-defined in Place
+            features.append(_build_feature(p, p.texts_as_origin))
 
     geojson = {
         "type": "FeatureCollection",
