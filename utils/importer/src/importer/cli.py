@@ -938,7 +938,10 @@ def import_editions(session: Session, wb, text_cache: Dict[str, "Text"], ms_cach
 
 def main() -> None:
     logger.info(f"Using database at {DB_PATH}")
-    if not EXCEL.exists(): return
+    if not EXCEL.exists():
+        logger.error(f"Excel file not found at {EXCEL}, cannot proceed with import.")
+        return
+    
 
     # Let op: bij structurele database-wijzigingen de oude .db file eerst weggooien (STRICT schema changes)!
     SQLModel.metadata.create_all(engine)
