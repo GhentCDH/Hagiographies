@@ -335,18 +335,18 @@ def _get_or_create_milieu(session: Session, name: Optional[str], cache: Dict[str
     cache[name] = m
     return m.id
 
-def _get_or_create_church_entity(session: Session, name: Optional[str], is_arch: bool, cache: Dict[tuple, ChurchEntity]) -> Optional[int]:
+def _get_or_create_church_entity(session: Session, name: Optional[str], is_arch: bool, cache: Dict[str, ChurchEntity]) -> Optional[int]:
     if not name: return None
     name = name.strip()
-    key = (name, is_arch)
+    key = name
     if key in cache: return cache[key].id
     existing = session.exec(
-        select(ChurchEntity).where(ChurchEntity.name == name, ChurchEntity.is_archdiocese == (1 if is_arch else 0))
+        select(ChurchEntity).where(ChurchEntity.name == name)
     ).first()
     if existing:
         cache[key] = existing
         return existing.id
-    ce = ChurchEntity(name=name, is_archdiocese=1 if is_arch else 0)
+    ce = ChurchEntity(name=name)
     session.add(ce)
     session.flush()
     cache[key] = ce
@@ -428,6 +428,31 @@ def _get_or_create_provenance_general(session: Session, description: Optional[st
     session.flush()
     cache[description] = obj
     return obj.id
+
+def _get_or_create_edition(session: Session, uid: Optional[int], descriptive_id: Optional[str], bhl: Optional[str], title: Optional[str], cache: Dict[Any, Edition]) -> Edition:
+    key = uid if uid is not None else (descriptive_id if descriptive_id else f"{title}|{bhl}")
+    if key in cache: return cache[key]
+    
+    existing = None
+    if uid is not None:
+        existing = session.exec(select(Edition).where(Edition.unique_id_numeric == uid)).first()
+    elif descriptive_id:
+        existing = session.exec(select(Edition).where(Edition.unique_id_descriptive == descriptive_id)).first()
+    
+    if existing:
+        cache[key] = existing
+        return existing
+        
+    edition = Edition(
+        unique_id_numeric=uid,
+        unique_id_descriptive=descriptive_id,
+        bhl_number=bhl,
+        title=title
+    )
+    session.add(edition)
+    session.flush()
+    cache[key] = edition
+    return edition
 
 def _add_manuscript_resource(
     ms: Manuscript, url: str, resource_type: str, comment: Optional[str], col_name: str, excel_row: int, 
@@ -537,7 +562,7 @@ def import_texts(session: Session, wb, report: ImportReport) -> Dict[str, Text]:
     
     text_cache: Dict[str, Text] = {}
     place_cache: Dict[str, Place] = {}
-    church_cache: Dict[tuple, ChurchEntity] = {}
+    church_cache: Dict[str, ChurchEntity] = {}
     author_cache: Dict[str, Author] = {}
     milieu_cache: Dict[str, Milieu] = {}
     typology_cache: Dict[str, Typology] = {}
@@ -658,7 +683,7 @@ def import_manuscripts(session: Session, wb, text_cache: Dict[str, "Text"], repo
     resource_cache: Dict[str, ExternalResource] = {}
     place_cache: Dict[str, Place] = {}
     inst_cache: Dict[str, Institution] = {}
-    church_cache: Dict[tuple, ChurchEntity] = {}
+    church_cache: Dict[str, ChurchEntity] = {}
     mt_cache: Dict[str, ManuscriptType] = {}
     ms_ident_cache: Dict[str, ManuscriptIdentifier] = {}
     century_cache: Dict[int, DatingCentury] = {}
@@ -697,19 +722,47 @@ def import_manuscripts(session: Session, wb, text_cache: Dict[str, "Text"], repo
 
                 text_obj = text_cache.get(col_a_value)
 
-                if uid_raw is not None and uid_raw in ms_cache:
-                    ms = ms_cache[uid_raw]
+                # --- 1. Hierarchical Lookup ---
+                ms = None
+                
+                # A. Try Unique ID lookup (Cache then DB)
+                if uid_raw is not None:
+                    ms = ms_cache.get(uid_raw)
+                    if not ms:
+                        ms = session.exec(select(Manuscript).where(Manuscript.unique_id == uid_raw)).first()
+
+                # B. Try Composite Key lookup (Cache then DB)
+                coll_loc_id = _get_or_create_place(session, cval(row, "Location"), place_cache)
+                heri_inst_id = _get_or_create_institution(session, cval(row, "Heritage institution"), coll_loc_id, inst_cache)
+                shelfmark = cval(row, "Shelfmark")
+                comp_key = f"ms_{heri_inst_id}_{shelfmark}"
+                
+                if not ms and heri_inst_id and shelfmark:
+                    ms = ms_cache.get(comp_key)
+                    if not ms:
+                        ms = session.exec(
+                            select(Manuscript).where(
+                                Manuscript.heritage_institution_id == heri_inst_id,
+                                Manuscript.shelfmark == shelfmark
+                            )
+                        ).first()
+
+                # --- 2. Handle Found vs New ---
+                if ms:
                     stats["manuscripts_skipped"] += 1
+                    # Ensure all keys are in cache
+                    if ms.unique_id is not None: ms_cache[ms.unique_id] = ms
+                    if ms.heritage_institution_id and ms.shelfmark:
+                        ms_cache[f"ms_{ms.heritage_institution_id}_{ms.shelfmark}"] = ms
+                    
                     if text_obj and ms.text_id is None:
                         ms.text_id = text_obj.id
                         session.add(ms)
                 else:
+                    # Create new
                     txt_arch_id = _get_or_create_church_entity(session, cval(row, "Archbishopric"), True, church_cache)
                     txt_bish_id = _get_or_create_church_entity(session, cval(row, "Bishopric"), False, church_cache)
                     txt_orig_id = _get_or_create_place(session, cval(row, "Origin"), place_cache)
-
-                    coll_loc_id = _get_or_create_place(session, cval(row, "Location"), place_cache)
-                    heri_inst_id = _get_or_create_institution(session, cval(row, "Heritage institution"), coll_loc_id, inst_cache)
 
                     prov_arch_id = _get_or_create_church_entity(session, cval(row, "Provenance archdiocese"), True, church_cache)
                     prov_dio_id = _get_or_create_church_entity(session, cval(row, "Provenance diocese"), False, church_cache)
@@ -737,7 +790,7 @@ def import_manuscripts(session: Session, wb, text_cache: Dict[str, "Text"], repo
                         checked_ed_sec=cyesno(row, "ED/SEC"),
                         collection_location_id=coll_loc_id,
                         heritage_institution_id=heri_inst_id,
-                        shelfmark=cval(row, "Shelfmark"),
+                        shelfmark=shelfmark,
                         folio_pages=cval(row, _COL_MS_FOLIO),
                         dating_century_id=century_id,
                         dating_precise=cval(row, "Dating"),
@@ -756,7 +809,11 @@ def import_manuscripts(session: Session, wb, text_cache: Dict[str, "Text"], repo
                     )
                     session.add(ms)
                     session.flush()
-                    if uid_raw is not None: ms_cache[uid_raw] = ms
+                    # Cache both
+                    if ms.unique_id is not None: ms_cache[ms.unique_id] = ms
+                    if ms.heritage_institution_id and ms.shelfmark:
+                        ms_cache[f"ms_{ms.heritage_institution_id}_{ms.shelfmark}"] = ms
+                    
                     coll_id = cval(row, _COL_MS_COLLECTION_ID)
                     if coll_id: ms_coll_cache[normalize_id(coll_id)] = ms
                     stats["manuscripts_inserted"] += 1
@@ -863,6 +920,8 @@ def import_editions(session: Session, wb, text_cache: Dict[str, "Text"], ms_cach
 
     for batch in _chunked(_iter_data_rows(rows_iter, "Editions"), 500):
         try:
+            edition_ms_pairs: set = set()  # Track (edition_id, manuscript_id) pairs per batch
+            
             for excel_row, row_cells_list in batch:
                 row = row_to_cell_dict(row_cells_list, headers)
 
@@ -923,11 +982,17 @@ def import_editions(session: Session, wb, text_cache: Dict[str, "Text"], ms_cach
                         report.add("invalid_format", {"Row": excel_row, "Column": f"col index {idx} (W-AL)", "Value": ms_val, "Reason": f"Collection identifier '{match_val}' not found"})
                         continue
 
-                    inspection = "uncertain" if "(?)" in ms_val else _cell_inspection_status(ms_cell)
-                    exists = session.exec(select(EditionManuscript).where(EditionManuscript.edition_id == edition.id, EditionManuscript.manuscript_id == target_ms.id)).first()
-                    if not exists:
-                        session.add(EditionManuscript(edition_id=edition.id, manuscript_id=target_ms.id, inspection_status=inspection))
-                        stats["ms_links_created"] += 1
+                    # Create pair key to track this manuscript-edition link
+                    pair_key = (edition.id, target_ms.id)
+                    
+                    # Only create the link if we haven't already linked this manuscript to this edition in this batch
+                    if pair_key not in edition_ms_pairs:
+                        inspection = "uncertain" if "(?)" in ms_val else _cell_inspection_status(ms_cell)
+                        exists = session.exec(select(EditionManuscript).where(EditionManuscript.edition_id == edition.id, EditionManuscript.manuscript_id == target_ms.id)).first()
+                        if not exists:
+                            session.add(EditionManuscript(edition_id=edition.id, manuscript_id=target_ms.id, inspection_status=inspection))
+                            edition_ms_pairs.add(pair_key)
+                            stats["ms_links_created"] += 1
 
             session.commit()
         except Exception as e:

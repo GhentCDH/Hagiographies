@@ -53,6 +53,15 @@ class Place(Table, table=True):
     lat: Optional[float] = _real(default=None)
     lon: Optional[float] = _real(default=None)
 
+    texts_as_origin: List["Text"] = Relationship(
+        back_populates="origin_location",
+        sa_relationship_kwargs={"primaryjoin": "Place.id == Text.origin_location_id"}
+    )
+    texts_as_destinatary: List["Text"] = Relationship(
+        back_populates="primary_destinatary_location",
+        sa_relationship_kwargs={"primaryjoin": "Place.id == Text.primary_destinatary_location_id"}
+    )
+
 
 class Institution(Table, table=True):
     __table_args__ = (UniqueConstraint("name"), _STRICT)
@@ -91,9 +100,8 @@ class Milieu(Table, table=True):
 
 
 class ChurchEntity(Table, table=True):
-    __table_args__ = (UniqueConstraint("name", "is_archdiocese"), _STRICT)
+    __table_args__ = (UniqueConstraint("name"), _STRICT)
     name: str = _text(index=True)
-    is_archdiocese: int = Field(default=0, sa_type=Integer())
 
 
 class ManuscriptIdentifier(Table, table=True):
@@ -107,25 +115,25 @@ class ManuscriptIdentifier(Table, table=True):
 class DatingCentury(Table, table=True):
     __table_args__ = (UniqueConstraint("century"), _STRICT)
     century: int = Field(index=True, sa_type=Integer())
-    manuscripts: List["Manuscript"] = Relationship(back_populates="dating_century_rel")
+    manuscripts: List["Manuscript"] = Relationship(back_populates="dating_century")
 
 
 class ImageAvailability(Table, table=True):
     __table_args__ = (UniqueConstraint("availability"), _STRICT)
     availability: str = _text(index=True)
-    manuscripts: List["Manuscript"] = Relationship(back_populates="image_availability_rel")
+    manuscripts: List["Manuscript"] = Relationship(back_populates="image_availability")
 
 
 class VernacularRegion(Table, table=True):
     __table_args__ = (UniqueConstraint("region"), _STRICT)
     region: str = _text(index=True)
-    manuscripts: List["Manuscript"] = Relationship(back_populates="vernacular_region_rel")
+    manuscripts: List["Manuscript"] = Relationship(back_populates="vernacular_region")
 
 
 class ProvenanceGeneral(Table, table=True):
     __table_args__ = (UniqueConstraint("description"), _STRICT)
     description: str = _text(index=True)
-    manuscripts: List["Manuscript"] = Relationship(back_populates="provenance_general_rel")
+    manuscripts: List["Manuscript"] = Relationship(back_populates="provenance_general")
 
 
 class TextType(Table, table=True):
@@ -153,8 +161,14 @@ class EditionManuscript(SQLModel, table=True):
     inspection_status: Optional[str] = _text(default="unknown")
 
     # Using strings for forward references to classes defined later
-    edition: "Edition" = Relationship(back_populates="manuscript_links")
-    manuscript: "Manuscript" = Relationship(back_populates="edition_links")
+    edition: "Edition" = Relationship(
+        back_populates="manuscript_links",
+        sa_relationship_kwargs={"overlaps": "editions_direct,manuscripts_direct"}
+    )
+    manuscript: "Manuscript" = Relationship(
+        back_populates="edition_links",
+        sa_relationship_kwargs={"overlaps": "editions_direct,manuscripts_direct"}
+    )
 
 
 class ManuscriptExternalResource(SQLModel, table=True):
@@ -275,16 +289,18 @@ class Text(Table, table=True):
     )
 
     # Normalized relationships fixed with strict primaryjoin and uselist=False
-    origin_archdiocese_rel: Optional[ChurchEntity] = Relationship(
+    origin_archdiocese: Optional[ChurchEntity] = Relationship(
         sa_relationship_kwargs={"primaryjoin": "Text.origin_archdiocese_id == ChurchEntity.id", "uselist": False}
     )
-    origin_diocese_rel: Optional[ChurchEntity] = Relationship(
+    origin_diocese: Optional[ChurchEntity] = Relationship(
         sa_relationship_kwargs={"primaryjoin": "Text.origin_diocese_id == ChurchEntity.id", "uselist": False}
     )
     origin_location: Optional[Place] = Relationship(
+        back_populates="texts_as_origin",
         sa_relationship_kwargs={"primaryjoin": "Text.origin_location_id == Place.id", "uselist": False}
     )
     primary_destinatary_location: Optional[Place] = Relationship(
+        back_populates="texts_as_destinatary",
         sa_relationship_kwargs={"primaryjoin": "Text.primary_destinatary_location_id == Place.id", "uselist": False}
     )
     author_location: Optional[Place] = Relationship(
@@ -328,19 +344,19 @@ class Manuscript(Table, table=True):
     folio_pages: Optional[str] = _text(default=None)
 
     dating_century_id: Optional[int] = Field(default=None, foreign_key="datingcentury.id")
-    dating_century_rel: Optional[DatingCentury] = Relationship(back_populates="manuscripts")
+    dating_century: Optional[DatingCentury] = Relationship(back_populates="manuscripts")
     dating_precise: Optional[str] = _text(default=None)
 
     provenance_general_id: Optional[int] = Field(default=None, foreign_key="provenancegeneral.id")
-    provenance_general_rel: Optional[ProvenanceGeneral] = Relationship(back_populates="manuscripts")
+    provenance_general: Optional[ProvenanceGeneral] = Relationship(back_populates="manuscripts")
     provenance_archdiocese_id: Optional[int] = Field(default=None, foreign_key="churchentity.id")
     provenance_diocese_id: Optional[int] = Field(default=None, foreign_key="churchentity.id")
     provenance_institution_id: Optional[int] = Field(default=None, foreign_key="institution.id")
     vernacular_region_id: Optional[int] = Field(default=None, foreign_key="vernacularregion.id")
-    vernacular_region_rel: Optional[VernacularRegion] = Relationship(back_populates="manuscripts")
+    vernacular_region: Optional[VernacularRegion] = Relationship(back_populates="manuscripts")
 
     image_availability_id: Optional[int] = Field(default=None, foreign_key="imageavailability.id")
-    image_availability_rel: Optional[ImageAvailability] = Relationship(back_populates="manuscripts")
+    image_availability: Optional[ImageAvailability] = Relationship(back_populates="manuscripts")
     notes: Optional[str] = _text(default=None)
     witness_relation_notes: Optional[str] = _text(default=None)
     manuscript_type_id: Optional[int] = Field(default=None, foreign_key="manuscripttype.id")
@@ -473,7 +489,7 @@ class ManuscriptRelation(Table, table=True):
 # ---------------------------------------------------------------------------
 
 class Edition(Table, table=True):
-    __table_args__ = _STRICT
+    __table_args__ = (UniqueConstraint("unique_id_numeric"), _STRICT)
 
     bhl_number: Optional[str] = _text(default=None, index=True)
     title: Optional[str] = _text(default=None)
@@ -509,8 +525,14 @@ class Edition(Table, table=True):
     text_id: Optional[int] = Field(default=None, foreign_key="text.id")
     text: Optional[Text] = Relationship(back_populates="editions")
     
-    manuscript_links: List["EditionManuscript"] = Relationship(back_populates="edition")
+    manuscript_links: List["EditionManuscript"] = Relationship(
+        back_populates="edition",
+        sa_relationship_kwargs={"overlaps": "editions_direct,manuscripts_direct"}
+    )
     external_resources: List["EditionExternalResource"] = Relationship(back_populates="edition")
     
     # Handig voor uitlezen in Python, nu met de direct meegegeven Class
-    manuscripts_direct: List["Manuscript"] = Relationship(link_model=EditionManuscript)
+    manuscripts_direct: List["Manuscript"] = Relationship(
+        link_model=EditionManuscript, 
+        sa_relationship_kwargs={"overlaps": "edition_links,manuscript,editions_direct,manuscript_links,edition"}
+    )
