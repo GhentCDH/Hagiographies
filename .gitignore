@@ -36,3 +36,6 @@ Desktop.ini
 
 # Log files
 *.log
+
+# Temporary / Scratch
+cli_old.txt
