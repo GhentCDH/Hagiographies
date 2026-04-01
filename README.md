@@ -2,12 +2,20 @@
 
 Excel-to-SQLite import pipeline with a Kottster admin panel and MapLibre map for browsing hagiographic data.
 
-## Setup
+## Commands
 
 ```sh
-just rebuild   # build Docker containers
-just import    # create tables and import Excel data
-just kottster  # start Kottster dev server on port 5480
+just rebuild          # build and start Docker containers
+just up / just down   # start / stop containers
+just import           # create tables and import Excel data
+just export-map       # export SQLite → GeoJSON for the map
+just kottster         # start Kottster dev server (port 5480)
+just generate-diagram # generate SVG schema diagram
+just map-data         # download PMTiles basemap
+just reset-db         # delete SQLite database
+just reinit           # full reset: rebuild + import + export + map-data
+just open-admin       # open Kottster admin in browser
+just open-map         # open map frontend in browser
 ```
 
 ## Project Structure

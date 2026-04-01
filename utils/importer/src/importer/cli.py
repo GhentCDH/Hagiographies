@@ -1558,6 +1558,7 @@ def import_editions(
 def main() -> None:
     logger.info(f"Using database at {DB_PATH}")
     if not EXCEL.exists():
+        logger.error(f"Excel file not found at {EXCEL}, cannot proceed with import.")
         return
 
     # Let op: bij structurele database-wijzigingen de oude .db file eerst
