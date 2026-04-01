@@ -16,6 +16,7 @@
 #     EditionExternalResource) are unchanged.
 # ---------------------------------------------------------------------------
 
+from enum import Enum
 from datetime import datetime
 from typing import Optional, List
 
@@ -37,20 +38,53 @@ def _real(**kwargs):
     return Field(sa_type=REAL(), **kwargs)
 
 
+# ==============================================================================
+# ENUMS
+# ==============================================================================
+
+class ExternalResourceType(str, Enum):
+    """
+    Enumeration of supported external resource types for a manuscript.
+    Used to categorize URLs (e.g., IIIF viewer, Bollandist entries).
+    """
+    iiif_scan = "iiif_scan"
+    bollandist_catalog = "bollandist_catalog"
+    catalog_link = "catalog_link"
+    scan = "scan"
+    other = "other"
+
+
+class RelationType(str, Enum):
+    """
+    Enumeration of possible relationship types between manuscripts.
+    By convention, relationships are stored unidirectionally (e.g. MS-A copy_of MS-B).
+    """
+    copy_of = "copy_of"
+    exemplar_of = "exemplar_of"
+    other = "other"
+
+
+class Certainty(str, Enum):
+    """Enumeration of certainty levels for manuscript relations."""
+    certain = "certain"
+    probable = "probable"
+    uncertain = "uncertain"
+
+
 # ---------------------------------------------------------------------------
 # Base
 # ---------------------------------------------------------------------------
 
 class Table(SQLModel):
     """Base class: auto PK + audit timestamps."""
-    id: int | None = Field(default=None, primary_key=True)
+    id: Optional[int] = Field(default=None, primary_key=True)
     created_at: datetime = Field(
-        default=None,
+        default_factory=datetime.utcnow,
         sa_type=SAText(),
         sa_column_kwargs={"server_default": func.now(), "nullable": False},
     )
     updated_at: datetime = Field(
-        default=None,
+        default_factory=datetime.utcnow,
         sa_type=SAText(),
         sa_column_kwargs={"server_default": func.now(), "nullable": False},
     )
@@ -181,7 +215,7 @@ class ManuscriptText(SQLModel, table=True):
     text_bishopric_id: Optional[int] = Field(
         default=None, foreign_key="churchentity.id"
     )
-    text_origin_id: Optional[int] = Field(
+    text_origin_place_id: Optional[int] = Field(
         default=None, foreign_key="place.id"
     )
 
@@ -231,27 +265,6 @@ class EditionManuscript(SQLModel, table=True):
     )
 
 
-class ManuscriptExternalResource(SQLModel, table=True):
-    """Many-to-many join: Manuscript <-> ExternalResource."""
-    __table_args__ = _STRICT
-
-    ms_id: int = Field(
-        sa_type=Integer(), foreign_key="manuscript.id", primary_key=True
-    )
-    resource_id: int = Field(
-        sa_type=Integer(), foreign_key="externalresource.id", primary_key=True
-    )
-
-    manuscript: "Manuscript" = Relationship(
-        back_populates="external_links",
-        sa_relationship_kwargs={
-            "foreign_keys": "[ManuscriptExternalResource.ms_id]"
-        }
-    )
-
-    resource: "ExternalResource" = Relationship(back_populates="manuscript_links")
-
-
 class EditionExternalResource(SQLModel, table=True):
     """Many-to-many join: Edition <-> ExternalResource."""
     __table_args__ = _STRICT
@@ -260,11 +273,92 @@ class EditionExternalResource(SQLModel, table=True):
         sa_type=Integer(), foreign_key="edition.id", primary_key=True
     )
     resource_id: int = Field(
-        sa_type=Integer(), foreign_key="externalresource.id", primary_key=True
+        sa_type=Integer(), foreign_key="external_resource.id", primary_key=True
     )
 
     edition: "Edition" = Relationship(back_populates="external_resources")
     resource: "ExternalResource" = Relationship(back_populates="edition_links")
+
+
+class ExternalResource(SQLModel, table=True):
+    """
+    Represents an external hyperlink or resource associated with a manuscript.
+    Extracts the underlying target URL rather than the display text.
+    """
+    __tablename__ = "external_resource"
+    __table_args__ = (
+        UniqueConstraint("manuscript_id", "url", name="uix_manuscript_url"),
+        _STRICT
+    )
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    manuscript_id: Optional[int] = Field(
+        default=None, foreign_key="manuscript.id"
+    )
+    url: str = _text(index=True)
+    resource_type: ExternalResourceType = _text(default=ExternalResourceType.other)
+    comment: Optional[str] = _text(default=None)
+    alive: int = Field(default=1, sa_type=Integer())
+    created_at: datetime = Field(
+        default_factory=datetime.utcnow,
+        sa_type=SAText(),
+    )
+    updated_at: datetime = Field(
+        default_factory=datetime.utcnow,
+        sa_type=SAText(),
+    )
+
+    manuscript: "Manuscript" = Relationship(back_populates="external_resources")
+    # For Edition sharing, we might need a separate join or optional FK. 
+    # But following snippet's 1:N for now.
+    edition_links: List["EditionExternalResource"] = Relationship(
+        back_populates="resource"
+    )
+
+
+class ManuscriptRelation(SQLModel, table=True):
+    """
+    Represents a directed relationship (e.g., copy or exemplar) between two manuscripts.
+    """
+    __tablename__ = "manuscript_relation"
+    __table_args__ = (
+        UniqueConstraint(
+            "source_manuscript_id", 
+            "target_manuscript_id", 
+            "relation_type", 
+            name="uix_source_target_relation"
+        ),
+        _STRICT
+    )
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    source_manuscript_id: int = Field(foreign_key="manuscript.id")
+    target_manuscript_id: int = Field(foreign_key="manuscript.id")
+    relation_type: RelationType = _text(default=RelationType.other)
+    certainty: Certainty = _text(default=Certainty.uncertain)
+    notes: Optional[str] = _text(default=None)
+    source_reference: Optional[str] = _text(default=None)
+    created_at: datetime = Field(
+        default_factory=datetime.utcnow,
+        sa_type=SAText(),
+    )
+    updated_at: datetime = Field(
+        default_factory=datetime.utcnow,
+        sa_type=SAText(),
+    )
+
+    source_manuscript: "Manuscript" = Relationship(
+        sa_relationship_kwargs={
+            "primaryjoin": "ManuscriptRelation.source_manuscript_id==Manuscript.id",
+            "back_populates": "outgoing_relations"
+        }
+    )
+    target_manuscript: "Manuscript" = Relationship(
+        sa_relationship_kwargs={
+            "primaryjoin": "ManuscriptRelation.target_manuscript_id==Manuscript.id",
+            "back_populates": "incoming_relations"
+        }
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -298,26 +392,26 @@ class Text(Table, table=True):
     origin_diocese_id: Optional[int] = Field(
         default=None, foreign_key="churchentity.id"
     )
-    origin_location_id: Optional[int] = Field(
+    origin_place_id: Optional[int] = Field(
         default=None, foreign_key="place.id"
     )
     origin_known: Optional[int] = Field(default=None, sa_type=Integer())
 
     # Primary destinatary (Normalized)
-    primary_destinatary_location_id: Optional[int] = Field(
+    primary_destinatary_place_id: Optional[int] = Field(
         default=None, foreign_key="place.id"
     )
     destinatary_known: Optional[int] = Field(default=None, sa_type=Integer())
 
     # Author (Normalized)
     author_id: Optional[int] = Field(default=None, foreign_key="author.id")
-    author_location_id: Optional[int] = Field(
+    author_place_id: Optional[int] = Field(
         default=None, foreign_key="place.id"
     )
-    author_education_location_id: Optional[int] = Field(
+    author_education_place_id: Optional[int] = Field(
         default=None, foreign_key="place.id"
     )
-    author_earlier_location_id: Optional[int] = Field(
+    author_earlier_place_id: Optional[int] = Field(
         default=None, foreign_key="place.id"
     )
     author_milieu_id: Optional[int] = Field(
@@ -424,33 +518,33 @@ class Text(Table, table=True):
             "overlaps": "origin_archdiocese",
         }
     )
-    origin_location: Optional[Place] = Relationship(
+    origin_place: Optional[Place] = Relationship(
         sa_relationship_kwargs={
-            "primaryjoin": "Text.origin_location_id == Place.id",
+            "primaryjoin": "Text.origin_place_id == Place.id",
             "uselist": False,
         }
     )
-    primary_destinatary_location: Optional[Place] = Relationship(
+    primary_destinatary_place: Optional[Place] = Relationship(
         sa_relationship_kwargs={
-            "primaryjoin": "Text.primary_destinatary_location_id == Place.id",
+            "primaryjoin": "Text.primary_destinatary_place_id == Place.id",
             "uselist": False,
         }
     )
-    author_location: Optional[Place] = Relationship(
+    author_place: Optional[Place] = Relationship(
         sa_relationship_kwargs={
-            "primaryjoin": "Text.author_location_id == Place.id",
+            "primaryjoin": "Text.author_place_id == Place.id",
             "uselist": False,
         }
     )
-    author_education_location: Optional[Place] = Relationship(
+    author_education_place: Optional[Place] = Relationship(
         sa_relationship_kwargs={
-            "primaryjoin": "Text.author_education_location_id == Place.id",
+            "primaryjoin": "Text.author_education_place_id == Place.id",
             "uselist": False,
         }
     )
-    author_earlier_location: Optional[Place] = Relationship(
+    author_earlier_place: Optional[Place] = Relationship(
         sa_relationship_kwargs={
-            "primaryjoin": "Text.author_earlier_location_id == Place.id",
+            "primaryjoin": "Text.author_earlier_place_id == Place.id",
             "uselist": False,
         }
     )
@@ -487,8 +581,9 @@ class Manuscript(Table, table=True):
     checked_naso: Optional[int] = Field(default=None, sa_type=Integer())
     checked_ed_sec: Optional[int] = Field(default=None, sa_type=Integer())
 
-    # Physical location / holding institution
-    collection_location_id: Optional[int] = Field(
+    # RENAMED FOREIGN KEYS (Place consistency)
+    text_origin_place_id: Optional[int] = Field(default=None, foreign_key="place.id")
+    collection_place_id: Optional[int] = Field(
         default=None, foreign_key="place.id"
     )
     heritage_institution_id: Optional[int] = Field(
@@ -557,11 +652,9 @@ class Manuscript(Table, table=True):
         }
     )
 
-    external_links: List["ManuscriptExternalResource"] = Relationship(
+    external_resources: List["ExternalResource"] = Relationship(
         back_populates="manuscript",
-        sa_relationship_kwargs={
-            "primaryjoin": "Manuscript.id == ManuscriptExternalResource.ms_id"
-        }
+        sa_relationship_kwargs={"cascade": "all, delete-orphan"}
     )
 
     images: List["Image"] = Relationship(back_populates="manuscript")
@@ -574,10 +667,32 @@ class Manuscript(Table, table=True):
         sa_relationship_kwargs={"overlaps": "edition_links,manuscript"}
     )
 
-    # Single-value relationships (uselist=False prevents list confusion)
-    collection_location: Optional[Place] = Relationship(
+    # Manuscript-to-manuscript relations
+    outgoing_relations: List["ManuscriptRelation"] = Relationship(
         sa_relationship_kwargs={
-            "primaryjoin": "Manuscript.collection_location_id == Place.id",
+            "primaryjoin": "Manuscript.id==ManuscriptRelation.source_manuscript_id",
+            "back_populates": "source_manuscript",
+            "cascade": "all, delete-orphan",
+        }
+    )
+    incoming_relations: List["ManuscriptRelation"] = Relationship(
+        sa_relationship_kwargs={
+            "primaryjoin": "Manuscript.id==ManuscriptRelation.target_manuscript_id",
+            "back_populates": "target_manuscript",
+            "cascade": "all, delete-orphan",
+        }
+    )
+
+    # Single-value relationships
+    collection_place: Optional[Place] = Relationship(
+        sa_relationship_kwargs={
+            "primaryjoin": "Manuscript.collection_place_id == Place.id",
+            "uselist": False,
+        }
+    )
+    text_origin_place: Optional["Place"] = Relationship(
+        sa_relationship_kwargs={
+            "primaryjoin": "Manuscript.text_origin_place_id == Place.id",
             "uselist": False,
         }
     )
@@ -612,19 +727,7 @@ class Manuscript(Table, table=True):
         }
     )
 
-    # Manuscript-to-manuscript relations
-    outgoing_relations: List["ManuscriptRelation"] = Relationship(
-        back_populates="source_manuscript",
-        sa_relationship_kwargs={
-            "foreign_keys": "[ManuscriptRelation.source_ms_id]"
-        }
-    )
-    incoming_relations: List["ManuscriptRelation"] = Relationship(
-        back_populates="target_manuscript",
-        sa_relationship_kwargs={
-            "foreign_keys": "[ManuscriptRelation.target_ms_id]"
-        }
-    )
+
 
 
 # ---------------------------------------------------------------------------
@@ -657,60 +760,8 @@ class Image(Table, table=True):
 
 
 # ---------------------------------------------------------------------------
-# ExternalResource
+# Edition  (Tab 2)
 # ---------------------------------------------------------------------------
-
-class ExternalResource(Table, table=True):
-    __table_args__ = (UniqueConstraint("url"), _STRICT)
-
-    url: str = _text()
-    resource_type: str = _text()
-    comment: Optional[str] = _text(default=None)
-    alive: int = Field(default=1, sa_type=Integer())
-
-    manuscript_links: List["ManuscriptExternalResource"] = Relationship(
-        back_populates="resource"
-    )
-    edition_links: List["EditionExternalResource"] = Relationship(
-        back_populates="resource"
-    )
-
-
-# ---------------------------------------------------------------------------
-# ManuscriptRelation
-# ---------------------------------------------------------------------------
-
-class ManuscriptRelation(Table, table=True):
-    __table_args__ = (
-        UniqueConstraint(
-            "source_ms_id", "target_ms_id", "relation_type"
-        ),
-        _STRICT,
-    )
-
-    source_ms_id: int = Field(
-        sa_type=Integer(), foreign_key="manuscript.id", index=True
-    )
-    target_ms_id: int = Field(
-        sa_type=Integer(), foreign_key="manuscript.id", index=True
-    )
-    relation_type: str = _text()
-    certainty: Optional[str] = _text(default=None)
-    notes: Optional[str] = _text(default=None)
-    source_reference: Optional[str] = _text(default=None)
-
-    source_manuscript: Manuscript = Relationship(
-        back_populates="outgoing_relations",
-        sa_relationship_kwargs={
-            "foreign_keys": "[ManuscriptRelation.source_ms_id]"
-        }
-    )
-    target_manuscript: Manuscript = Relationship(
-        back_populates="incoming_relations",
-        sa_relationship_kwargs={
-            "foreign_keys": "[ManuscriptRelation.target_ms_id]"
-        }
-    )
 
 
 # ---------------------------------------------------------------------------

@@ -109,7 +109,7 @@ def main() -> None:
         for p in places:
             # Explicitly query texts for this origin
             texts = session.exec(
-                select(Text).where(Text.origin_location_id == p.id)
+                select(Text).where(Text.origin_place_id == p.id)
             ).all()
             features.append(_build_feature(session, p, texts))
 

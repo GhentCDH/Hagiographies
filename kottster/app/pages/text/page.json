@@ -38,7 +38,7 @@
         "fieldInput": { "type": "recordSelect", "asArray": false }
       },
       {
-        "column": "origin_location_id",
+        "column": "origin_place_id",
         "label": "Origin",
         "position": 14,
         "relationshipPreviewColumns": ["name"],
@@ -46,7 +46,7 @@
       },
       { "column": "origin_precise", "label": "Precise origin?", "position": 15, "fieldInput": { "type": "numberInput" } },
       {
-        "column": "primary_destinatary_location_id",
+        "column": "primary_destinatary_place_id",
         "label": "Primary destinatary",
         "position": 16,
         "relationshipPreviewColumns": ["name"],
@@ -62,14 +62,14 @@
       },
       { "column": "author_locally_based", "label": "Locally based in Origin?", "position": 19, "fieldInput": { "type": "numberInput" } },
       {
-        "column": "author_education_location_id",
+        "column": "author_education_place_id",
         "label": "Education",
         "position": 20,
         "relationshipPreviewColumns": ["name"],
         "fieldInput": { "type": "recordSelect", "asArray": false }
       },
       {
-        "column": "author_earlier_location_id",
+        "column": "author_earlier_place_id",
         "label": "Antecedents",
         "position": 21,
         "relationshipPreviewColumns": ["name"],

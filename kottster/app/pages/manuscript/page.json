@@ -19,23 +19,9 @@
         "fieldInput": { "type": "recordSelect", "asArray": false }
       },
       {
-        "column": "text_archdiocese_id",
-        "label": "Archbishopric",
+        "column": "text_origin_place_id",
+        "label": "Place of Origin (Text)",
         "position": 1,
-        "relationshipPreviewColumns": ["name"],
-        "fieldInput": { "type": "recordSelect", "asArray": false }
-      },
-      {
-        "column": "text_bishopric_id",
-        "label": "Bishopric",
-        "position": 2,
-        "relationshipPreviewColumns": ["name"],
-        "fieldInput": { "type": "recordSelect", "asArray": false }
-      },
-      {
-        "column": "text_origin_id",
-        "label": "Origin",
-        "position": 3,
         "relationshipPreviewColumns": ["name"],
         "fieldInput": { "type": "recordSelect", "asArray": false }
       },
@@ -43,12 +29,11 @@
       { "column": "checked_dg", "label": "DG", "position": 5, "fieldInput": { "type": "numberInput" } },
       { "column": "checked_naso", "label": "NASO", "position": 6, "fieldInput": { "type": "numberInput" } },
       { "column": "checked_ed_sec", "label": "ED/SEC", "position": 7, "fieldInput": { "type": "numberInput" } },
-      { "column": "ms_number_per_bhl", "label": "MS N° per BHL number", "position": 8, "fieldInput": { "type": "textarea" } },
       { "column": "unique_id", "label": "Unique ID", "position": 9, "fieldInput": { "type": "numberInput" } },
       { "column": "collection_identifier", "label": "Unique identifier per collection", "position": 10, "fieldInput": { "type": "textarea" } },
       {
-        "column": "collection_location_id",
-        "label": "Location",
+        "column": "collection_place_id",
+        "label": "Place of Collection",
         "position": 11,
         "relationshipPreviewColumns": ["name"],
         "fieldInput": { "type": "recordSelect", "asArray": false }
@@ -61,7 +46,6 @@
         "fieldInput": { "type": "recordSelect", "asArray": false }
       },
       { "column": "shelfmark", "label": "Shelfmark", "position": 13, "fieldInput": { "type": "textarea" } },
-      { "column": "folio_pages", "label": "Folio or page per BHL", "position": 14, "fieldInput": { "type": "textarea" } },
       {
         "column": "dating_century_id",
         "label": "Dating by (earliest) century",

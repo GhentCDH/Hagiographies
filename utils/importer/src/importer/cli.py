@@ -15,8 +15,10 @@
 
 import logging
 import re
+import unicodedata
 from itertools import islice
-from typing import Any, Dict, Generator, List, Optional, Tuple
+from openpyxl.cell import Cell
+from typing import Any, Dict, Generator, List, Optional, Tuple, Union
 
 from openpyxl import load_workbook
 from openpyxl.cell import Cell
@@ -33,7 +35,6 @@ from utilities.model import (
     ManuscriptText,
     Image,
     ExternalResource,
-    ManuscriptExternalResource,
     EditionExternalResource,
     ManuscriptRelation,
     Edition,
@@ -52,6 +53,9 @@ from utilities.model import (
     ProvenanceGeneral,
     TextType,
     ImageType,
+    ExternalResourceType,
+    RelationType,
+    Certainty
 )
 
 # ---------------------------------------------------------------------------
@@ -187,26 +191,101 @@ def _iter_data_rows(
         consecutive_empty = 0
         yield row_num, row_cells_list
 
-_URL_RE = re.compile(r"^https?://[^\s/$.?#][^\s]*$", re.IGNORECASE)
+# URL regex for basic validation
+URL_RE = re.compile(r"^https?://[^\s/$.?#].[^\s]*$", re.IGNORECASE)
 
-def _extract_hyperlink(cell: Cell) -> Tuple[Optional[str], Optional[str]]:
-    display = clean_value(cell.value)
-    if cell.hyperlink and cell.hyperlink.target:
-        return cell.hyperlink.target.strip(), display
-    if display and _URL_RE.match(display):
-        return display, None
-    return None, display
+
+def _extract_hyperlink_url(cell: Cell) -> Optional[str]:
+    """
+    Extracts the underlying target URL from an Excel cell.
+    Discards the display text (e.g. 'Link' or 'CHECK') and validates the format.
+    """
+    if cell is None:
+        return None
+        
+    # Prefer actual hyperlink target metadata
+    if cell.hyperlink:
+        target = getattr(cell.hyperlink, "target", None) or getattr(cell.hyperlink, "location", None)
+        if target:
+            target_str = str(target).strip()
+            if URL_RE.match(target_str):
+                return target_str
+
+    # Fallback if URL is raw string value in the cell
+    value = cell.value
+    if isinstance(value, str):
+        val_str = value.strip()
+        if URL_RE.match(val_str):
+            return val_str
+            
+    return None
+
+
+def _normalize_name(value: Optional[str]) -> Optional[str]:
+    """
+    Normalizes a place or institution name to prevent duplicates:
+    lowercases, collapses whitespace, and folds accents.
+    """
+    if not value:
+        return None
+    # Collapse whitespace and lowercase
+    value = " ".join(value.strip().split()).lower()
+    # Remove accents using NFKD normalization
+    value = unicodedata.normalize("NFKD", value)
+    value = value.encode("ascii", "ignore").decode("ascii")
+    return value or None
+
 
 def _validate_url(
     url: str, excel_row: int, col_name: str, report: "ImportReport"
 ) -> Optional[str]:
-    if not _URL_RE.match(url):
+    if not URL_RE.match(url):
         report.add(
             "url_skipped",
             {"Row": excel_row, "Column": col_name, "URL": url, "Reason": "Malformed URL"},
         )
         return None
     return url
+
+def _get_or_create_resource(
+    url: str,
+    resource_type: str,
+    comment: Optional[str],
+    cache: Dict[str, ExternalResource],
+    session: Session,
+    manuscript_id: Optional[int] = None,
+) -> ExternalResource:
+    if url in cache:
+        return cache[url]
+    
+    # Try to find an existing one (global or associated)
+    query = select(ExternalResource).where(ExternalResource.url == url)
+    if manuscript_id:
+        query = query.where(ExternalResource.manuscript_id == manuscript_id)
+    else:
+        query = query.where(ExternalResource.manuscript_id == None)
+        
+    existing = session.exec(query).first()
+    if existing:
+        cache[url] = existing
+        return existing
+        
+    try:
+        rtype_enum = ExternalResourceType(resource_type)
+    except ValueError:
+        rtype_enum = ExternalResourceType.other
+        
+    resource = ExternalResource(
+        url=url, 
+        resource_type=rtype_enum, 
+        comment=comment, 
+        manuscript_id=manuscript_id
+    )
+    session.add(resource)
+    session.flush()
+    cache[url] = resource
+    return resource
+
 
 _IMAGE_TYPE_MAP = [
     ("IIIF MF", "iiif_mf"),
@@ -257,23 +336,35 @@ def _get_or_create_place(
     lat=None,
     lon=None,
 ) -> Optional[int]:
+    """
+    Retrieves or creates a Place entry using normalized matching.
+    """
     if not name:
         return None
-    name = name.strip()
-    if name in cache:
-        return cache[name].id
-    existing = session.exec(select(Place).where(Place.name == name)).first()
-    if existing:
-        if lat and not existing.lat:
-            existing.lat = lat
-        if lon and not existing.lon:
-            existing.lon = lon
-        cache[name] = existing
-        return existing.id
-    place = Place(name=name, lat=lat, lon=lon)
+        
+    raw_name = name.strip()
+    norm_name = _normalize_name(raw_name)
+    
+    if norm_name in cache:
+        return cache[norm_name].id
+        
+    # Database check: check against all since SQLite STRICT/CASE is tricky with accents
+    existing = session.exec(select(Place)).all()
+    matched_place = next((p for p in existing if _normalize_name(p.name) == norm_name), None)
+
+    if matched_place:
+        if lat and not matched_place.lat:
+            matched_place.lat = lat
+        if lon and not matched_place.lon:
+            matched_place.lon = lon
+        cache[norm_name] = matched_place
+        return matched_place.id
+
+    # Store with raw spelling
+    place = Place(name=raw_name, lat=lat, lon=lon)
     session.add(place)
     session.flush()
-    cache[name] = place
+    cache[norm_name] = place
     return place.id
 
 
@@ -283,23 +374,29 @@ def _get_or_create_institution(
     place_id: Optional[int],
     cache: Dict[str, Institution],
 ) -> Optional[int]:
+    """Retrieves or creates an Institution entry using normalized matching."""
     if not name:
         return None
-    name = name.strip()
-    if name in cache:
-        return cache[name].id
-    existing = session.exec(
-        select(Institution).where(Institution.name == name)
-    ).first()
-    if existing:
-        if place_id and not existing.place_id:
-            existing.place_id = place_id
-        cache[name] = existing
-        return existing.id
-    inst = Institution(name=name, place_id=place_id)
+        
+    raw_name = name.strip()
+    norm_name = _normalize_name(raw_name)
+    
+    if norm_name in cache:
+        return cache[norm_name].id
+
+    existing = session.exec(select(Institution)).all()
+    matched_inst = next((i for i in existing if _normalize_name(i.name) == norm_name), None)
+
+    if matched_inst:
+        if place_id and not matched_inst.place_id:
+            matched_inst.place_id = place_id
+        cache[norm_name] = matched_inst
+        return matched_inst.id
+
+    inst = Institution(name=raw_name, place_id=place_id)
     session.add(inst)
     session.flush()
-    cache[name] = inst
+    cache[norm_name] = inst
     return inst.id
 
 
@@ -578,7 +675,6 @@ def _get_or_create_provenance_general(
     ).first()
     if existing:
         cache[description] = existing
-        return existing.id
     obj = ProvenanceGeneral(description=description)
     session.add(obj)
     session.flush()
@@ -635,7 +731,6 @@ def _add_manuscript_resource(
     comment: Optional[str],
     col_name: str,
     excel_row: int,
-    cache: Dict[str, ExternalResource],
     session: Session,
     report: "ImportReport",
     stats: Dict[str, int],
@@ -644,19 +739,28 @@ def _add_manuscript_resource(
     if not url:
         stats["urls_skipped"] += 1
         return
-    resource = _get_or_create_resource(url, resource_type, comment, cache, session)
+        
+    # Check if this resource already exists for this manuscript
     exists = session.exec(
-        select(ManuscriptExternalResource).where(
-            ManuscriptExternalResource.ms_id == ms.id,
-            ManuscriptExternalResource.resource_id == resource.id,
+        select(ExternalResource).where(
+            ExternalResource.manuscript_id == ms.id,
+            ExternalResource.url == url,
         )
     ).first()
+    
     if not exists:
-        session.add(
-            ManuscriptExternalResource(
-                ms_id=ms.id, resource_id=resource.id
-            )
+        try:
+            rtype = ExternalResourceType(resource_type)
+        except ValueError:
+            rtype = ExternalResourceType.other
+            
+        resource = ExternalResource(
+            manuscript_id=ms.id,
+            url=url,
+            resource_type=rtype,
+            comment=comment
         )
+        session.add(resource)
         stats["urls_imported"] += 1
 
 
@@ -821,15 +925,15 @@ def import_texts(session: Session, wb, report: ImportReport) -> Dict[str, Text]:
             session, cval(row, "Bishopric"), False, church_cache
         )
 
-        orig_lat = cfloat(row, "GPS Latitude OR")
-        orig_lon = cfloat(row, "GPS Longitude OR")
-        orig_loc_id = _get_or_create_place(
+        orig_lat = parse_float(row.get("GPS Latitude OR").value if "GPS Latitude OR" in row else None)
+        orig_lon = parse_float(row.get("GPS Longitude OR").value if "GPS Longitude OR" in row else None)
+        orig_place_id = _get_or_create_place(
             session, cval(row, "Origin"), place_cache, lat=orig_lat, lon=orig_lon
         )
 
-        dest_lat = cfloat(row, "GPS Latitude DES")
-        dest_lon = cfloat(row, "GPS Longitude DES")
-        dest_loc_id = _get_or_create_place(
+        dest_lat = parse_float(row.get("GPS Latitude DES").value if "GPS Latitude DES" in row else None)
+        dest_lon = parse_float(row.get("GPS Longitude DES").value if "GPS Longitude DES" in row else None)
+        dest_place_id = _get_or_create_place(
             session,
             cval(row, "Primary destinatary"),
             place_cache,
@@ -839,7 +943,7 @@ def import_texts(session: Session, wb, report: ImportReport) -> Dict[str, Text]:
 
         auth_id = _get_or_create_author(session, cval(row, "Author"), author_cache)
         _locally_based_val = cyesno(row, "Locally based in Origin (see col. O)?")
-        auth_loc_id = orig_loc_id if _locally_based_val == 1 else None
+        auth_place_id = orig_place_id if _locally_based_val == 1 else None
         auth_edu_id = _get_or_create_place(
             session, cval(row, "Education"), place_cache
         )
@@ -880,14 +984,14 @@ def import_texts(session: Session, wb, report: ImportReport) -> Dict[str, Text]:
             dating_precise=cval(row, "Dating"),
             origin_archdiocese_id=orig_arch_id,
             origin_diocese_id=orig_dio_id,
-            origin_location_id=orig_loc_id,
+            origin_place_id=orig_place_id,
             origin_known=cyesno(row, "Precise origin?"),
-            primary_destinatary_location_id=dest_loc_id,
+            primary_destinatary_place_id=dest_place_id,
             destinatary_known=cyesno(row, "Precise destinatary?"),
             author_id=auth_id,
-            author_location_id=auth_loc_id,
-            author_education_location_id=auth_edu_id,
-            author_earlier_location_id=auth_ant_id,
+            author_place_id=auth_place_id,
+            author_education_place_id=auth_edu_id,
+            author_earlier_place_id=auth_ant_id,
             author_milieu_id=milieu_id,
             source_type_id=src_typo_id,
             subtype_id=sub_typo_id,
@@ -1109,7 +1213,7 @@ def import_manuscripts(
                         checked_dg=cyesno(row, "DG"),
                         checked_naso=cyesno(row, _COL_MS_NASO),
                         checked_ed_sec=cyesno(row, "ED/SEC"),
-                        collection_location_id=coll_loc_id,
+                        collection_place_id=coll_loc_id,
                         heritage_institution_id=heri_inst_id,
                         shelfmark=shelfmark,
                         dating_century_id=century_id,
@@ -1179,7 +1283,7 @@ def import_manuscripts(
                             folio_pages=cval(row, _COL_MS_FOLIO),
                             text_archdiocese_id=txt_arch_id,
                             text_bishopric_id=txt_bish_id,
-                            text_origin_id=txt_orig_id,
+                            text_origin_place_id=txt_orig_id,
                         )
                         session.add(link)
                         stats["ms_text_links_created"] += 1
@@ -1187,7 +1291,7 @@ def import_manuscripts(
                 # --- 4. Manuscript-to-manuscript relations ---
                 if uid_raw is not None:
                     certainty_val = cyesno(row, _COL_MS_EXEMPLAR_CERTAIN)
-                    certainty = "certain" if certainty_val == 1 else "uncertain"
+                    cert_enum = Certainty.certain if certainty_val == 1 else Certainty.uncertain
                     notes_copy = cval(row, "Notes on exemplar")
                     notes_exemplar = cval(row, "Notes on copies")
 
@@ -1200,8 +1304,8 @@ def import_manuscripts(
                                     (
                                         uid_raw,
                                         target_uid,
-                                        "copy_of",
-                                        certainty,
+                                        RelationType.copy_of,
+                                        cert_enum,
                                         notes_copy,
                                         col,
                                         excel_row,
@@ -1217,8 +1321,8 @@ def import_manuscripts(
                                     (
                                         copy_uid,
                                         uid_raw,
-                                        "copy_of",
-                                        "uncertain",
+                                        RelationType.copy_of,
+                                        Certainty.uncertain,
                                         notes_exemplar,
                                         col,
                                         excel_row,
@@ -1230,32 +1334,31 @@ def import_manuscripts(
                     cell = row.get(col_name)
                     if cell is None:
                         continue
-                    url, comment = _extract_hyperlink(cell)
-                    if not url:
+                    url_str = _extract_hyperlink_url(cell)
+                    if not url_str:
                         if cell.value:
                             stats["urls_skipped"] += 1
                         continue
                     _add_manuscript_resource(
                         ms,
-                        url,
+                        url_str,
                         resource_type,
-                        comment,
-                        col_name,
-                        excel_row,
-                        resource_cache,
-                        session,
-                        report,
-                        stats,
+                        comment=None,
+                        col_name=col_name,
+                        excel_row=excel_row,
+                        session=session,
+                        report=report,
+                        stats=stats,
                     )
 
                 img_cell = row.get(_COL_MS_IMAGES)
                 if img_cell is not None:
-                    url, comment = _extract_hyperlink(img_cell)
-                    if url:
-                        url = _validate_url(
-                            url, excel_row, _COL_MS_IMAGES, report
+                    url_str = _extract_hyperlink_url(img_cell)
+                    if url_str:
+                        url_str = _validate_url(
+                            url_str, excel_row, _COL_MS_IMAGES, report
                         )
-                        if url:
+                        if url_str:
                             itype_str = _infer_image_type(
                                 cval(row, _COL_MS_IMAGE_AVAIL)
                             )
@@ -1265,15 +1368,15 @@ def import_manuscripts(
                             exists = session.exec(
                                 select(Image).where(
                                     Image.ms_id == ms.id,
-                                    Image.url == url,
+                                    Image.url == url_str,
                                 )
                             ).first()
                             if not exists:
                                 session.add(
                                     Image(
-                                        url=url,
+                                        url=url_str,
                                         image_type_id=itype_id,
-                                        comment=comment,
+                                        comment=None,
                                         ms_id=ms.id,
                                     )
                                 )
@@ -1316,8 +1419,8 @@ def import_manuscripts(
 
         exists = session.exec(
             select(ManuscriptRelation).where(
-                ManuscriptRelation.source_ms_id == src_ms.id,
-                ManuscriptRelation.target_ms_id == tgt_ms.id,
+                ManuscriptRelation.source_manuscript_id == src_ms.id,
+                ManuscriptRelation.target_manuscript_id == tgt_ms.id,
                 ManuscriptRelation.relation_type == rel_type,
             )
         ).first()
@@ -1327,8 +1430,8 @@ def import_manuscripts(
 
         session.add(
             ManuscriptRelation(
-                source_ms_id=src_ms.id,
-                target_ms_id=tgt_ms.id,
+                source_manuscript_id=src_ms.id,
+                target_manuscript_id=tgt_ms.id,
                 relation_type=rel_type,
                 certainty=cert,
                 notes=notes,
@@ -1397,8 +1500,8 @@ def import_editions(
                 ]
 
                 scan_cell = row.get(_COL_ED_SCAN_LINK)
-                scan_url, scan_comment = (
-                    _extract_hyperlink(scan_cell) if scan_cell else (None, None)
+                scan_url = (
+                    _extract_hyperlink_url(scan_cell) if scan_cell else None
                 )
                 has_scan = 1 if scan_url else 0
 
@@ -1467,7 +1570,7 @@ def import_editions(
                     )
                     if scan_url:
                         resource = _get_or_create_resource(
-                            scan_url, "scan", scan_comment, resource_cache, session
+                            scan_url, "scan", comment=None, cache=resource_cache, session=session
                         )
                         exists = session.exec(
                             select(EditionExternalResource).where(
