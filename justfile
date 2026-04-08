@@ -27,8 +27,7 @@ export-map:
     cp data/hagiographies_map.geojson local-map/data/
 
 # Alias for export-map
-export:
-    export-map
+export: export-map
 
 # ── Modelgeneratie ───────────────────────────────────────────────────────────
 

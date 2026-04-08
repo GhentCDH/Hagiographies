@@ -10,7 +10,7 @@ ROOT = Path(__file__).parent.parent.parent.parent
 load_dotenv(ROOT / "dev.env")
 
 DB_PATH = Path(os.getenv("DB_PATH", "/data/hagiographies.db"))
-DB_STRING = f"sqlite:///{DB_PATH}"
+DB_STRING = os.getenv("DATABASE_URL") or f"sqlite:///{DB_PATH}"
 
 DATA_ROOT = Path(os.getenv("DATA_ROOT", "/data"))
 CSV = DATA_ROOT / "hagiographies.csv"
