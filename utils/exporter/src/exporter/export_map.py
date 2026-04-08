@@ -28,7 +28,7 @@ handler = RichHandler(rich_tracebacks=True, markup=True, show_time=True, show_pa
 logging.basicConfig(level=logging.INFO, format="%(message)s", handlers=[handler])
 logger = logging.getLogger(__name__)
 
-OUTPUT = Path("/local-map/data/hagiographies_map.geojson")
+OUTPUT = DATA_ROOT / "hagiographies_map.geojson"
 
 
 # ---------------------------------------------------------------------------
@@ -68,6 +68,7 @@ def _build_feature(session: Session, place: Place, texts: List[Text]) -> Dict[st
             "subtype":       t.subtype.name if t.subtype else None,
             
             "is_reecriture": t.is_rewrite,
+            "rewrite_notes": t.rewrite_notes,
             "arch":          t.origin_archdiocese.name if t.origin_archdiocese else None,
             "bish":          None,
             "collections":   collections,

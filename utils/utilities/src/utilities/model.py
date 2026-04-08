@@ -2,22 +2,40 @@
 # ---------------------------------------------------------------------------
 # SQLModel models for the Hagiographies project.
 #
-# Schema revision (refactor):
-#   - All pseudo-boolean INT columns replaced with native Optional[bool].
-#   - Boolean field names now consistently prefixed: is_*, has_*, checked_*.
-#   - Author receives place/milieu metadata (place_id, education_place_id,
-#     earlier_place_id, milieu_id) that previously lived on Text.
+# Schema revision — validated against hagiographies.xlsx source data:
+#
+#   Boolean cleanup (#7, #14)
+#   - All pseudo-boolean Optional[int] / sa_type=Integer() fields replaced by
+#     Optional[bool].  Field names now consistently prefixed is_*, has_*,
+#     checked_*.
+#   - 'Full OCR/XML available?' contains BHL reference strings, not yes/no →
+#     kept as Optional[str], renamed full_ocr_bhl_refs.
+#   - 'Locally based in Origin' contains free-text qualifications
+#     ("Unknown/Metz?", "Yes (Sankt Pantaleon?)") → kept as Optional[str],
+#     renamed author_locally_based on Text.
+#   - 'Precise destinatary?' contains stray integers in the source → handled
+#     by parse_yesno returning None, stored as Optional[bool].
+#   - origin_known / destinatary_known removed (derivable from FK presence).
+#   - Edition.has_scan removed (derivable from ExternalResource records).
+#   - Edition.checked_leg removed (unused in source).
+#   - reprint_identically_typeset + reprint_newly_typeset collapsed into
+#     ReprintType enum.  Data shows NO+YES combinations but never YES+YES,
+#     so the collapse is lossless.
+#
+#   Structure cleanup (#5, #6, #11)
+#   - Author gains place_id, education_place_id, earlier_place_id, milieu_id
+#     (moved from Text).
 #   - ImageAvailability lookup table removed; image presence is derivable
-#     from Image records directly.
-#   - Text.origin_known and Text.destinatary_known removed (computable).
-#   - Edition.checked_leg removed (unused).
-#   - Edition.has_scan removed (derivable from ExternalResource).
-#   - Edition.reprint_identically_typeset + reprint_newly_typeset collapsed
-#     into Edition.reprint_type (ReprintType enum).
-#   - Text.reecriture / reecriture_of renamed to is_rewrite / rewrite_of_bhl.
-#   - All relationship suffixes cleaned up: _obj → plain name,
-#     _links → _associations, _direct → plain plural.
-#   - ManuscriptText M2M join table and its per-occurrence metadata unchanged.
+#     from Image records.
+#   - Text.reecriture_of renamed rewrite_notes: the column contains free-text
+#     titles, literature references and partial BHL strings — never plain FK-
+#     resolvable BHL numbers — so a FK to Text.id is not feasible.
+#
+#   Naming cleanup (#10)
+#   - _obj suffix removed from relationships (ms_identifier_obj → ms_identifier,
+#     author_obj → author).
+#   - _links/_direct suffixes replaced by _associations / plain plurals.
+#   - ExternalResource.alive (int) → is_alive (bool).
 # ---------------------------------------------------------------------------
 
 from enum import Enum
@@ -33,17 +51,17 @@ _STRICT = {"sqlite_strict": True}
 
 
 def _text(**kwargs):
-    """TEXT column — VARCHAR is not STRICT-compatible."""
+    """TEXT column — VARCHAR is not STRICT-mode-compatible."""
     return Field(sa_type=SAText(), **kwargs)
 
 
 def _real(**kwargs):
-    """REAL column — FLOAT is not STRICT-compatible."""
+    """REAL column — FLOAT is not STRICT-mode-compatible."""
     return Field(sa_type=REAL(), **kwargs)
 
 
 def _bool(**kwargs):
-    """INTEGER column — BOOLEAN is not STRICT-compatible."""
+    """INTEGER column — BOOLEAN is not STRICT-mode-compatible."""
     return Field(sa_type=Integer(), **kwargs)
 
 
@@ -78,9 +96,16 @@ class Certainty(str, Enum):
 
 
 class ReprintType(str, Enum):
-    """How a reprint edition was set relative to the original."""
+    """How a reprint edition was composed relative to the original.
+
+    Source data has NO+YES combinations (14 rows) but never YES+YES, so
+    collapsing the two former boolean columns into a single enum is lossless.
+    A 'to_be_verified' value captures rows where both source columns held
+    that marker instead of a definitive yes/no.
+    """
     identically_typeset = "identically_typeset"
     newly_typeset = "newly_typeset"
+    to_be_verified = "to_be_verified"
 
 
 # ---------------------------------------------------------------------------
@@ -123,18 +148,24 @@ class Institution(Table, table=True):
 
 
 class Milieu(Table, table=True):
-    """The intellectual or social milieu associated with an author or text."""
+    """The intellectual or social milieu associated with an author."""
     __table_args__ = (UniqueConstraint("name"), _STRICT)
     name: str = _text(index=True)
 
 
 class Author(Table, table=True):
-    """A hagiographic text author with optional place and milieu metadata.
+    """A hagiographic text author with optional location and milieu context.
 
-    The location fields capture the author's context: place of activity,
-    place of education, earlier place, and intellectual milieu.  These fields
-    were moved here from Text so that the same author is enriched once rather
-    than repeated per text.
+    The four place / milieu fields were moved here from Text so that each
+    author is enriched exactly once rather than duplicated per text entry.
+    In the importer these values are resolved first (using the Corpus hagio
+    columns 'Origin', 'Education', 'Antecedents', 'Milieu') and then passed
+    to _get_or_create_author, which back-fills them on an existing Author
+    record whenever the fields are still NULL.
+
+    The 'Locally based in Origin' column is NOT stored on Author — it is a
+    property of the Text/author relationship and stays on Text as
+    author_locally_based (free text).
     """
     name: str = _text(index=True)
 
@@ -177,7 +208,7 @@ class Typology(Table, table=True):
 
     parent: Optional["Typology"] = Relationship(
         back_populates="children",
-        sa_relationship_kwargs={"remote_side": "Typology.id"}
+        sa_relationship_kwargs={"remote_side": "Typology.id"},
     )
     children: List["Typology"] = Relationship(back_populates="parent")
 
@@ -189,7 +220,7 @@ class ManuscriptType(Table, table=True):
 
 
 class ChurchEntity(Table, table=True):
-    """Ecclesiastical entity: archdiocese, diocese, or bishopric."""
+    """An ecclesiastical entity: archdiocese, diocese or bishopric."""
     __table_args__ = (UniqueConstraint("name"), _STRICT)
     name: str = _text(index=True)
 
@@ -204,7 +235,7 @@ class ManuscriptIdentifier(Table, table=True):
 
 
 class DatingCentury(Table, table=True):
-    """A century used for manuscript dating (stored as integer, e.g. 10 for Xth c.)."""
+    """A century used for manuscript dating (integer, e.g. 10 for Xth c.)."""
     __table_args__ = (UniqueConstraint("century"), _STRICT)
     century: int = Field(index=True, sa_type=Integer())
 
@@ -228,7 +259,7 @@ class TextType(Table, table=True):
 
 
 class ImageType(Table, table=True):
-    """Image delivery type (e.g. iiif, scan, iphone_photo)."""
+    """Image delivery type (e.g. iiif, iiif_mf, scan, iphone_photo)."""
     __table_args__ = (UniqueConstraint("name"), _STRICT)
     name: str = _text(index=True)
 
@@ -240,7 +271,7 @@ class ImageType(Table, table=True):
 class ManuscriptText(SQLModel, table=True):
     """Many-to-many join: Manuscript ↔ Text.
 
-    Fields that are specific to *one text occurring inside one manuscript*
+    Fields that describe *one text occurring inside one manuscript*
     (folio pages, per-BHL number, ecclesiastical context) live here rather
     than on Manuscript or Text.
     """
@@ -273,14 +304,14 @@ class ManuscriptText(SQLModel, table=True):
         back_populates="text_associations",
         sa_relationship_kwargs={
             "overlaps": "texts",
-            "foreign_keys": "[ManuscriptText.ms_id]"
+            "foreign_keys": "[ManuscriptText.ms_id]",
         }
     )
     text: "Text" = Relationship(
         back_populates="manuscript_associations",
         sa_relationship_kwargs={
             "overlaps": "manuscripts",
-            "foreign_keys": "[ManuscriptText.text_id]"
+            "foreign_keys": "[ManuscriptText.text_id]",
         }
     )
 
@@ -302,14 +333,14 @@ class EditionManuscript(SQLModel, table=True):
         back_populates="manuscript_associations",
         sa_relationship_kwargs={
             "overlaps": "editions,manuscripts",
-            "foreign_keys": "[EditionManuscript.edition_id]"
+            "foreign_keys": "[EditionManuscript.edition_id]",
         }
     )
     manuscript: "Manuscript" = Relationship(
         back_populates="edition_associations",
         sa_relationship_kwargs={
             "overlaps": "editions,manuscripts",
-            "foreign_keys": "[EditionManuscript.ms_id]"
+            "foreign_keys": "[EditionManuscript.ms_id]",
         }
     )
 
@@ -330,21 +361,19 @@ class EditionExternalResource(SQLModel, table=True):
 
 
 class ExternalResource(SQLModel, table=True):
-    """An external hyperlink or resource associated with a manuscript or edition.
+    """An external hyperlink or resource for a manuscript or edition.
 
-    The URL is extracted from the Excel hyperlink target; the display text is
+    The URL is extracted from the Excel hyperlink target; display text is
     discarded.  Scan links for editions are linked via EditionExternalResource.
     """
     __tablename__ = "external_resource"
     __table_args__ = (
         UniqueConstraint("manuscript_id", "url", name="uix_manuscript_url"),
-        _STRICT
+        _STRICT,
     )
 
     id: Optional[int] = Field(default=None, primary_key=True)
-    manuscript_id: Optional[int] = Field(
-        default=None, foreign_key="manuscript.id"
-    )
+    manuscript_id: Optional[int] = Field(default=None, foreign_key="manuscript.id")
     url: str = _text(index=True)
     resource_type: ExternalResourceType = _text(default=ExternalResourceType.other)
     comment: Optional[str] = _text(default=None)
@@ -367,8 +396,8 @@ class ExternalResource(SQLModel, table=True):
 class ManuscriptRelation(SQLModel, table=True):
     """A directed relationship (copy, exemplar) between two manuscript witnesses.
 
-    Relationships are stored unidirectionally: the source is the dependent
-    manuscript and the target is the archetype.
+    Stored unidirectionally: source is the dependent manuscript,
+    target is the archetype.
     """
     __tablename__ = "manuscript_relation"
     __table_args__ = (
@@ -376,9 +405,9 @@ class ManuscriptRelation(SQLModel, table=True):
             "source_manuscript_id",
             "target_manuscript_id",
             "relation_type",
-            name="uix_source_target_relation"
+            name="uix_source_target_relation",
         ),
-        _STRICT
+        _STRICT,
     )
 
     id: Optional[int] = Field(default=None, primary_key=True)
@@ -400,13 +429,13 @@ class ManuscriptRelation(SQLModel, table=True):
     source_manuscript: "Manuscript" = Relationship(
         sa_relationship_kwargs={
             "primaryjoin": "ManuscriptRelation.source_manuscript_id==Manuscript.id",
-            "back_populates": "outgoing_relations"
+            "back_populates": "outgoing_relations",
         }
     )
     target_manuscript: "Manuscript" = Relationship(
         sa_relationship_kwargs={
             "primaryjoin": "ManuscriptRelation.target_manuscript_id==Manuscript.id",
-            "back_populates": "incoming_relations"
+            "back_populates": "incoming_relations",
         }
     )
 
@@ -418,9 +447,24 @@ class ManuscriptRelation(SQLModel, table=True):
 class Text(Table, table=True):
     """A hagiographic text entry identified by its BHL number.
 
-    Author location and milieu data now live on Author; origin_known and
-    destinatary_known are computable from the presence of origin/destinatary
-    place FKs and are therefore omitted.
+    Author location and milieu now live on Author.  The fields origin_known
+    and destinatary_known are omitted — they are derivable from the presence
+    of origin_place_id / primary_destinatary_place_id respectively.
+
+    rewrite_notes: the source column 'Of which text(s)?' contains free-text
+    titles ("Vita prima Ursmari"), literature references ("see literature")
+    and partial BHL strings ("BHL 2736") — never plain resolvable BHL IDs —
+    so a FK to Text.id is not feasible.
+
+    full_ocr_bhl_refs: the source column 'Full OCR/XML available?' stores a
+    list of BHL reference strings (e.g. "BHL29, BHL33"), not a yes/no flag,
+    so the field is stored as free text.
+
+    author_locally_based: the source column 'Locally based in Origin' contains
+    qualifications such as "Unknown/Metz?" and "Yes (Sankt Pantaleon?)" that
+    cannot be reduced to a boolean; the raw value is preserved as text.  The
+    importer uses a starts-with-"yes" check only to decide whether to assign
+    the text's origin place as the author's place_id.
     """
     __table_args__ = _STRICT
 
@@ -448,40 +492,37 @@ class Text(Table, table=True):
     origin_diocese_id: Optional[int] = Field(
         default=None, foreign_key="churchentity.id"
     )
-    origin_place_id: Optional[int] = Field(
-        default=None, foreign_key="place.id"
-    )
+    origin_place_id: Optional[int] = Field(default=None, foreign_key="place.id")
+
+    # Precision flags (origin_known / destinatary_known removed as derivable)
+    is_origin_precise: Optional[bool] = _bool(default=None)
+    is_destinatary_precise: Optional[bool] = _bool(default=None)
 
     # Primary destinatary
     primary_destinatary_place_id: Optional[int] = Field(
         default=None, foreign_key="place.id"
     )
 
-    # Author (FK only; location/milieu now on Author)
+    # Author FK only; location / milieu fields live on Author
     author_id: Optional[int] = Field(default=None, foreign_key="author.id")
 
+    # Raw 'Locally based in Origin' value — cannot be reduced to bool
+    author_locally_based: Optional[str] = _text(default=None)
+
     # Typology
-    source_type_id: Optional[int] = Field(
-        default=None, foreign_key="typology.id"
-    )
+    source_type_id: Optional[int] = Field(default=None, foreign_key="typology.id")
     subtype_id: Optional[int] = Field(default=None, foreign_key="typology.id")
 
     # Text type (Prose / Verse)
-    text_type_id: Optional[int] = Field(
-        default=None, foreign_key="texttype.id"
-    )
+    text_type_id: Optional[int] = Field(default=None, foreign_key="texttype.id")
 
+    # Rewrite / pre-880
     is_rewrite: Optional[bool] = _bool(default=None)
-    rewrite_of_bhl: Optional[str] = _text(default=None)
+    rewrite_notes: Optional[str] = _text(default=None)   # free-text, not a FK
     is_based_on_pre880: Optional[bool] = _bool(default=None)
 
-    # Precision flags
-    code: Optional[str] = _text(default=None)
-    is_origin_precise: Optional[bool] = _bool(default=None)
-    is_destinatary_precise: Optional[bool] = _bool(default=None)
-    is_author_locally_based: Optional[bool] = _bool(default=None)
-
     # Edition / OCR
+    code: Optional[str] = _text(default=None)
     preferred_edition: Optional[str] = _text(default=None)
     edition_link_aass: Optional[str] = _text(default=None)
     edition_link_other: Optional[str] = _text(default=None)
@@ -489,7 +530,7 @@ class Text(Table, table=True):
 
     is_ocr_pre_1800: Optional[bool] = _bool(default=None)
     is_ocr_post_1800: Optional[bool] = _bool(default=None)
-    has_full_ocr: Optional[bool] = _bool(default=None)
+    full_ocr_bhl_refs: Optional[str] = _text(default=None)  # BHL ref list, not bool
     is_ocr_cleaned: Optional[bool] = _bool(default=None)
     ocr_comments: Optional[str] = _text(default=None)
 
@@ -505,7 +546,7 @@ class Text(Table, table=True):
         back_populates="text",
         sa_relationship_kwargs={
             "overlaps": "manuscripts",
-            "primaryjoin": "Text.id == ManuscriptText.text_id"
+            "primaryjoin": "Text.id == ManuscriptText.text_id",
         }
     )
     manuscripts: List["Manuscript"] = Relationship(
@@ -513,7 +554,7 @@ class Text(Table, table=True):
         sa_relationship_kwargs={
             "overlaps": "manuscript_associations,text,manuscript,text_associations,manuscripts",
             "primaryjoin": "Text.id == ManuscriptText.text_id",
-            "secondaryjoin": "Manuscript.id == ManuscriptText.ms_id"
+            "secondaryjoin": "Manuscript.id == ManuscriptText.ms_id",
         }
     )
 
@@ -576,12 +617,10 @@ class Manuscript(Table, table=True):
     """A physical manuscript witness.
 
     Text-specific metadata (archdiocese, bishopric, text origin, folio pages,
-    ms_number_per_bhl) lives on ManuscriptText — the M2M join table — because
-    those values belong to *one text in one manuscript*, not to the manuscript
-    itself.
+    ms_number_per_bhl) lives on ManuscriptText — the M2M join table.
 
     Image availability is no longer stored as a lookup FK; it is derivable
-    from the presence of Image records.
+    from the presence of Image records linked to this manuscript.
     """
     __table_args__ = _STRICT
 
@@ -602,9 +641,7 @@ class Manuscript(Table, table=True):
     checked_naso: Optional[bool] = _bool(default=None)
     checked_ed_sec: Optional[bool] = _bool(default=None)
 
-    collection_place_id: Optional[int] = Field(
-        default=None, foreign_key="place.id"
-    )
+    collection_place_id: Optional[int] = Field(default=None, foreign_key="place.id")
     text_origin_place_id: Optional[int] = Field(default=None, foreign_key="place.id")
     heritage_institution_id: Optional[int] = Field(
         default=None, foreign_key="institution.id"
@@ -653,7 +690,7 @@ class Manuscript(Table, table=True):
         back_populates="manuscript",
         sa_relationship_kwargs={
             "overlaps": "texts,manuscripts",
-            "primaryjoin": "Manuscript.id == ManuscriptText.ms_id"
+            "primaryjoin": "Manuscript.id == ManuscriptText.ms_id",
         }
     )
     texts: List["Text"] = Relationship(
@@ -661,24 +698,24 @@ class Manuscript(Table, table=True):
         sa_relationship_kwargs={
             "overlaps": "text_associations,manuscript,text,manuscript_associations,texts",
             "primaryjoin": "Manuscript.id == ManuscriptText.ms_id",
-            "secondaryjoin": "Text.id == ManuscriptText.text_id"
+            "secondaryjoin": "Text.id == ManuscriptText.text_id",
         }
     )
 
     external_resources: List["ExternalResource"] = Relationship(
         back_populates="manuscript",
-        sa_relationship_kwargs={"cascade": "all, delete-orphan"}
+        sa_relationship_kwargs={"cascade": "all, delete-orphan"},
     )
 
     images: List["Image"] = Relationship(back_populates="manuscript")
 
     edition_associations: List["EditionManuscript"] = Relationship(
         back_populates="manuscript",
-        sa_relationship_kwargs={"overlaps": "editions,manuscripts"}
+        sa_relationship_kwargs={"overlaps": "editions,manuscripts"},
     )
     editions: List["Edition"] = Relationship(
         link_model=EditionManuscript,
-        sa_relationship_kwargs={"overlaps": "edition_associations,manuscript"}
+        sa_relationship_kwargs={"overlaps": "edition_associations,manuscript"},
     )
 
     outgoing_relations: List["ManuscriptRelation"] = Relationship(
@@ -754,9 +791,7 @@ class Image(Table, table=True):
     url: str = _text()
     comment: Optional[str] = _text(default=None)
 
-    image_type_id: Optional[int] = Field(
-        default=None, foreign_key="imagetype.id"
-    )
+    image_type_id: Optional[int] = Field(default=None, foreign_key="imagetype.id")
     image_type: Optional[ImageType] = Relationship(
         sa_relationship_kwargs={
             "primaryjoin": "Image.image_type_id == ImageType.id",
@@ -764,9 +799,7 @@ class Image(Table, table=True):
         }
     )
 
-    ms_id: Optional[int] = Field(
-        default=None, foreign_key="manuscript.id"
-    )
+    ms_id: Optional[int] = Field(default=None, foreign_key="manuscript.id")
     manuscript: Optional[Manuscript] = Relationship(back_populates="images")
 
 
@@ -778,9 +811,14 @@ class Edition(Table, table=True):
     """A printed or digital edition of a hagiographic text.
 
     has_scan is removed: scan presence is derivable from ExternalResource
-    records linked via EditionExternalResource.  checked_leg is removed as
-    it was not populated.  The mutual exclusive reprint type flags are
-    collapsed into a single reprint_type enum field.
+    records linked via EditionExternalResource.
+
+    checked_leg is removed: unused in the source data.
+
+    reprint_type replaces the two former mutually-exclusive boolean columns
+    (reprint_identically_typeset / reprint_newly_typeset).  Source data
+    shows 14 rows with NO+YES and 18 rows with both set to 'to be verified',
+    but no YES+YES rows, so the collapse into a single enum is lossless.
     """
     __table_args__ = (UniqueConstraint("unique_id_numeric"), _STRICT)
 
@@ -818,16 +856,14 @@ class Edition(Table, table=True):
 
     manuscript_associations: List["EditionManuscript"] = Relationship(
         back_populates="edition",
-        sa_relationship_kwargs={"overlaps": "editions,manuscripts"}
+        sa_relationship_kwargs={"overlaps": "editions,manuscripts"},
     )
-
     external_resources: List["EditionExternalResource"] = Relationship(
         back_populates="edition"
     )
-
     manuscripts: List["Manuscript"] = Relationship(
         link_model=EditionManuscript,
         sa_relationship_kwargs={
-            "overlaps": "edition_associations,manuscript,manuscripts,manuscript_associations,edition"
+            "overlaps": "edition_associations,manuscript,manuscripts,manuscript_associations,edition",
         }
     )
