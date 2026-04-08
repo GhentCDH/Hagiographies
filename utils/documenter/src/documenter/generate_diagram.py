@@ -1,6 +1,6 @@
 from utilities.model import (
-    Place, Institution, Author, Typology, ManuscriptType, Milieu,
-    ChurchEntity, ManuscriptIdentifier, DatingCentury, ImageAvailability,
+    Place, Institution, Author, Typology, ManuscriptType, Milieu, ImageType,
+    ChurchEntity, ManuscriptIdentifier, DatingCentury, TextType,
     VernacularRegion, ProvenanceGeneral, Text, Manuscript, Image,
     ExternalResource, EditionExternalResource,
     ManuscriptRelation, Edition, EditionManuscript, ManuscriptText
@@ -11,8 +11,8 @@ import os
 
 def main():
     models = [
-        Place, Institution, Author, Typology, ManuscriptType, Milieu,
-        ChurchEntity, ManuscriptIdentifier, DatingCentury, ImageAvailability,
+        Place, Institution, Author, Typology, ManuscriptType, Milieu, ImageType,
+        ChurchEntity, ManuscriptIdentifier, DatingCentury, TextType,
         VernacularRegion, ProvenanceGeneral, Text, Manuscript, Image,
         ExternalResource, EditionExternalResource,
         ManuscriptRelation, Edition, EditionManuscript, ManuscriptText
