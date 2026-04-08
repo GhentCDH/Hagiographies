@@ -1,16 +1,19 @@
-# cli_hagio.py
+# cli.py
 # ---------------------------------------------------------------------------
 # Import hagiographies.xlsx into the SQLite database.
 #
 # Changelog vs. previous version:
-#   - Manuscript no longer gets a direct text_id / text_archdiocese_id /
-#     text_bishopric_id / text_origin_id / folio_pages / ms_number_per_bhl.
-#     All of these are now written onto ManuscriptText (the M2M join table).
-#   - import_manuscripts() creates a ManuscriptText row for every
-#     (manuscript, text) pair it encounters, carrying the per-occurrence
-#     metadata with it.
-#   - import_editions() is unchanged — it still populates EditionManuscript.
-#   - Everything else (helpers, ImportReport, import_texts) is as before.
+#   - parse_yesno / cyesno now return True/False/None instead of 1/0/None.
+#   - Author location and milieu fields are written to Author at create-time,
+#     not to Text. _get_or_create_author accepts optional place/milieu IDs
+#     and back-fills them on an existing Author if they are still unset.
+#   - ImageAvailability lookup has been removed. import_manuscripts now emits
+#     a WARNING when the Excel column promises images but no URL was extracted.
+#   - Edition.has_scan removed; scan links are stored via ExternalResource.
+#   - Edition.checked_leg removed (unused field).
+#   - Edition.reprint_identically_typeset / reprint_newly_typeset collapsed
+#     into Edition.reprint_type.
+#   - All renamed model fields and relationships used throughout.
 # ---------------------------------------------------------------------------
 
 import logging
@@ -48,14 +51,14 @@ from utilities.model import (
     ChurchEntity,
     ManuscriptIdentifier,
     DatingCentury,
-    ImageAvailability,
     VernacularRegion,
     ProvenanceGeneral,
     TextType,
     ImageType,
     ExternalResourceType,
     RelationType,
-    Certainty
+    ReprintType,
+    Certainty,
 )
 
 # ---------------------------------------------------------------------------
@@ -75,6 +78,7 @@ logger = logging.getLogger(__name__)
 
 
 def normalize_id(val: Any) -> str:
+    """Normalise a collection identifier for cache-key comparison."""
     if not val:
         return ""
     s = str(val).strip().lower()
@@ -141,12 +145,15 @@ _COL_ED_COLLATED = "Collation done?"
 # ---------------------------------------------------------------------------
 
 def clean_value(val: Any) -> Optional[str]:
+    """Return a stripped string or None for empty / NaN-like values."""
     if val is None or val == "" or str(val).lower() == "nan":
         return None
     s = str(val).strip()
     return s if s else None
 
+
 def parse_int(val: Any) -> Tuple[Optional[int], bool]:
+    """Parse an integer, returning (value, success)."""
     if val is None:
         return None, True
     try:
@@ -154,28 +161,39 @@ def parse_int(val: Any) -> Tuple[Optional[int], bool]:
     except (ValueError, TypeError):
         return None, False
 
+
 def parse_float(val: Any) -> Optional[float]:
+    """Parse a float, returning None on failure."""
     try:
         return float(val) if val is not None else None
     except (ValueError, TypeError):
         return None
 
-def parse_yesno(val: Any) -> Optional[int]:
+
+def parse_yesno(val: Any) -> Optional[bool]:
+    """Convert a yes/no Excel value to a Python bool.
+
+    Recognises common variants in English, French and Dutch.
+    Returns None for blank or unrecognised values.
+    """
     if val is None:
         return None
     s = str(val).strip().upper()
     if s in ("Y", "YES", "1", "TRUE", "OUI", "JA"):
-        return 1
+        return True
     if s in ("N", "NO", "0", "FALSE", "NON", "NEE"):
-        return 0
+        return False
     return None
+
 
 def _is_empty_row(row_cells_list: List[Cell]) -> bool:
     return all(c.value is None or str(c.value).strip() == "" for c in row_cells_list)
 
+
 def _iter_data_rows(
     rows_iter, sheet_title: str = "", empty_limit: int = EMPTY_ROW_LIMIT
 ) -> Generator[Tuple[int, List[Cell]], None, None]:
+    """Yield (1-based row number, cell list) pairs, stopping after consecutive empty rows."""
     consecutive_empty = 0
     for row_num, row_cells in enumerate(rows_iter, start=2):
         row_cells_list = list(row_cells)
@@ -191,19 +209,16 @@ def _iter_data_rows(
         consecutive_empty = 0
         yield row_num, row_cells_list
 
+
 # URL regex for basic validation
 URL_RE = re.compile(r"^https?://[^\s/$.?#].[^\s]*$", re.IGNORECASE)
 
 
 def _extract_hyperlink_url(cell: Cell) -> Optional[str]:
-    """
-    Extracts the underlying target URL from an Excel cell.
-    Discards the display text (e.g. 'Link' or 'CHECK') and validates the format.
-    """
+    """Extract the target URL from an Excel cell, ignoring display text."""
     if cell is None:
         return None
-        
-    # Prefer actual hyperlink target metadata
+
     if cell.hyperlink:
         target = getattr(cell.hyperlink, "target", None) or getattr(cell.hyperlink, "location", None)
         if target:
@@ -211,26 +226,20 @@ def _extract_hyperlink_url(cell: Cell) -> Optional[str]:
             if URL_RE.match(target_str):
                 return target_str
 
-    # Fallback if URL is raw string value in the cell
     value = cell.value
     if isinstance(value, str):
         val_str = value.strip()
         if URL_RE.match(val_str):
             return val_str
-            
+
     return None
 
 
 def _normalize_name(value: Optional[str]) -> Optional[str]:
-    """
-    Normalizes a place or institution name to prevent duplicates:
-    lowercases, collapses whitespace, and folds accents.
-    """
+    """Normalise a place or institution name: lowercase, collapse whitespace, fold accents."""
     if not value:
         return None
-    # Collapse whitespace and lowercase
     value = " ".join(value.strip().split()).lower()
-    # Remove accents using NFKD normalization
     value = unicodedata.normalize("NFKD", value)
     value = value.encode("ascii", "ignore").decode("ascii")
     return value or None
@@ -239,6 +248,7 @@ def _normalize_name(value: Optional[str]) -> Optional[str]:
 def _validate_url(
     url: str, excel_row: int, col_name: str, report: "ImportReport"
 ) -> Optional[str]:
+    """Validate a URL string; log and return None if malformed."""
     if not URL_RE.match(url):
         report.add(
             "url_skipped",
@@ -246,45 +256,6 @@ def _validate_url(
         )
         return None
     return url
-
-def _get_or_create_resource(
-    url: str,
-    resource_type: str,
-    comment: Optional[str],
-    cache: Dict[str, ExternalResource],
-    session: Session,
-    manuscript_id: Optional[int] = None,
-) -> ExternalResource:
-    if url in cache:
-        return cache[url]
-    
-    # Try to find an existing one (global or associated)
-    query = select(ExternalResource).where(ExternalResource.url == url)
-    if manuscript_id:
-        query = query.where(ExternalResource.manuscript_id == manuscript_id)
-    else:
-        query = query.where(ExternalResource.manuscript_id == None)
-        
-    existing = session.exec(query).first()
-    if existing:
-        cache[url] = existing
-        return existing
-        
-    try:
-        rtype_enum = ExternalResourceType(resource_type)
-    except ValueError:
-        rtype_enum = ExternalResourceType.other
-        
-    resource = ExternalResource(
-        url=url, 
-        resource_type=rtype_enum, 
-        comment=comment, 
-        manuscript_id=manuscript_id
-    )
-    session.add(resource)
-    session.flush()
-    cache[url] = resource
-    return resource
 
 
 _IMAGE_TYPE_MAP = [
@@ -296,6 +267,7 @@ _IMAGE_TYPE_MAP = [
 
 
 def _infer_image_type(image_availability: Optional[str]) -> str:
+    """Infer an ImageType name from the free-text image-availability column."""
     aa = (image_availability or "").upper()
     for marker, itype in _IMAGE_TYPE_MAP:
         if marker in aa:
@@ -313,16 +285,34 @@ def _get_or_create_resource(
     comment: Optional[str],
     cache: Dict[str, ExternalResource],
     session: Session,
+    manuscript_id: Optional[int] = None,
 ) -> ExternalResource:
+    """Return an ExternalResource for *url*, creating it if absent."""
     if url in cache:
         return cache[url]
-    existing = session.exec(
-        select(ExternalResource).where(ExternalResource.url == url)
-    ).first()
+
+    query = select(ExternalResource).where(ExternalResource.url == url)
+    if manuscript_id:
+        query = query.where(ExternalResource.manuscript_id == manuscript_id)
+    else:
+        query = query.where(ExternalResource.manuscript_id == None)
+
+    existing = session.exec(query).first()
     if existing:
         cache[url] = existing
         return existing
-    resource = ExternalResource(url=url, resource_type=resource_type, comment=comment)
+
+    try:
+        rtype_enum = ExternalResourceType(resource_type)
+    except ValueError:
+        rtype_enum = ExternalResourceType.other
+
+    resource = ExternalResource(
+        url=url,
+        resource_type=rtype_enum,
+        comment=comment,
+        manuscript_id=manuscript_id,
+    )
     session.add(resource)
     session.flush()
     cache[url] = resource
@@ -336,19 +326,16 @@ def _get_or_create_place(
     lat=None,
     lon=None,
 ) -> Optional[int]:
-    """
-    Retrieves or creates a Place entry using normalized matching.
-    """
+    """Return the id of a Place, creating it if absent. Updates coordinates if missing."""
     if not name:
         return None
-        
+
     raw_name = name.strip()
     norm_name = _normalize_name(raw_name)
-    
+
     if norm_name in cache:
         return cache[norm_name].id
-        
-    # Database check: check against all since SQLite STRICT/CASE is tricky with accents
+
     existing = session.exec(select(Place)).all()
     matched_place = next((p for p in existing if _normalize_name(p.name) == norm_name), None)
 
@@ -360,7 +347,6 @@ def _get_or_create_place(
         cache[norm_name] = matched_place
         return matched_place.id
 
-    # Store with raw spelling
     place = Place(name=raw_name, lat=lat, lon=lon)
     session.add(place)
     session.flush()
@@ -374,13 +360,13 @@ def _get_or_create_institution(
     place_id: Optional[int],
     cache: Dict[str, Institution],
 ) -> Optional[int]:
-    """Retrieves or creates an Institution entry using normalized matching."""
+    """Return the id of an Institution, creating it if absent."""
     if not name:
         return None
-        
+
     raw_name = name.strip()
     norm_name = _normalize_name(raw_name)
-    
+
     if norm_name in cache:
         return cache[norm_name].id
 
@@ -401,18 +387,56 @@ def _get_or_create_institution(
 
 
 def _get_or_create_author(
-    session: Session, name: Optional[str], cache: Dict[str, Author]
+    session: Session,
+    name: Optional[str],
+    cache: Dict[str, Author],
+    place_id: Optional[int] = None,
+    education_place_id: Optional[int] = None,
+    earlier_place_id: Optional[int] = None,
+    milieu_id: Optional[int] = None,
 ) -> Optional[int]:
+    """Return the id of an Author, creating it if absent.
+
+    Location and milieu fields are written on creation.  If the Author already
+    exists those fields are back-filled only when they are currently unset,
+    preserving any previously imported values.
+    """
     if not name:
         return None
     name = name.strip()
     if name in cache:
-        return cache[name].id
-    existing = session.exec(select(Author).where(Author.name == name)).first()
-    if existing:
-        cache[name] = existing
+        existing = cache[name]
+        # Back-fill missing location data
+        if place_id and not existing.place_id:
+            existing.place_id = place_id
+        if education_place_id and not existing.education_place_id:
+            existing.education_place_id = education_place_id
+        if earlier_place_id and not existing.earlier_place_id:
+            existing.earlier_place_id = earlier_place_id
+        if milieu_id and not existing.milieu_id:
+            existing.milieu_id = milieu_id
         return existing.id
-    auth = Author(name=name)
+
+    existing_db = session.exec(select(Author).where(Author.name == name)).first()
+    if existing_db:
+        if place_id and not existing_db.place_id:
+            existing_db.place_id = place_id
+        if education_place_id and not existing_db.education_place_id:
+            existing_db.education_place_id = education_place_id
+        if earlier_place_id and not existing_db.earlier_place_id:
+            existing_db.earlier_place_id = earlier_place_id
+        if milieu_id and not existing_db.milieu_id:
+            existing_db.milieu_id = milieu_id
+        cache[name] = existing_db
+        return existing_db.id
+
+    auth = Author(
+        name=name,
+        place_id=place_id,
+        education_place_id=education_place_id,
+        earlier_place_id=earlier_place_id,
+        milieu_id=milieu_id,
+    )
     session.add(auth)
     session.flush()
     cache[name] = auth
@@ -425,14 +449,13 @@ def _get_or_create_typology(
     parent_id: Optional[int],
     cache: Dict[str, Typology],
 ) -> Optional[int]:
+    """Return the id of a Typology entry, creating it if absent."""
     if not name:
         return None
     name = name.strip()
     if name in cache:
         return cache[name].id
-    existing = session.exec(
-        select(Typology).where(Typology.name == name)
-    ).first()
+    existing = session.exec(select(Typology).where(Typology.name == name)).first()
     if existing:
         if parent_id and not existing.parent_id:
             existing.parent_id = parent_id
@@ -448,14 +471,13 @@ def _get_or_create_typology(
 def _get_or_create_manuscript_type(
     session: Session, name: Optional[str], cache: Dict[str, ManuscriptType]
 ) -> Optional[int]:
+    """Return the id of a ManuscriptType entry, creating it if absent."""
     if not name:
         return None
     name = name.strip()
     if name in cache:
         return cache[name].id
-    existing = session.exec(
-        select(ManuscriptType).where(ManuscriptType.name == name)
-    ).first()
+    existing = session.exec(select(ManuscriptType).where(ManuscriptType.name == name)).first()
     if existing:
         cache[name] = existing
         return existing.id
@@ -469,14 +491,13 @@ def _get_or_create_manuscript_type(
 def _get_or_create_text_type(
     session: Session, name: Optional[str], cache: Dict[str, TextType]
 ) -> Optional[int]:
+    """Return the id of a TextType entry, creating it if absent."""
     if not name:
         return None
     name = name.strip()
     if name in cache:
         return cache[name].id
-    existing = session.exec(
-        select(TextType).where(TextType.name == name)
-    ).first()
+    existing = session.exec(select(TextType).where(TextType.name == name)).first()
     if existing:
         cache[name] = existing
         return existing.id
@@ -490,14 +511,13 @@ def _get_or_create_text_type(
 def _get_or_create_image_type(
     session: Session, name: Optional[str], cache: Dict[str, ImageType]
 ) -> Optional[int]:
+    """Return the id of an ImageType entry, creating it if absent."""
     if not name:
         return None
     name = name.strip()
     if name in cache:
         return cache[name].id
-    existing = session.exec(
-        select(ImageType).where(ImageType.name == name)
-    ).first()
+    existing = session.exec(select(ImageType).where(ImageType.name == name)).first()
     if existing:
         cache[name] = existing
         return existing.id
@@ -511,6 +531,7 @@ def _get_or_create_image_type(
 def _get_or_create_milieu(
     session: Session, name: Optional[str], cache: Dict[str, Milieu]
 ) -> Optional[int]:
+    """Return the id of a Milieu entry, creating it if absent."""
     if not name:
         return None
     name = name.strip()
@@ -533,14 +554,13 @@ def _get_or_create_church_entity(
     is_arch: bool,
     cache: Dict[str, ChurchEntity],
 ) -> Optional[int]:
+    """Return the id of a ChurchEntity, creating it if absent."""
     if not name:
         return None
     name = name.strip()
     if name in cache:
         return cache[name].id
-    existing = session.exec(
-        select(ChurchEntity).where(ChurchEntity.name == name)
-    ).first()
+    existing = session.exec(select(ChurchEntity).where(ChurchEntity.name == name)).first()
     if existing:
         cache[name] = existing
         return existing.id
@@ -557,6 +577,7 @@ def _get_or_create_ms_identifier(
     bhl: Optional[str],
     cache: Dict[str, ManuscriptIdentifier],
 ) -> Optional[int]:
+    """Return the id of a ManuscriptIdentifier, creating it if absent."""
     if not title:
         return None
     title = title.strip()
@@ -589,6 +610,7 @@ def _get_or_create_dating_century(
     century_val: Optional[Any],
     cache: Dict[int, DatingCentury],
 ) -> Optional[int]:
+    """Return the id of a DatingCentury row, creating it if absent."""
     if century_val is None or str(century_val).strip() == "":
         return None
     try:
@@ -597,9 +619,7 @@ def _get_or_create_dating_century(
         return None
     if century in cache:
         return cache[century].id
-    existing = session.exec(
-        select(DatingCentury).where(DatingCentury.century == century)
-    ).first()
+    existing = session.exec(select(DatingCentury).where(DatingCentury.century == century)).first()
     if existing:
         cache[century] = existing
         return existing.id
@@ -610,44 +630,18 @@ def _get_or_create_dating_century(
     return obj.id
 
 
-def _get_or_create_image_availability(
-    session: Session,
-    availability: Optional[str],
-    cache: Dict[str, ImageAvailability],
-) -> Optional[int]:
-    if not availability:
-        return None
-    availability = availability.strip()
-    if availability in cache:
-        return cache[availability].id
-    existing = session.exec(
-        select(ImageAvailability).where(
-            ImageAvailability.availability == availability
-        )
-    ).first()
-    if existing:
-        cache[availability] = existing
-        return existing.id
-    obj = ImageAvailability(availability=availability)
-    session.add(obj)
-    session.flush()
-    cache[availability] = obj
-    return obj.id
-
-
 def _get_or_create_vernacular_region(
     session: Session,
     region: Optional[str],
     cache: Dict[str, VernacularRegion],
 ) -> Optional[int]:
+    """Return the id of a VernacularRegion entry, creating it if absent."""
     if not region:
         return None
     region = region.strip()
     if region in cache:
         return cache[region].id
-    existing = session.exec(
-        select(VernacularRegion).where(VernacularRegion.region == region)
-    ).first()
+    existing = session.exec(select(VernacularRegion).where(VernacularRegion.region == region)).first()
     if existing:
         cache[region] = existing
         return existing.id
@@ -663,65 +657,23 @@ def _get_or_create_provenance_general(
     description: Optional[str],
     cache: Dict[str, ProvenanceGeneral],
 ) -> Optional[int]:
+    """Return the id of a ProvenanceGeneral entry, creating it if absent."""
     if not description:
         return None
     description = description.strip()
     if description in cache:
         return cache[description].id
     existing = session.exec(
-        select(ProvenanceGeneral).where(
-            ProvenanceGeneral.description == description
-        )
+        select(ProvenanceGeneral).where(ProvenanceGeneral.description == description)
     ).first()
     if existing:
         cache[description] = existing
+        return existing.id
     obj = ProvenanceGeneral(description=description)
     session.add(obj)
     session.flush()
     cache[description] = obj
     return obj.id
-
-
-def _get_or_create_edition(
-    session: Session,
-    uid: Optional[int],
-    descriptive_id: Optional[str],
-    bhl: Optional[str],
-    title: Optional[str],
-    cache: Dict[Any, Edition],
-) -> Edition:
-    key = uid if uid is not None else (
-        descriptive_id if descriptive_id else f"{title}|{bhl}"
-    )
-    if key in cache:
-        return cache[key]
-
-    existing = None
-    if uid is not None:
-        existing = session.exec(
-            select(Edition).where(Edition.unique_id_numeric == uid)
-        ).first()
-    elif descriptive_id:
-        existing = session.exec(
-            select(Edition).where(
-                Edition.unique_id_descriptive == descriptive_id
-            )
-        ).first()
-
-    if existing:
-        cache[key] = existing
-        return existing
-
-    edition = Edition(
-        unique_id_numeric=uid,
-        unique_id_descriptive=descriptive_id,
-        bhl_number=bhl,
-        title=title,
-    )
-    session.add(edition)
-    session.flush()
-    cache[key] = edition
-    return edition
 
 
 def _add_manuscript_resource(
@@ -735,36 +687,37 @@ def _add_manuscript_resource(
     report: "ImportReport",
     stats: Dict[str, int],
 ) -> None:
+    """Validate and attach a single ExternalResource to a Manuscript."""
     url = _validate_url(url, excel_row, col_name, report)
     if not url:
         stats["urls_skipped"] += 1
         return
-        
-    # Check if this resource already exists for this manuscript
+
     exists = session.exec(
         select(ExternalResource).where(
             ExternalResource.manuscript_id == ms.id,
             ExternalResource.url == url,
         )
     ).first()
-    
+
     if not exists:
         try:
             rtype = ExternalResourceType(resource_type)
         except ValueError:
             rtype = ExternalResourceType.other
-            
+
         resource = ExternalResource(
             manuscript_id=ms.id,
             url=url,
             resource_type=rtype,
-            comment=comment
+            comment=comment,
         )
         session.add(resource)
         stats["urls_imported"] += 1
 
 
 def _cell_inspection_status(cell: Cell) -> str:
+    """Derive an inspection status string from the cell fill colour."""
     try:
         fill = cell.fill
         if fill is None or fill.fgColor is None:
@@ -788,6 +741,7 @@ def _cell_inspection_status(cell: Cell) -> str:
 
 
 def _chunked(iterable, n: int):
+    """Yield successive n-sized chunks from *iterable*."""
     it = iter(iterable)
     while True:
         chunk = list(islice(it, n))
@@ -799,26 +753,37 @@ def _chunked(iterable, n: int):
 def row_to_cell_dict(
     row_cells_list: List[Cell], headers: List[Optional[str]]
 ) -> Dict[str, Cell]:
+    """Map header names to their corresponding Cell objects for a data row."""
     return {h: c for h, c in zip(headers, row_cells_list) if h is not None}
 
+
 def cval(row: Dict[str, Cell], col: str) -> Optional[str]:
+    """Extract a cleaned string value from a named column."""
     cell = row.get(col)
     return clean_value(cell.value) if cell else None
 
+
 def cint(row: Dict[str, Cell], col: str) -> Optional[int]:
+    """Extract an integer value from a named column."""
     cell = row.get(col)
     v, _ = parse_int(cell.value if cell else None)
     return v
 
+
 def cfloat(row: Dict[str, Cell], col: str) -> Optional[float]:
+    """Extract a float value from a named column."""
     cell = row.get(col)
     return parse_float(cell.value if cell else None)
 
-def cyesno(row: Dict[str, Cell], col: str) -> Optional[int]:
+
+def cyesno(row: Dict[str, Cell], col: str) -> Optional[bool]:
+    """Extract a boolean yes/no value from a named column."""
     cell = row.get(col)
     return parse_yesno(cell.value if cell else None)
 
+
 def _read_headers(ws: Worksheet) -> Tuple[List[Optional[str]], Any]:
+    """Read the first row of a worksheet as column headers."""
     rows_iter = ws.rows
     try:
         header_row = next(rows_iter)
@@ -837,11 +802,14 @@ def _read_headers(ws: Worksheet) -> Tuple[List[Optional[str]], Any]:
 # ---------------------------------------------------------------------------
 
 class ImportReport:
+    """Collects import anomalies and writes them to an Excel file."""
+
     CATEGORIES = [
         "url_skipped",
         "relation_inconsistency",
         "invalid_format",
         "critical_error",
+        "image_warning",
     ]
 
     def __init__(self) -> None:
@@ -876,6 +844,12 @@ class ImportReport:
 # ---------------------------------------------------------------------------
 
 def import_texts(session: Session, wb, report: ImportReport) -> Dict[str, Text]:
+    """Import all rows from the 'Corpus hagio' worksheet.
+
+    Author location and milieu data are resolved here and passed to
+    _get_or_create_author so they are stored on Author, not on Text.
+    Returns a dict mapping BHL number → Text instance.
+    """
     ws = wb["Corpus hagio"]
     headers, rows_iter = _read_headers(ws)
     if not headers:
@@ -910,9 +884,7 @@ def import_texts(session: Session, wb, report: ImportReport) -> Dict[str, Text]:
             skipped += 1
             continue
 
-        existing = session.exec(
-            select(Text).where(Text.bhl_number == bhl)
-        ).first()
+        existing = session.exec(select(Text).where(Text.bhl_number == bhl)).first()
         if existing:
             text_cache[bhl] = existing
             skipped += 1
@@ -934,26 +906,28 @@ def import_texts(session: Session, wb, report: ImportReport) -> Dict[str, Text]:
         dest_lat = parse_float(row.get("GPS Latitude DES").value if "GPS Latitude DES" in row else None)
         dest_lon = parse_float(row.get("GPS Longitude DES").value if "GPS Longitude DES" in row else None)
         dest_place_id = _get_or_create_place(
+            session, cval(row, "Primary destinatary"), place_cache, lat=dest_lat, lon=dest_lon,
+        )
+
+        # Resolve author-level place and milieu before creating/updating the Author.
+        # author_place is set to the origin place when the author is locally based,
+        # otherwise the Education and Antecedents columns are used independently.
+        is_locally_based = cyesno(row, "Locally based in Origin (see col. O)?")
+        auth_place_id = orig_place_id if is_locally_based else None
+        auth_edu_id = _get_or_create_place(session, cval(row, "Education"), place_cache)
+        auth_ant_id = _get_or_create_place(session, cval(row, "Antecedents"), place_cache)
+        milieu_id = _get_or_create_milieu(session, cval(row, "Milieu"), milieu_cache)
+
+        auth_id = _get_or_create_author(
             session,
-            cval(row, "Primary destinatary"),
-            place_cache,
-            lat=dest_lat,
-            lon=dest_lon,
+            cval(row, "Author"),
+            author_cache,
+            place_id=auth_place_id,
+            education_place_id=auth_edu_id,
+            earlier_place_id=auth_ant_id,
+            milieu_id=milieu_id,
         )
 
-        auth_id = _get_or_create_author(session, cval(row, "Author"), author_cache)
-        _locally_based_val = cyesno(row, "Locally based in Origin (see col. O)?")
-        auth_place_id = orig_place_id if _locally_based_val == 1 else None
-        auth_edu_id = _get_or_create_place(
-            session, cval(row, "Education"), place_cache
-        )
-        auth_ant_id = _get_or_create_place(
-            session, cval(row, "Antecedents"), place_cache
-        )
-
-        milieu_id = _get_or_create_milieu(
-            session, cval(row, "Milieu"), milieu_cache
-        )
         src_typo_id = _get_or_create_typology(
             session, cval(row, "Source type"), None, typology_cache
         )
@@ -976,45 +950,34 @@ def import_texts(session: Session, wb, report: ImportReport) -> Dict[str, Text]:
             checked_philippart=cyesno(row, "Check Philippart"),
             checked_secondary=cyesno(row, "Check secondaryliterature"),
             checked_leg=cyesno(row, "Check BHL"),
-            origin_precise=cyesno(row, "Precise origin?"),
-            destinatary_precise=cyesno(row, "Precise destinatary?"),
-            author_locally_based=_locally_based_val,
-            dating_quarter_century=cval(row, "Rough chronology"),
+            is_origin_precise=cyesno(row, "Precise origin?"),
+            is_destinatary_precise=cyesno(row, "Precise destinatary?"),
+            is_author_locally_based=is_locally_based,
             dating_rough=cval(row, "Rough chronology"),
             dating_precise=cval(row, "Dating"),
             origin_archdiocese_id=orig_arch_id,
             origin_diocese_id=orig_dio_id,
             origin_place_id=orig_place_id,
-            origin_known=cyesno(row, "Precise origin?"),
             primary_destinatary_place_id=dest_place_id,
-            destinatary_known=cyesno(row, "Precise destinatary?"),
             author_id=auth_id,
-            author_place_id=auth_place_id,
-            author_education_place_id=auth_edu_id,
-            author_earlier_place_id=auth_ant_id,
-            author_milieu_id=milieu_id,
             source_type_id=src_typo_id,
             subtype_id=sub_typo_id,
             text_type_id=text_type_id,
-            reecriture=cyesno(row, "Réécriture?"),
-            reecriture_of=cval(row, "Of which text(s)?"),
-            based_on_pre880=cyesno(row, "Based on pre-880 text?"),
+            is_rewrite=cyesno(row, "Réécriture?"),
+            rewrite_of_bhl=cval(row, "Of which text(s)?"),
+            is_based_on_pre880=cyesno(row, "Based on pre-880 text?"),
             preferred_edition=cval(row, "Edition reference"),
             edition_link_aass=cval(row, "Direct AASS link"),
             edition_link_other=cval(row, "Direct other links"),
             edition_link_mgh=cval(row, "MGH"),
-            ocr_pre_1800=cyesno(
-                row, "Definitely OCR pre-1800 + look for alternatives"
-            ),
-            ocr_post_1800=cyesno(row, "Definitely OCR post-1800"),
+            is_ocr_pre_1800=cyesno(row, "Definitely OCR pre-1800 + look for alternatives"),
+            is_ocr_post_1800=cyesno(row, "Definitely OCR post-1800"),
             has_full_ocr=cyesno(row, "Full OCR/XML available?"),
-            ocr_cleaned=cyesno(row, "Cleaned?"),
+            is_ocr_cleaned=cyesno(row, "Cleaned?"),
             ocr_comments=cval(row, "Comments on OCR/Cleaning/edition"),
             edition_link_1=cval(row, "Edition link 1 (some broken)"),
             edition_link_2=cval(row, "Edition link 2"),
-            key_bibliography=cval(
-                row, "Repertory entries and key bibliography"
-            ),
+            key_bibliography=cval(row, "Repertory entries and key bibliography"),
             notes=cval(row, "Notes"),
         )
         session.add(text)
@@ -1037,13 +1000,20 @@ def import_manuscripts(
     text_cache: Dict[str, "Text"],
     report: ImportReport,
 ) -> Tuple[Dict[int, Manuscript], Dict[str, Manuscript]]:
+    """Import all rows from the 'Manuscripts' worksheet.
+
+    ImageAvailability is no longer stored.  When the image-availability column
+    indicates images should be present but no image URL can be extracted, a
+    warning is added to the import report.
+
+    Returns two caches: (unique_id → Manuscript, collection_identifier → Manuscript).
+    """
     ws = wb["Manuscripts"]
     headers, rows_iter = _read_headers(ws)
     if not headers:
         logger.error("Tab 'Manuscripts' is empty.")
         return {}, {}
 
-    # Per-session caches
     resource_cache: Dict[str, ExternalResource] = {}
     place_cache: Dict[str, Place] = {}
     inst_cache: Dict[str, Institution] = {}
@@ -1051,7 +1021,6 @@ def import_manuscripts(
     mt_cache: Dict[str, ManuscriptType] = {}
     ms_ident_cache: Dict[str, ManuscriptIdentifier] = {}
     century_cache: Dict[int, DatingCentury] = {}
-    image_avail_cache: Dict[str, ImageAvailability] = {}
     vernacular_cache: Dict[str, VernacularRegion] = {}
     prov_gen_cache: Dict[str, ProvenanceGeneral] = {}
     image_type_cache: Dict[str, ImageType] = {}
@@ -1066,7 +1035,6 @@ def import_manuscripts(
         "images_created": 0,
     }
 
-    # Pre-populate manuscript caches from existing DB rows
     ms_cache: Dict[int, Manuscript] = {}
     ms_coll_cache: Dict[str, Manuscript] = {}
     for existing in session.exec(select(Manuscript)).all():
@@ -1084,9 +1052,7 @@ def import_manuscripts(
 
                 ms_number = cval(row, "MS N° per BHL number")
                 col_a_cell = row_cells_list[0] if row_cells_list else None
-                col_a_value = (
-                    clean_value(col_a_cell.value) if col_a_cell else None
-                )
+                col_a_value = clean_value(col_a_cell.value) if col_a_cell else None
 
                 if not col_a_value and not ms_number:
                     continue
@@ -1100,44 +1066,31 @@ def import_manuscripts(
                         {
                             "Row": excel_row,
                             "Column": "Unique ID",
-                            "Value": row["Unique ID"].value
-                            if "Unique ID" in row
-                            else None,
+                            "Value": row["Unique ID"].value if "Unique ID" in row else None,
                             "Reason": "Could not parse as integer",
                         },
                     )
 
-                # The BHL number on column A links this manuscript row to a Text
                 text_obj = text_cache.get(col_a_value) if col_a_value else None
 
-                # --- Resolve physical location / institution first (needed for
-                #     deduplication key and for new inserts) ---
                 coll_loc_id = _get_or_create_place(
                     session, cval(row, "Location"), place_cache
                 )
                 heri_inst_id = _get_or_create_institution(
-                    session,
-                    cval(row, "Heritage institution"),
-                    coll_loc_id,
-                    inst_cache,
+                    session, cval(row, "Heritage institution"), coll_loc_id, inst_cache,
                 )
                 shelfmark = cval(row, "Shelfmark")
                 comp_key = f"ms_{heri_inst_id}_{shelfmark}"
 
-                # --- 1. Hierarchical Manuscript lookup ---
                 ms = None
 
-                # A. By Unique ID
                 if uid_raw is not None:
                     ms = ms_cache.get(uid_raw)
                     if not ms:
                         ms = session.exec(
-                            select(Manuscript).where(
-                                Manuscript.unique_id == uid_raw
-                            )
+                            select(Manuscript).where(Manuscript.unique_id == uid_raw)
                         ).first()
 
-                # B. By composite key (institution + shelfmark)
                 if not ms and heri_inst_id and shelfmark:
                     ms = ms_cache.get(comp_key)
                     if not ms:
@@ -1148,35 +1101,21 @@ def import_manuscripts(
                             )
                         ).first()
 
-                # --- 2. Create or update the Manuscript row ---
                 if ms:
                     stats["manuscripts_skipped"] += 1
-                    # Keep caches warm
                     if ms.unique_id is not None:
                         ms_cache[ms.unique_id] = ms
                     if ms.heritage_institution_id and ms.shelfmark:
-                        ms_cache[
-                            f"ms_{ms.heritage_institution_id}_{ms.shelfmark}"
-                        ] = ms
+                        ms_cache[f"ms_{ms.heritage_institution_id}_{ms.shelfmark}"] = ms
                 else:
-                    # Resolve provenance / ecclesiastical entities for new MS
                     prov_arch_id = _get_or_create_church_entity(
-                        session,
-                        cval(row, "Provenance archdiocese"),
-                        True,
-                        church_cache,
+                        session, cval(row, "Provenance archdiocese"), True, church_cache,
                     )
                     prov_dio_id = _get_or_create_church_entity(
-                        session,
-                        cval(row, "Provenance diocese"),
-                        False,
-                        church_cache,
+                        session, cval(row, "Provenance diocese"), False, church_cache,
                     )
                     prov_inst_id = _get_or_create_institution(
-                        session,
-                        cval(row, "Provenance institution"),
-                        coll_loc_id,
-                        inst_cache,
+                        session, cval(row, "Provenance institution"), coll_loc_id, inst_cache,
                     )
 
                     ms_title_str = cval(row, "Title")
@@ -1190,16 +1129,11 @@ def import_manuscripts(
                         else None,
                         century_cache,
                     )
-                    image_avail_id = _get_or_create_image_availability(
-                        session, cval(row, _COL_MS_IMAGE_AVAIL), image_avail_cache
-                    )
                     vernacular_id = _get_or_create_vernacular_region(
                         session, cval(row, _COL_MS_VERNACULAR), vernacular_cache
                     )
                     prov_gen_id = _get_or_create_provenance_general(
-                        session,
-                        cval(row, "Provenance general"),
-                        prov_gen_cache,
+                        session, cval(row, "Provenance general"), prov_gen_cache,
                     )
                     ms_typo_id = _get_or_create_manuscript_type(
                         session, cval(row, "Manuscript type"), mt_cache
@@ -1223,7 +1157,6 @@ def import_manuscripts(
                         provenance_diocese_id=prov_dio_id,
                         provenance_institution_id=prov_inst_id,
                         vernacular_region_id=vernacular_id,
-                        image_availability_id=image_avail_id,
                         notes=cval(row, "Notes"),
                         witness_relation_notes=cval(row, _COL_MS_RELATIONS),
                         manuscript_type_id=ms_typo_id,
@@ -1233,7 +1166,6 @@ def import_manuscripts(
                     session.add(ms)
                     session.flush()
 
-                    # Cache both lookup keys
                     if ms.unique_id is not None:
                         ms_cache[ms.unique_id] = ms
                     if ms.heritage_institution_id and ms.shelfmark:
@@ -1245,22 +1177,13 @@ def import_manuscripts(
 
                     stats["manuscripts_inserted"] += 1
 
-                # --- 3. Create/update ManuscriptText link ---
-                # This replaces the old ms.text_id assignment and carries the
-                # text-specific metadata (archdiocese, bishopric, origin,
-                # folio_pages, ms_number_per_bhl) onto the join table.
+                # --- ManuscriptText link ---
                 if text_obj is not None:
                     txt_arch_id = _get_or_create_church_entity(
-                        session,
-                        cval(row, "Archbishopric"),
-                        True,
-                        church_cache,
+                        session, cval(row, "Archbishopric"), True, church_cache,
                     )
                     txt_bish_id = _get_or_create_church_entity(
-                        session,
-                        cval(row, "Bishopric"),
-                        False,
-                        church_cache,
+                        session, cval(row, "Bishopric"), False, church_cache,
                     )
                     txt_orig_id = _get_or_create_place(
                         session, cval(row, "Origin"), place_cache
@@ -1288,10 +1211,10 @@ def import_manuscripts(
                         session.add(link)
                         stats["ms_text_links_created"] += 1
 
-                # --- 4. Manuscript-to-manuscript relations ---
+                # --- Manuscript-to-manuscript relation tasks ---
                 if uid_raw is not None:
                     certainty_val = cyesno(row, _COL_MS_EXEMPLAR_CERTAIN)
-                    cert_enum = Certainty.certain if certainty_val == 1 else Certainty.uncertain
+                    cert_enum = Certainty.certain if certainty_val else Certainty.uncertain
                     notes_copy = cval(row, "Notes on exemplar")
                     notes_exemplar = cval(row, "Notes on copies")
 
@@ -1300,36 +1223,22 @@ def import_manuscripts(
                         if cell and cell.value:
                             target_uid, _ = parse_int(cell.value)
                             if target_uid is not None:
-                                relation_tasks.append(
-                                    (
-                                        uid_raw,
-                                        target_uid,
-                                        RelationType.copy_of,
-                                        cert_enum,
-                                        notes_copy,
-                                        col,
-                                        excel_row,
-                                    )
-                                )
+                                relation_tasks.append((
+                                    uid_raw, target_uid, RelationType.copy_of,
+                                    cert_enum, notes_copy, col, excel_row,
+                                ))
 
                     for col in _EXEMPLAR_OF_COLS:
                         cell = row.get(col)
                         if cell and cell.value:
                             copy_uid, _ = parse_int(cell.value)
                             if copy_uid is not None:
-                                relation_tasks.append(
-                                    (
-                                        copy_uid,
-                                        uid_raw,
-                                        RelationType.copy_of,
-                                        Certainty.uncertain,
-                                        notes_exemplar,
-                                        col,
-                                        excel_row,
-                                    )
-                                )
+                                relation_tasks.append((
+                                    copy_uid, uid_raw, RelationType.copy_of,
+                                    Certainty.uncertain, notes_exemplar, col, excel_row,
+                                ))
 
-                # --- 5. External resources (catalogue links, etc.) ---
+                # --- External resources (catalogue links) ---
                 for col_name, resource_type in _MANUSCRIPT_RESOURCE_COLS:
                     cell = row.get(col_name)
                     if cell is None:
@@ -1340,28 +1249,20 @@ def import_manuscripts(
                             stats["urls_skipped"] += 1
                         continue
                     _add_manuscript_resource(
-                        ms,
-                        url_str,
-                        resource_type,
-                        comment=None,
-                        col_name=col_name,
-                        excel_row=excel_row,
-                        session=session,
-                        report=report,
-                        stats=stats,
+                        ms, url_str, resource_type,
+                        comment=None, col_name=col_name, excel_row=excel_row,
+                        session=session, report=report, stats=stats,
                     )
 
+                # --- Images ---
+                image_avail_str = cval(row, _COL_MS_IMAGE_AVAIL)
                 img_cell = row.get(_COL_MS_IMAGES)
                 if img_cell is not None:
                     url_str = _extract_hyperlink_url(img_cell)
                     if url_str:
-                        url_str = _validate_url(
-                            url_str, excel_row, _COL_MS_IMAGES, report
-                        )
+                        url_str = _validate_url(url_str, excel_row, _COL_MS_IMAGES, report)
                         if url_str:
-                            itype_str = _infer_image_type(
-                                cval(row, _COL_MS_IMAGE_AVAIL)
-                            )
+                            itype_str = _infer_image_type(image_avail_str)
                             itype_id = _get_or_create_image_type(
                                 session, itype_str, image_type_cache
                             )
@@ -1372,17 +1273,29 @@ def import_manuscripts(
                                 )
                             ).first()
                             if not exists:
-                                session.add(
-                                    Image(
-                                        url=url_str,
-                                        image_type_id=itype_id,
-                                        comment=None,
-                                        ms_id=ms.id,
-                                    )
-                                )
+                                session.add(Image(
+                                    url=url_str,
+                                    image_type_id=itype_id,
+                                    comment=None,
+                                    ms_id=ms.id,
+                                ))
                                 stats["images_created"] += 1
                     elif img_cell.value:
                         stats["urls_skipped"] += 1
+                elif image_avail_str and image_avail_str.upper() not in ("NO IMAGES", "NO"):
+                    # The spreadsheet claims images exist but no URL was found.
+                    logger.warning(
+                        f"[Tab 1] Row {excel_row}: image availability '{image_avail_str}' "
+                        f"indicated but no image URL extracted."
+                    )
+                    report.add(
+                        "image_warning",
+                        {
+                            "Row": excel_row,
+                            "ImageAvailability": image_avail_str,
+                            "Reason": "Availability column set but no image URL found",
+                        },
+                    )
 
             session.commit()
 
@@ -1393,9 +1306,7 @@ def import_manuscripts(
             continue
 
     # --- Post-pass: resolve ManuscriptRelation tasks ---
-    logger.info(
-        f"[Relations] Processing {len(relation_tasks)} relation tasks..."
-    )
+    logger.info(f"[Relations] Processing {len(relation_tasks)} relation tasks...")
     rel_created = rel_skipped = 0
     for src_uid, tgt_uid, rel_type, cert, notes, col, row_num in relation_tasks:
         src_ms = ms_cache.get(src_uid)
@@ -1428,19 +1339,16 @@ def import_manuscripts(
             rel_skipped += 1
             continue
 
-        session.add(
-            ManuscriptRelation(
-                source_manuscript_id=src_ms.id,
-                target_manuscript_id=tgt_ms.id,
-                relation_type=rel_type,
-                certainty=cert,
-                notes=notes,
-                source_reference=(
-                    f"Excel import — Manuscripts tab "
-                    f"(row {row_num}, column '{col}')"
-                ),
-            )
-        )
+        session.add(ManuscriptRelation(
+            source_manuscript_id=src_ms.id,
+            target_manuscript_id=tgt_ms.id,
+            relation_type=rel_type,
+            certainty=cert,
+            notes=notes,
+            source_reference=(
+                f"Excel import — Manuscripts tab (row {row_num}, column '{col}')"
+            ),
+        ))
         rel_created += 1
 
     session.commit()
@@ -1464,6 +1372,12 @@ def import_editions(
     ms_coll_cache: Dict[str, Manuscript],
     report: ImportReport,
 ) -> None:
+    """Import all rows from the 'Editions' worksheet.
+
+    Edition.has_scan is removed; the scan URL is stored as an ExternalResource
+    linked via EditionExternalResource.  Edition.reprint_type is derived from
+    the two old mutually-exclusive boolean columns.
+    """
     ws = wb["Editions"]
     headers, rows_iter = _read_headers(ws)
     if not headers:
@@ -1500,29 +1414,39 @@ def import_editions(
                 ]
 
                 scan_cell = row.get(_COL_ED_SCAN_LINK)
-                scan_url = (
-                    _extract_hyperlink_url(scan_cell) if scan_cell else None
-                )
-                has_scan = 1 if scan_url else 0
+                scan_url = _extract_hyperlink_url(scan_cell) if scan_cell else None
 
                 uid_num = cint(row, _COL_ED_UID_NUM)
                 uid_desc = cval(row, _COL_ED_UID_DESC)
                 title = cval(row, "Title")
-                
-                # Check cache/DB for existing edition to avoid UNIQUE constraint violation
-                # Key logic same as _get_or_create_edition
-                cache_key = uid_num if uid_num is not None else (uid_desc if uid_desc else f"{title}|{bhl}")
-                
+
+                cache_key = uid_num if uid_num is not None else (
+                    uid_desc if uid_desc else f"{title}|{bhl}"
+                )
+
+                # Derive reprint type from the two former boolean columns.
+                is_ident = cyesno(row, "If reprint, identically typeset?")
+                is_newly = cyesno(row, "If reprint, newly typeset?")
+                if is_ident:
+                    reprint_type_val = ReprintType.identically_typeset
+                elif is_newly:
+                    reprint_type_val = ReprintType.newly_typeset
+                else:
+                    reprint_type_val = None
+
                 if cache_key in edition_cache:
                     edition = edition_cache[cache_key]
                 else:
-                    # Double check DB directly just in case (e.g. if cache was cleared or across different runs)
                     existing = None
                     if uid_num is not None:
-                        existing = session.exec(select(Edition).where(Edition.unique_id_numeric == uid_num)).first()
+                        existing = session.exec(
+                            select(Edition).where(Edition.unique_id_numeric == uid_num)
+                        ).first()
                     elif uid_desc:
-                        existing = session.exec(select(Edition).where(Edition.unique_id_descriptive == uid_desc)).first()
-                    
+                        existing = session.exec(
+                            select(Edition).where(Edition.unique_id_descriptive == uid_desc)
+                        ).first()
+
                     if existing:
                         edition = existing
                         edition_cache[cache_key] = edition
@@ -1534,7 +1458,6 @@ def import_editions(
                             edition_reference_per_text=cval(
                                 row, "Ed. reference per individual text"
                             ),
-                            checked_leg=None,
                             checked_dg=cyesno(row, "DG"),
                             checked_naso=cyesno(row, "NASO"),
                             checked_ed_sec=cyesno(row, "ED/SEC"),
@@ -1544,17 +1467,11 @@ def import_editions(
                             bibliographic_reference=cval(row, _COL_ED_BIBREF),
                             page_range=cval(row, _COL_ED_PAGES),
                             is_reprint=cyesno(row, "Reprint?"),
-                            reprint_identically_typeset=cyesno(
-                                row, "If reprint, identically typeset?"
-                            ),
-                            reprint_newly_typeset=cyesno(
-                                row, "If reprint, newly typeset?"
-                            ),
+                            reprint_type=reprint_type_val,
                             reprint_of=cval(row, _COL_ED_REPRINT_OF),
-                            has_scan=has_scan,
                             has_transcription=cyesno(row, _COL_ED_TRANSCRIBED),
-                            transcription_our_ed=cyesno(row, "Our transcribed ed.?"),
-                            collated=cyesno(row, _COL_ED_COLLATED),
+                            is_our_transcription=cyesno(row, "Our transcribed ed.?"),
+                            is_collated=cyesno(row, _COL_ED_COLLATED),
                             edition_refs=", ".join(edition_ref_parts) or None,
                             notes=cval(row, "Notes"),
                             text_id=text_obj.id if text_obj else None,
@@ -1565,12 +1482,11 @@ def import_editions(
                         stats["editions_inserted"] += 1
 
                 if scan_url:
-                    scan_url = _validate_url(
-                        scan_url, excel_row, _COL_ED_SCAN_LINK, report
-                    )
+                    scan_url = _validate_url(scan_url, excel_row, _COL_ED_SCAN_LINK, report)
                     if scan_url:
                         resource = _get_or_create_resource(
-                            scan_url, "scan", comment=None, cache=resource_cache, session=session
+                            scan_url, "scan", comment=None,
+                            cache=resource_cache, session=session,
                         )
                         exists = session.exec(
                             select(EditionExternalResource).where(
@@ -1579,12 +1495,10 @@ def import_editions(
                             )
                         ).first()
                         if not exists:
-                            session.add(
-                                EditionExternalResource(
-                                    edition_id=edition.id,
-                                    resource_id=resource.id,
-                                )
-                            )
+                            session.add(EditionExternalResource(
+                                edition_id=edition.id,
+                                resource_id=resource.id,
+                            ))
                             stats["urls_imported"] += 1
                 elif scan_cell and scan_cell.value:
                     stats["urls_skipped"] += 1
@@ -1593,9 +1507,7 @@ def import_editions(
                     if idx >= len(row_cells_list):
                         continue
                     ms_cell = row_cells_list[idx]
-                    ms_val = (
-                        str(ms_cell.value).strip() if ms_cell.value else ""
-                    )
+                    ms_val = str(ms_cell.value).strip() if ms_cell.value else ""
                     if not ms_val or ms_val.upper() == "N/A":
                         continue
 
@@ -1609,9 +1521,7 @@ def import_editions(
                                 "Row": excel_row,
                                 "Column": f"col index {idx} (W-AL)",
                                 "Value": ms_val,
-                                "Reason": (
-                                    f"Collection identifier '{match_val}' not found"
-                                ),
+                                "Reason": f"Collection identifier '{match_val}' not found",
                             },
                         )
                         continue
@@ -1630,13 +1540,11 @@ def import_editions(
                             )
                         ).first()
                         if not exists:
-                            session.add(
-                                EditionManuscript(
-                                    edition_id=edition.id,
-                                    ms_id=target_ms.id,
-                                    inspection_status=inspection,
-                                )
-                            )
+                            session.add(EditionManuscript(
+                                edition_id=edition.id,
+                                ms_id=target_ms.id,
+                                inspection_status=inspection,
+                            ))
                             edition_ms_pairs.add(pair_key)
                             stats["ms_links_created"] += 1
 
@@ -1659,13 +1567,12 @@ def import_editions(
 # ---------------------------------------------------------------------------
 
 def main() -> None:
+    """Run the full Excel → SQLite import pipeline."""
     logger.info(f"Using database at {DB_PATH}")
     if not EXCEL.exists():
         logger.error(f"Excel file not found at {EXCEL}, cannot proceed with import.")
         return
 
-    # Let op: bij structurele database-wijzigingen de oude .db file eerst
-    # weggooien (STRICT schema changes)!
     SQLModel.metadata.create_all(engine)
     create_updated_at_trigger(engine)
 
@@ -1677,14 +1584,10 @@ def main() -> None:
         text_cache = import_texts(session, wb, report)
 
         logger.info("=== Step 2: Importing Manuscripts ===")
-        ms_cache, ms_coll_cache = import_manuscripts(
-            session, wb, text_cache, report
-        )
+        ms_cache, ms_coll_cache = import_manuscripts(session, wb, text_cache, report)
 
         logger.info("=== Step 3: Importing Editions ===")
-        import_editions(
-            session, wb, text_cache, ms_cache, ms_coll_cache, report
-        )
+        import_editions(session, wb, text_cache, ms_cache, ms_coll_cache, report)
 
     report.save(str(DATA_ROOT / "import_report.xlsx"))
 
