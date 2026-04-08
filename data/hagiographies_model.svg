@@ -949,76 +949,76 @@
 <text text-anchor="start" x="1783" y="-1467.4" font-family="Roboto" font-size="12.00">INTEGER ()</text>
 <polygon fill="#bbdefb" stroke="transparent" points="1590.5,-1442 1590.5,-1461 1772.5,-1461 1772.5,-1442 1590.5,-1442"/>
 <polygon fill="none" stroke="black" points="1590.5,-1442 1590.5,-1461 1772.5,-1461 1772.5,-1442 1590.5,-1442"/>
-<text text-anchor="start" x="1593.5" y="-1448.4" font-family="Roboto" font-size="12.00">primary_destinatary_place_id</text>
+<text text-anchor="start" x="1632.5" y="-1448.4" font-family="Roboto" font-size="12.00">is_origin_precise</text>
 <polygon fill="#bbdefb" stroke="transparent" points="1772.5,-1442 1772.5,-1461 1859.5,-1461 1859.5,-1442 1772.5,-1442"/>
 <polygon fill="none" stroke="black" points="1772.5,-1442 1772.5,-1461 1859.5,-1461 1859.5,-1442 1772.5,-1442"/>
 <text text-anchor="start" x="1783" y="-1448.4" font-family="Roboto" font-size="12.00">INTEGER ()</text>
 <polygon fill="#bbdefb" stroke="transparent" points="1590.5,-1423 1590.5,-1442 1772.5,-1442 1772.5,-1423 1590.5,-1423"/>
 <polygon fill="none" stroke="black" points="1590.5,-1423 1590.5,-1442 1772.5,-1442 1772.5,-1423 1590.5,-1423"/>
-<text text-anchor="start" x="1653" y="-1429.4" font-family="Roboto" font-size="12.00">author_id</text>
+<text text-anchor="start" x="1615.5" y="-1429.4" font-family="Roboto" font-size="12.00">is_destinatary_precise</text>
 <polygon fill="#bbdefb" stroke="transparent" points="1772.5,-1423 1772.5,-1442 1859.5,-1442 1859.5,-1423 1772.5,-1423"/>
 <polygon fill="none" stroke="black" points="1772.5,-1423 1772.5,-1442 1859.5,-1442 1859.5,-1423 1772.5,-1423"/>
 <text text-anchor="start" x="1783" y="-1429.4" font-family="Roboto" font-size="12.00">INTEGER ()</text>
 <polygon fill="#bbdefb" stroke="transparent" points="1590.5,-1404 1590.5,-1423 1772.5,-1423 1772.5,-1404 1590.5,-1404"/>
 <polygon fill="none" stroke="black" points="1590.5,-1404 1590.5,-1423 1772.5,-1423 1772.5,-1404 1590.5,-1404"/>
-<text text-anchor="start" x="1637" y="-1410.4" font-family="Roboto" font-size="12.00">source_type_id</text>
+<text text-anchor="start" x="1593.5" y="-1410.4" font-family="Roboto" font-size="12.00">primary_destinatary_place_id</text>
 <polygon fill="#bbdefb" stroke="transparent" points="1772.5,-1404 1772.5,-1423 1859.5,-1423 1859.5,-1404 1772.5,-1404"/>
 <polygon fill="none" stroke="black" points="1772.5,-1404 1772.5,-1423 1859.5,-1423 1859.5,-1404 1772.5,-1404"/>
 <text text-anchor="start" x="1783" y="-1410.4" font-family="Roboto" font-size="12.00">INTEGER ()</text>
 <polygon fill="#bbdefb" stroke="transparent" points="1590.5,-1385 1590.5,-1404 1772.5,-1404 1772.5,-1385 1590.5,-1385"/>
 <polygon fill="none" stroke="black" points="1590.5,-1385 1590.5,-1404 1772.5,-1404 1772.5,-1385 1590.5,-1385"/>
-<text text-anchor="start" x="1649.5" y="-1391.4" font-family="Roboto" font-size="12.00">subtype_id</text>
+<text text-anchor="start" x="1653" y="-1391.4" font-family="Roboto" font-size="12.00">author_id</text>
 <polygon fill="#bbdefb" stroke="transparent" points="1772.5,-1385 1772.5,-1404 1859.5,-1404 1859.5,-1385 1772.5,-1385"/>
 <polygon fill="none" stroke="black" points="1772.5,-1385 1772.5,-1404 1859.5,-1404 1859.5,-1385 1772.5,-1385"/>
 <text text-anchor="start" x="1783" y="-1391.4" font-family="Roboto" font-size="12.00">INTEGER ()</text>
 <polygon fill="#bbdefb" stroke="transparent" points="1590.5,-1366 1590.5,-1385 1772.5,-1385 1772.5,-1366 1590.5,-1366"/>
 <polygon fill="none" stroke="black" points="1590.5,-1366 1590.5,-1385 1772.5,-1385 1772.5,-1366 1590.5,-1366"/>
-<text text-anchor="start" x="1645" y="-1372.4" font-family="Roboto" font-size="12.00">text_type_id</text>
+<text text-anchor="start" x="1618.5" y="-1372.4" font-family="Roboto" font-size="12.00">author_locally_based</text>
 <polygon fill="#bbdefb" stroke="transparent" points="1772.5,-1366 1772.5,-1385 1859.5,-1385 1859.5,-1366 1772.5,-1366"/>
 <polygon fill="none" stroke="black" points="1772.5,-1366 1772.5,-1385 1859.5,-1385 1859.5,-1366 1772.5,-1366"/>
-<text text-anchor="start" x="1783" y="-1372.4" font-family="Roboto" font-size="12.00">INTEGER ()</text>
+<text text-anchor="start" x="1794" y="-1372.4" font-family="Roboto" font-size="12.00">TEXT ()</text>
 <polygon fill="#bbdefb" stroke="transparent" points="1590.5,-1347 1590.5,-1366 1772.5,-1366 1772.5,-1347 1590.5,-1347"/>
 <polygon fill="none" stroke="black" points="1590.5,-1347 1590.5,-1366 1772.5,-1366 1772.5,-1347 1590.5,-1347"/>
-<text text-anchor="start" x="1652.5" y="-1353.4" font-family="Roboto" font-size="12.00">is_rewrite</text>
+<text text-anchor="start" x="1637" y="-1353.4" font-family="Roboto" font-size="12.00">source_type_id</text>
 <polygon fill="#bbdefb" stroke="transparent" points="1772.5,-1347 1772.5,-1366 1859.5,-1366 1859.5,-1347 1772.5,-1347"/>
 <polygon fill="none" stroke="black" points="1772.5,-1347 1772.5,-1366 1859.5,-1366 1859.5,-1347 1772.5,-1347"/>
 <text text-anchor="start" x="1783" y="-1353.4" font-family="Roboto" font-size="12.00">INTEGER ()</text>
 <polygon fill="#bbdefb" stroke="transparent" points="1590.5,-1328 1590.5,-1347 1772.5,-1347 1772.5,-1328 1590.5,-1328"/>
 <polygon fill="none" stroke="black" points="1590.5,-1328 1590.5,-1347 1772.5,-1347 1772.5,-1328 1590.5,-1328"/>
-<text text-anchor="start" x="1639" y="-1334.4" font-family="Roboto" font-size="12.00">rewrite_of_bhl</text>
+<text text-anchor="start" x="1649.5" y="-1334.4" font-family="Roboto" font-size="12.00">subtype_id</text>
 <polygon fill="#bbdefb" stroke="transparent" points="1772.5,-1328 1772.5,-1347 1859.5,-1347 1859.5,-1328 1772.5,-1328"/>
 <polygon fill="none" stroke="black" points="1772.5,-1328 1772.5,-1347 1859.5,-1347 1859.5,-1328 1772.5,-1328"/>
-<text text-anchor="start" x="1794" y="-1334.4" font-family="Roboto" font-size="12.00">TEXT ()</text>
+<text text-anchor="start" x="1783" y="-1334.4" font-family="Roboto" font-size="12.00">INTEGER ()</text>
 <polygon fill="#bbdefb" stroke="transparent" points="1590.5,-1309 1590.5,-1328 1772.5,-1328 1772.5,-1309 1590.5,-1309"/>
 <polygon fill="none" stroke="black" points="1590.5,-1309 1590.5,-1328 1772.5,-1328 1772.5,-1309 1590.5,-1309"/>
-<text text-anchor="start" x="1621" y="-1315.4" font-family="Roboto" font-size="12.00">is_based_on_pre880</text>
+<text text-anchor="start" x="1645" y="-1315.4" font-family="Roboto" font-size="12.00">text_type_id</text>
 <polygon fill="#bbdefb" stroke="transparent" points="1772.5,-1309 1772.5,-1328 1859.5,-1328 1859.5,-1309 1772.5,-1309"/>
 <polygon fill="none" stroke="black" points="1772.5,-1309 1772.5,-1328 1859.5,-1328 1859.5,-1309 1772.5,-1309"/>
 <text text-anchor="start" x="1783" y="-1315.4" font-family="Roboto" font-size="12.00">INTEGER ()</text>
 <polygon fill="#bbdefb" stroke="transparent" points="1590.5,-1290 1590.5,-1309 1772.5,-1309 1772.5,-1290 1590.5,-1290"/>
 <polygon fill="none" stroke="black" points="1590.5,-1290 1590.5,-1309 1772.5,-1309 1772.5,-1290 1590.5,-1290"/>
-<text text-anchor="start" x="1666.5" y="-1296.4" font-family="Roboto" font-size="12.00">code</text>
+<text text-anchor="start" x="1652.5" y="-1296.4" font-family="Roboto" font-size="12.00">is_rewrite</text>
 <polygon fill="#bbdefb" stroke="transparent" points="1772.5,-1290 1772.5,-1309 1859.5,-1309 1859.5,-1290 1772.5,-1290"/>
 <polygon fill="none" stroke="black" points="1772.5,-1290 1772.5,-1309 1859.5,-1309 1859.5,-1290 1772.5,-1290"/>
-<text text-anchor="start" x="1794" y="-1296.4" font-family="Roboto" font-size="12.00">TEXT ()</text>
+<text text-anchor="start" x="1783" y="-1296.4" font-family="Roboto" font-size="12.00">INTEGER ()</text>
 <polygon fill="#bbdefb" stroke="transparent" points="1590.5,-1271 1590.5,-1290 1772.5,-1290 1772.5,-1271 1590.5,-1271"/>
 <polygon fill="none" stroke="black" points="1590.5,-1271 1590.5,-1290 1772.5,-1290 1772.5,-1271 1590.5,-1271"/>
-<text text-anchor="start" x="1632.5" y="-1277.4" font-family="Roboto" font-size="12.00">is_origin_precise</text>
+<text text-anchor="start" x="1640.5" y="-1277.4" font-family="Roboto" font-size="12.00">rewrite_notes</text>
 <polygon fill="#bbdefb" stroke="transparent" points="1772.5,-1271 1772.5,-1290 1859.5,-1290 1859.5,-1271 1772.5,-1271"/>
 <polygon fill="none" stroke="black" points="1772.5,-1271 1772.5,-1290 1859.5,-1290 1859.5,-1271 1772.5,-1271"/>
-<text text-anchor="start" x="1783" y="-1277.4" font-family="Roboto" font-size="12.00">INTEGER ()</text>
+<text text-anchor="start" x="1794" y="-1277.4" font-family="Roboto" font-size="12.00">TEXT ()</text>
 <polygon fill="#bbdefb" stroke="transparent" points="1590.5,-1252 1590.5,-1271 1772.5,-1271 1772.5,-1252 1590.5,-1252"/>
 <polygon fill="none" stroke="black" points="1590.5,-1252 1590.5,-1271 1772.5,-1271 1772.5,-1252 1590.5,-1252"/>
-<text text-anchor="start" x="1615.5" y="-1258.4" font-family="Roboto" font-size="12.00">is_destinatary_precise</text>
+<text text-anchor="start" x="1621" y="-1258.4" font-family="Roboto" font-size="12.00">is_based_on_pre880</text>
 <polygon fill="#bbdefb" stroke="transparent" points="1772.5,-1252 1772.5,-1271 1859.5,-1271 1859.5,-1252 1772.5,-1252"/>
 <polygon fill="none" stroke="black" points="1772.5,-1252 1772.5,-1271 1859.5,-1271 1859.5,-1252 1772.5,-1252"/>
 <text text-anchor="start" x="1783" y="-1258.4" font-family="Roboto" font-size="12.00">INTEGER ()</text>
 <polygon fill="#bbdefb" stroke="transparent" points="1590.5,-1233 1590.5,-1252 1772.5,-1252 1772.5,-1233 1590.5,-1233"/>
 <polygon fill="none" stroke="black" points="1590.5,-1233 1590.5,-1252 1772.5,-1252 1772.5,-1233 1590.5,-1233"/>
-<text text-anchor="start" x="1611" y="-1239.4" font-family="Roboto" font-size="12.00">is_author_locally_based</text>
+<text text-anchor="start" x="1666.5" y="-1239.4" font-family="Roboto" font-size="12.00">code</text>
 <polygon fill="#bbdefb" stroke="transparent" points="1772.5,-1233 1772.5,-1252 1859.5,-1252 1859.5,-1233 1772.5,-1233"/>
 <polygon fill="none" stroke="black" points="1772.5,-1233 1772.5,-1252 1859.5,-1252 1859.5,-1233 1772.5,-1233"/>
-<text text-anchor="start" x="1783" y="-1239.4" font-family="Roboto" font-size="12.00">INTEGER ()</text>
+<text text-anchor="start" x="1794" y="-1239.4" font-family="Roboto" font-size="12.00">TEXT ()</text>
 <polygon fill="#bbdefb" stroke="transparent" points="1590.5,-1214 1590.5,-1233 1772.5,-1233 1772.5,-1214 1590.5,-1214"/>
 <polygon fill="none" stroke="black" points="1590.5,-1214 1590.5,-1233 1772.5,-1233 1772.5,-1214 1590.5,-1214"/>
 <text text-anchor="start" x="1630" y="-1220.4" font-family="Roboto" font-size="12.00">preferred_edition</text>
@@ -1057,10 +1057,10 @@
 <text text-anchor="start" x="1783" y="-1125.4" font-family="Roboto" font-size="12.00">INTEGER ()</text>
 <polygon fill="#bbdefb" stroke="transparent" points="1590.5,-1100 1590.5,-1119 1772.5,-1119 1772.5,-1100 1590.5,-1100"/>
 <polygon fill="none" stroke="black" points="1590.5,-1100 1590.5,-1119 1772.5,-1119 1772.5,-1100 1590.5,-1100"/>
-<text text-anchor="start" x="1646" y="-1106.4" font-family="Roboto" font-size="12.00">has_full_ocr</text>
+<text text-anchor="start" x="1633" y="-1106.4" font-family="Roboto" font-size="12.00">full_ocr_bhl_refs</text>
 <polygon fill="#bbdefb" stroke="transparent" points="1772.5,-1100 1772.5,-1119 1859.5,-1119 1859.5,-1100 1772.5,-1100"/>
 <polygon fill="none" stroke="black" points="1772.5,-1100 1772.5,-1119 1859.5,-1119 1859.5,-1100 1772.5,-1100"/>
-<text text-anchor="start" x="1783" y="-1106.4" font-family="Roboto" font-size="12.00">INTEGER ()</text>
+<text text-anchor="start" x="1794" y="-1106.4" font-family="Roboto" font-size="12.00">TEXT ()</text>
 <polygon fill="#bbdefb" stroke="transparent" points="1590.5,-1081 1590.5,-1100 1772.5,-1100 1772.5,-1081 1590.5,-1081"/>
 <polygon fill="none" stroke="black" points="1590.5,-1081 1590.5,-1100 1772.5,-1100 1772.5,-1081 1590.5,-1081"/>
 <text text-anchor="start" x="1637.5" y="-1087.4" font-family="Roboto" font-size="12.00">is_ocr_cleaned</text>
