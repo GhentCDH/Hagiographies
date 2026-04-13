@@ -84,8 +84,8 @@ kottster:
 reset-db:
     rm -f data/hagiographies.db*
 
-# Full reset: rebuild, reset db, import (SQLite & PG), export from PG, and download map data
-reinit: rebuild reset-db import import-pg export-from-pg-to-sqlite map-data
+# Full reset: rebuild, reset db, import (SQLite & PG), export map data, and download map data
+reinit: rebuild reset-db import import-pg export-map map-data
 
 # ── Dev helpers ──────────────────────────────────────────────────────────────
 
