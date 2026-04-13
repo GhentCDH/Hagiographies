@@ -29,6 +29,8 @@ services:
       - ./data:/data
     env_file:
       - dev.env
+      - path: .env
+        required: false
     ports:
       - "5480:5480"
       - "5481:5481"
@@ -44,6 +46,8 @@ services:
       - ./data:/data
     env_file:
       - dev.env
+      - path: .env
+        required: false
     ports:
       - "5490:5480"
       - "5491:5481"
@@ -60,6 +64,8 @@ services:
       - ./data:/data
     env_file:
       - dev.env
+      - path: .env
+        required: false
     depends_on:
       postgres:
         condition: service_healthy
