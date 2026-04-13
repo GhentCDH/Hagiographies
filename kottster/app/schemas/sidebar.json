@@ -1,13 +1,10 @@
 {
   "menuPageOrder": [
-    "manuscript",
-    "location",
     "text",
-    "archbishopric",
-    "bishopric",
-    "origin",
-    "witness",
+    "manuscript",
     "edition",
-    "place"
+    "place",
+    "institution",
+    "author"
   ]
 }

@@ -1,0 +1,45 @@
+{
+  "version": "3.4",
+  "type": "table",
+  "title": "Authors",
+  "hideInSidebar": false,
+  "config": {
+    "dataSource": "hagiographies_db",
+    "fetchStrategy": "databaseTable",
+    "table": "author",
+    "columns": [
+      { "column": "id", "label": "ID", "listView": { "visible": false }, "recordView": { "visible": false } },
+      { "column": "created_at", "label": "Created At", "listView": { "visible": false }, "recordView": { "visible": false } },
+      { "column": "updated_at", "label": "Updated At", "listView": { "visible": false }, "recordView": { "visible": false } },
+      { "column": "name", "label": "Name", "position": 0, "fieldInput": { "type": "textarea" } },
+      {
+        "column": "place_id",
+        "label": "Place",
+        "position": 1,
+        "relationshipPreviewColumns": ["name"],
+        "fieldInput": { "type": "recordSelect", "asArray": false }
+      },
+      {
+        "column": "education_place_id",
+        "label": "Education",
+        "position": 2,
+        "relationshipPreviewColumns": ["name"],
+        "fieldInput": { "type": "recordSelect", "asArray": false }
+      },
+      {
+        "column": "earlier_place_id",
+        "label": "Antecedents",
+        "position": 3,
+        "relationshipPreviewColumns": ["name"],
+        "fieldInput": { "type": "recordSelect", "asArray": false }
+      },
+      {
+        "column": "milieu_id",
+        "label": "Milieu",
+        "position": 4,
+        "relationshipPreviewColumns": ["name"],
+        "fieldInput": { "type": "recordSelect", "asArray": false }
+      }
+    ]
+  }
+}

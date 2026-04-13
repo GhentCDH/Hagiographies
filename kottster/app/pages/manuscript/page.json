@@ -8,9 +8,10 @@
     "fetchStrategy": "databaseTable",
     "table": "manuscript",
     "columns": [
-      { "column": "id", "label": "ID", "hidden": true },
-      { "column": "created_at", "label": "Created At", "hidden": true },
-      { "column": "updated_at", "label": "Updated At", "hidden": true },
+      { "column": "id", "label": "ID", "listView": { "visible": false }, "recordView": { "visible": false } },
+      { "column": "created_at", "label": "Created At", "listView": { "visible": false }, "recordView": { "visible": false } },
+      { "column": "updated_at", "label": "Updated At", "listView": { "visible": false }, "recordView": { "visible": false } },
+      
       {
         "column": "ms_identifier_id",
         "label": "Title",
@@ -18,95 +19,97 @@
         "relationshipPreviewColumns": ["title"],
         "fieldInput": { "type": "recordSelect", "asArray": false }
       },
-      {
-        "column": "text_origin_place_id",
-        "label": "Place of Origin (Text)",
-        "position": 1,
-        "relationshipPreviewColumns": ["name"],
-        "fieldInput": { "type": "recordSelect", "asArray": false }
-      },
-      { "column": "checked_leg", "label": "LEG", "position": 4, "fieldInput": { "type": "numberInput" } },
-      { "column": "checked_dg", "label": "DG", "position": 5, "fieldInput": { "type": "numberInput" } },
-      { "column": "checked_naso", "label": "NASO", "position": 6, "fieldInput": { "type": "numberInput" } },
-      { "column": "checked_ed_sec", "label": "ED/SEC", "position": 7, "fieldInput": { "type": "numberInput" } },
-      { "column": "unique_id", "label": "Unique ID", "position": 9, "fieldInput": { "type": "numberInput" } },
-      { "column": "collection_identifier", "label": "Unique identifier per collection", "position": 10, "fieldInput": { "type": "textarea" } },
-      {
-        "column": "collection_place_id",
-        "label": "Place of Collection",
-        "position": 11,
-        "relationshipPreviewColumns": ["name"],
-        "fieldInput": { "type": "recordSelect", "asArray": false }
-      },
+      { "column": "shelfmark", "label": "Shelfmark", "position": 1, "fieldInput": { "type": "textarea" } },
       {
         "column": "heritage_institution_id",
         "label": "Heritage institution",
-        "position": 12,
+        "position": 2,
         "relationshipPreviewColumns": ["name"],
         "fieldInput": { "type": "recordSelect", "asArray": false }
       },
-      { "column": "shelfmark", "label": "Shelfmark", "position": 13, "fieldInput": { "type": "textarea" } },
+      {
+        "column": "collection_place_id",
+        "label": "Place of Collection",
+        "position": 3,
+        "relationshipPreviewColumns": ["name"],
+        "fieldInput": { "type": "recordSelect", "asArray": false }
+      },
+      { "column": "dating_precise", "label": "Dating", "position": 4, "fieldInput": { "type": "textarea" } },
+      { "column": "notes", "label": "Internal Notes", "position": 5, "fieldInput": { "type": "textarea" } },
+
+      {
+        "column": "text_origin_place_id",
+        "label": "Place of Origin (Text)",
+        "position": 6,
+        "listView": { "visible": false },
+        "relationshipPreviewColumns": ["name"],
+        "fieldInput": { "type": "recordSelect", "asArray": false }
+      },
+      { "column": "checked_leg", "label": "LEG", "position": 7, "listView": { "visible": false }, "fieldInput": { "type": "checkbox" } },
+      { "column": "checked_dg", "label": "DG", "position": 8, "listView": { "visible": false }, "fieldInput": { "type": "checkbox" } },
+      { "column": "checked_naso", "label": "NASO", "position": 9, "listView": { "visible": false }, "fieldInput": { "type": "checkbox" } },
+      { "column": "checked_ed_sec", "label": "ED/SEC", "position": 10, "listView": { "visible": false }, "fieldInput": { "type": "checkbox" } },
+      { "column": "unique_id", "label": "Unique ID", "position": 11, "listView": { "visible": false }, "fieldInput": { "type": "numberInput" } },
+      { "column": "collection_identifier", "label": "Unique identifier per collection", "position": 12, "listView": { "visible": false }, "fieldInput": { "type": "textarea" } },
       {
         "column": "dating_century_id",
         "label": "Dating by (earliest) century",
-        "position": 15,
+        "position": 13,
+        "listView": { "visible": false },
         "relationshipPreviewColumns": ["century"],
         "fieldInput": { "type": "recordSelect", "asArray": false }
       },
-      { "column": "dating_precise", "label": "Dating", "position": 16, "fieldInput": { "type": "textarea" } },
       {
         "column": "provenance_general_id",
         "label": "Provenance general",
-        "position": 17,
+        "position": 14,
+        "listView": { "visible": false },
         "relationshipPreviewColumns": ["description"],
         "fieldInput": { "type": "recordSelect", "asArray": false }
       },
       {
         "column": "provenance_archdiocese_id",
         "label": "Provenance archdiocese",
-        "position": 18,
+        "position": 15,
+        "listView": { "visible": false },
         "relationshipPreviewColumns": ["name"],
         "fieldInput": { "type": "recordSelect", "asArray": false }
       },
       {
         "column": "provenance_diocese_id",
         "label": "Provenance diocese",
-        "position": 19,
+        "position": 16,
+        "listView": { "visible": false },
         "relationshipPreviewColumns": ["name"],
         "fieldInput": { "type": "recordSelect", "asArray": false }
       },
       {
         "column": "provenance_institution_id",
         "label": "Provenance institution",
-        "position": 20,
+        "position": 17,
+        "listView": { "visible": false },
         "relationshipPreviewColumns": ["name"],
         "fieldInput": { "type": "recordSelect", "asArray": false }
       },
       {
         "column": "vernacular_region_id",
-        "label": "Vernacular region (Romance/Germanic)",
-        "position": 21,
+        "label": "Vernacular region",
+        "position": 18,
+        "listView": { "visible": false },
         "relationshipPreviewColumns": ["region"],
         "fieldInput": { "type": "recordSelect", "asArray": false }
       },
       {
-        "column": "image_availability_id",
-        "label": "IIIF, scan, or no images",
-        "position": 22,
-        "relationshipPreviewColumns": ["availability"],
-        "fieldInput": { "type": "recordSelect", "asArray": false }
-      },
-      { "column": "notes", "label": "Notes", "position": 23, "fieldInput": { "type": "textarea" } },
-      {
         "column": "manuscript_type_id",
         "label": "Manuscript type",
-        "position": 24,
+        "position": 19,
+        "listView": { "visible": false },
         "relationshipPreviewColumns": ["name"],
         "fieldInput": { "type": "recordSelect", "asArray": false }
       },
-      { "column": "witness_relation_notes", "label": "Relation to other manuscript witnesses?", "position": 25, "fieldInput": { "type": "textarea" } },
-      { "column": "dimension_height_cm", "label": "Height", "position": 26, "fieldInput": { "type": "numberInput" } },
-      { "column": "dimension_width_cm", "label": "Width", "position": 27, "fieldInput": { "type": "numberInput" } }
+      { "column": "witness_relation_notes", "label": "Relation to other manuscript witnesses?", "position": 20, "listView": { "visible": false }, "fieldInput": { "type": "textarea" } },
+      { "column": "dimension_height_cm", "label": "Height", "position": 21, "listView": { "visible": false }, "fieldInput": { "type": "numberInput" } },
+      { "column": "dimension_width_cm", "label": "Width", "position": 22, "listView": { "visible": false }, "fieldInput": { "type": "numberInput" } }
     ]
   }
 }
