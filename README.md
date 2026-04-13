@@ -18,6 +18,9 @@ just open-admin       # open Kottster admin in browser
 just open-map         # open map frontend in browser
 ```
 
+## Database Migration
+For details on the PostgreSQL integration and how to transition to a Postgres-first workflow, see [MIGRATION_POSTGRESQL.md](MIGRATION_POSTGRESQL.md).
+
 ## Project Structure
 
 ```
