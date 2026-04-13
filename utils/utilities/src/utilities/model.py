@@ -45,9 +45,12 @@ from typing import Optional, List
 from sqlalchemy import Integer
 from sqlalchemy import Text as SAText
 from sqlalchemy import REAL, UniqueConstraint, func
+import sqlalchemy
 from sqlmodel import Field, SQLModel, Relationship
 
-_STRICT = {"sqlite_strict": True}
+from .config import DB_STRING
+
+_STRICT = {"sqlite_strict": True} if DB_STRING.startswith("sqlite") else {}
 
 
 def _text(**kwargs):
@@ -61,8 +64,10 @@ def _real(**kwargs):
 
 
 def _bool(**kwargs):
-    """INTEGER column — BOOLEAN is not STRICT-mode-compatible."""
-    return Field(sa_type=Integer(), **kwargs)
+    """INTEGER column for SQLite (BOOLEAN is not STRICT-mode-compatible), else BOOLEAN."""
+    if DB_STRING.startswith("sqlite"):
+        return Field(sa_type=Integer(), **kwargs)
+    return Field(sa_type=sqlalchemy.Boolean(), **kwargs)
 
 
 # ==============================================================================
