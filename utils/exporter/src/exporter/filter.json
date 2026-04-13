@@ -1,0 +1,6 @@
+{
+  "DropColumns": [
+    "internal_comment",
+    "review_notes"
+  ]
+}
