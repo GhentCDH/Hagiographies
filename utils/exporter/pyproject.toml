@@ -11,10 +11,12 @@ dependencies = [
     "pandas>=2.2.3",
     "openpyxl>=3.1.5",
     "utilities",
+    "pytest",
 ]
 
 [project.scripts]
 export-map = "exporter.export_map:main"
+export-from-pg-to-sqlite = "exporter.export_sqlite:main"
 
 [build-system]
 requires = ["uv_build>=0.9.18,<0.10.0"]
