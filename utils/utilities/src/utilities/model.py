@@ -701,7 +701,7 @@ class Manuscript(Table, table=True):
     texts: List["Text"] = Relationship(
         link_model=ManuscriptText,
         sa_relationship_kwargs={
-            "overlaps": "text_associations,manuscript,text,manuscript_associations,texts",
+            "overlaps": "text_associations,manuscript,text,manuscript_associations,texts,manuscripts",
             "primaryjoin": "Manuscript.id == ManuscriptText.ms_id",
             "secondaryjoin": "Text.id == ManuscriptText.text_id",
         }
@@ -869,6 +869,6 @@ class Edition(Table, table=True):
     manuscripts: List["Manuscript"] = Relationship(
         link_model=EditionManuscript,
         sa_relationship_kwargs={
-            "overlaps": "edition_associations,manuscript,manuscripts,manuscript_associations,edition",
+            "overlaps": "edition_associations,manuscript,manuscripts,manuscript_associations,edition,editions",
         }
     )

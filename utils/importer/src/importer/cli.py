@@ -828,10 +828,21 @@ def _read_headers(ws: Worksheet) -> Tuple[List[Optional[str]], Any]:
         header_row = next(rows_iter)
     except StopIteration:
         return [], iter([])
-    headers = [
-        str(c.value).strip() if c.value is not None else None
-        for c in header_row
-    ]
+    
+    headers = []
+    seen = {}
+    for c in header_row:
+        if c.value is not None:
+            val = str(c.value).strip()
+            if val in seen:
+                seen[val] += 1
+                headers.append(f"{val}_{seen[val]}")
+            else:
+                seen[val] = 1
+                headers.append(val)
+        else:
+            headers.append(None)
+            
     logger.info(f"[Headers] {headers}")
     return headers, rows_iter
 
