@@ -1,3 +1,4 @@
+set dotenv-load := true
 KOTTSTER_URL := "http://localhost:9160"
 
 # ── Docker lifecycle ─────────────────────────────────────────────────────────
@@ -21,13 +22,27 @@ down:
 import:
     docker compose run  -w /app/importer --rm utils  uv run importer
 
+# Import Excel data into PostgreSQL
+import-pg:
+    docker compose run -e DATABASE_URL=$PG_DATABASE_URL -w /app/importer --rm utils  uv run importer
+
+
 # Export SQLite → GeoJSON and copy to local-map/data/
 export-map:
     docker compose run  -w /app/exporter --rm utils  uv run export-map
     cp data/hagiographies_map.geojson local-map/data/
 
+# Export PostgreSQL → SQLite database and extract GeoJSON mapping
+export-from-pg-to-sqlite:
+    docker compose run -e DATABASE_URL=$PG_DATABASE_URL -w /app/exporter --rm utils  uv run export-from-pg-to-sqlite
+    cp data/hagiographies_map.geojson local-map/data/
+
 # Alias for export-map
 export: export-map
+
+# Run export pipeline tests
+test-export:
+    docker compose run -e DATABASE_URL=$PG_DATABASE_URL -w /app/exporter --rm utils uv run pytest -v tests/
 
 # ── Modelgeneratie ───────────────────────────────────────────────────────────
 
@@ -69,8 +84,8 @@ kottster:
 reset-db:
     rm -f data/hagiographies.db*
 
-# Full reset: rebuild, reset db, import, export, and download map data
-reinit: rebuild reset-db import export-map map-data
+# Full reset: rebuild, reset db, import (SQLite & PG), export from PG, and download map data
+reinit: rebuild reset-db import import-pg export-from-pg-to-sqlite map-data
 
 # ── Dev helpers ──────────────────────────────────────────────────────────────
 
