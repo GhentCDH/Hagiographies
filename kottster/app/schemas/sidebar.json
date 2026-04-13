@@ -8,7 +8,6 @@
     "origin",
     "witness",
     "edition",
-    "place",
-    "manuscriptPG"
+    "place"
   ]
 }
