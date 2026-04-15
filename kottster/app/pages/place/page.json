@@ -8,12 +8,63 @@
     "fetchStrategy": "databaseTable",
     "table": "place",
     "columns": [
-      { "column": "id", "label": "ID", "listView": { "visible": false }, "recordView": { "visible": false } },
-      { "column": "created_at", "label": "Created At", "listView": { "visible": false }, "recordView": { "visible": false } },
-      { "column": "updated_at", "label": "Updated At", "listView": { "visible": false }, "recordView": { "visible": false } },
-      { "column": "name", "label": "Name", "position": 0, "fieldInput": { "type": "textarea" } },
-      { "column": "lat", "label": "Latitude", "position": 1, "fieldInput": { "type": "numberInput" } },
-      { "column": "lon", "label": "Longitude", "position": 2, "fieldInput": { "type": "numberInput" } }
+      {
+        "column": "id",
+        "label": "ID",
+        "listView": {
+          "visible": false
+        },
+        "recordView": {
+          "visible": false
+        },
+        "hiddenInTable": true
+      },
+      {
+        "column": "created_at",
+        "label": "Created At",
+        "listView": {
+          "visible": false
+        },
+        "recordView": {
+          "visible": false
+        },
+        "hiddenInTable": true
+      },
+      {
+        "column": "updated_at",
+        "label": "Updated At",
+        "listView": {
+          "visible": false
+        },
+        "recordView": {
+          "visible": false
+        },
+        "hiddenInTable": true
+      },
+      {
+        "column": "name",
+        "label": "Name",
+        "position": 0,
+        "fieldInput": {
+          "type": "textarea"
+        }
+      },
+      {
+        "column": "lat",
+        "label": "Latitude",
+        "position": 1,
+        "fieldInput": {
+          "type": "numberInput"
+        }
+      },
+      {
+        "column": "lon",
+        "label": "Longitude",
+        "position": 2,
+        "fieldInput": {
+          "type": "numberInput"
+        }
+      }
     ]
   }
 }

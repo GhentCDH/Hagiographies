@@ -8,38 +8,262 @@
     "fetchStrategy": "databaseTable",
     "table": "edition",
     "columns": [
-      { "column": "id", "label": "ID", "listView": { "visible": false }, "recordView": { "visible": false } },
-      { "column": "created_at", "label": "Created At", "listView": { "visible": false }, "recordView": { "visible": false } },
-      { "column": "updated_at", "label": "Updated At", "listView": { "visible": false }, "recordView": { "visible": false } },
-      
-      { "column": "bibliographic_reference", "label": "Edition reference", "position": 0, "fieldInput": { "type": "textarea" } },
-      { "column": "year_of_publication", "label": "Date", "position": 1, "fieldInput": { "type": "numberInput" } },
+      {
+        "column": "id",
+        "label": "ID",
+        "listView": {
+          "visible": false
+        },
+        "recordView": {
+          "visible": false
+        },
+        "hiddenInTable": true
+      },
+      {
+        "column": "created_at",
+        "label": "Created At",
+        "listView": {
+          "visible": false
+        },
+        "recordView": {
+          "visible": false
+        },
+        "hiddenInTable": true
+      },
+      {
+        "column": "updated_at",
+        "label": "Updated At",
+        "listView": {
+          "visible": false
+        },
+        "recordView": {
+          "visible": false
+        },
+        "hiddenInTable": true
+      },
+      {
+        "column": "bibliographic_reference",
+        "label": "Edition reference",
+        "position": 0,
+        "fieldInput": {
+          "type": "textarea"
+        }
+      },
+      {
+        "column": "year_of_publication",
+        "label": "Date",
+        "position": 1,
+        "fieldInput": {
+          "type": "numberInput"
+        }
+      },
       {
         "column": "text_id",
         "label": "Linked Text",
         "position": 2,
-        "relationshipPreviewColumns": ["title"],
-        "fieldInput": { "type": "recordSelect", "asArray": false }
+        "relationshipPreviewColumns": [
+          "title"
+        ],
+        "fieldInput": {
+          "type": "recordSelect",
+          "asArray": false
+        }
       },
-      { "column": "notes", "label": "Internal Notes", "position": 3, "fieldInput": { "type": "textarea" } },
-
-      { "column": "bhl_number", "label": "BHL", "position": 4, "listView": { "visible": false }, "fieldInput": { "type": "textarea" } },
-      { "column": "title", "label": "Title", "position": 5, "listView": { "visible": false }, "fieldInput": { "type": "textarea" } },
-      { "column": "edition_identifier", "label": "Edition ID", "position": 6, "listView": { "visible": false }, "fieldInput": { "type": "textarea" } },
-      { "column": "edition_reference_per_text", "label": "Ed. reference per individual text", "position": 7, "listView": { "visible": false }, "fieldInput": { "type": "textarea" } },
-      { "column": "checked_dg", "label": "DG", "position": 8, "listView": { "visible": false }, "fieldInput": { "type": "checkbox" } },
-      { "column": "checked_naso", "label": "NASO", "position": 9, "listView": { "visible": false }, "fieldInput": { "type": "checkbox" } },
-      { "column": "checked_ed_sec", "label": "ED/SEC", "position": 10, "listView": { "visible": false }, "fieldInput": { "type": "checkbox" } },
-      { "column": "unique_id_numeric", "label": "Unique ED ID", "position": 11, "listView": { "visible": false }, "fieldInput": { "type": "numberInput" } },
-      { "column": "unique_id_descriptive", "label": "Unique identifier per edition + volume", "position": 12, "listView": { "visible": false }, "fieldInput": { "type": "textarea" } },
-      { "column": "page_range", "label": "Pages", "position": 13, "listView": { "visible": false }, "fieldInput": { "type": "textarea" } },
-      { "column": "is_reprint", "label": "Reprint?", "position": 14, "listView": { "visible": false }, "fieldInput": { "type": "checkbox" } },
-      { "column": "reprint_type", "label": "Reprint type", "position": 15, "listView": { "visible": false }, "fieldInput": { "type": "textarea" } },
-      { "column": "reprint_of", "label": "Reprint of", "position": 16, "listView": { "visible": false }, "fieldInput": { "type": "textarea" } },
-      { "column": "has_transcription", "label": "Transcribed?", "position": 17, "listView": { "visible": false }, "fieldInput": { "type": "checkbox" } },
-      { "column": "is_our_transcription", "label": "Our transcribed ed.?", "position": 18, "listView": { "visible": false }, "fieldInput": { "type": "checkbox" } },
-      { "column": "is_collated", "label": "Collation done?", "position": 19, "listView": { "visible": false }, "fieldInput": { "type": "checkbox" } },
-      { "column": "edition_refs", "label": "Other Edition references", "position": 20, "listView": { "visible": false }, "fieldInput": { "type": "textarea" } }
+      {
+        "column": "notes",
+        "label": "Internal Notes",
+        "position": 3,
+        "fieldInput": {
+          "type": "textarea"
+        }
+      },
+      {
+        "column": "bhl_number",
+        "label": "BHL",
+        "position": 4,
+        "listView": {
+          "visible": false
+        },
+        "fieldInput": {
+          "type": "textarea"
+        }
+      },
+      {
+        "column": "title",
+        "label": "Title",
+        "position": 5,
+        "listView": {
+          "visible": false
+        },
+        "fieldInput": {
+          "type": "textarea"
+        }
+      },
+      {
+        "column": "edition_identifier",
+        "label": "Edition ID",
+        "position": 6,
+        "listView": {
+          "visible": false
+        },
+        "fieldInput": {
+          "type": "textarea"
+        }
+      },
+      {
+        "column": "edition_reference_per_text",
+        "label": "Ed. reference per individual text",
+        "position": 7,
+        "listView": {
+          "visible": false
+        },
+        "fieldInput": {
+          "type": "textarea"
+        }
+      },
+      {
+        "column": "checked_dg",
+        "label": "DG",
+        "position": 8,
+        "listView": {
+          "visible": false
+        },
+        "fieldInput": {
+          "type": "checkbox"
+        }
+      },
+      {
+        "column": "checked_naso",
+        "label": "NASO",
+        "position": 9,
+        "listView": {
+          "visible": false
+        },
+        "fieldInput": {
+          "type": "checkbox"
+        }
+      },
+      {
+        "column": "checked_ed_sec",
+        "label": "ED/SEC",
+        "position": 10,
+        "listView": {
+          "visible": false
+        },
+        "fieldInput": {
+          "type": "checkbox"
+        }
+      },
+      {
+        "column": "unique_id_numeric",
+        "label": "Unique ED ID",
+        "position": 11,
+        "listView": {
+          "visible": false
+        },
+        "fieldInput": {
+          "type": "numberInput"
+        }
+      },
+      {
+        "column": "unique_id_descriptive",
+        "label": "Unique identifier per edition + volume",
+        "position": 12,
+        "listView": {
+          "visible": false
+        },
+        "fieldInput": {
+          "type": "textarea"
+        }
+      },
+      {
+        "column": "page_range",
+        "label": "Pages",
+        "position": 13,
+        "listView": {
+          "visible": false
+        },
+        "fieldInput": {
+          "type": "textarea"
+        }
+      },
+      {
+        "column": "is_reprint",
+        "label": "Reprint?",
+        "position": 14,
+        "listView": {
+          "visible": false
+        },
+        "fieldInput": {
+          "type": "checkbox"
+        }
+      },
+      {
+        "column": "reprint_type",
+        "label": "Reprint type",
+        "position": 15,
+        "listView": {
+          "visible": false
+        },
+        "fieldInput": {
+          "type": "textarea"
+        }
+      },
+      {
+        "column": "reprint_of",
+        "label": "Reprint of",
+        "position": 16,
+        "listView": {
+          "visible": false
+        },
+        "fieldInput": {
+          "type": "textarea"
+        }
+      },
+      {
+        "column": "has_transcription",
+        "label": "Transcribed?",
+        "position": 17,
+        "listView": {
+          "visible": false
+        },
+        "fieldInput": {
+          "type": "checkbox"
+        }
+      },
+      {
+        "column": "is_our_transcription",
+        "label": "Our transcribed ed.?",
+        "position": 18,
+        "listView": {
+          "visible": false
+        },
+        "fieldInput": {
+          "type": "checkbox"
+        }
+      },
+      {
+        "column": "is_collated",
+        "label": "Collation done?",
+        "position": 19,
+        "listView": {
+          "visible": false
+        },
+        "fieldInput": {
+          "type": "checkbox"
+        }
+      },
+      {
+        "column": "edition_refs",
+        "label": "Other Edition references",
+        "position": 20,
+        "listView": {
+          "visible": false
+        },
+        "fieldInput": {
+          "type": "textarea"
+        }
+      }
     ]
   }
 }
