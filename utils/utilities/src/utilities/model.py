@@ -113,6 +113,19 @@ class ReprintType(str, Enum):
     to_be_verified = "to_be_verified"
 
 
+class ChurchEntityType(str, Enum):
+    """Type of an ecclesiastical entity.
+
+    Distinguishes archdioceses from dioceses so that the same place-name
+    (e.g. 'Trier') can exist as two separate ChurchEntity records — one per
+    level — without violating the unique constraint.  This also prevents the
+    'Trier Trier' visual duplicate in the Kottster UI where both
+    provenance_archdiocese and provenance_diocese columns are displayed.
+    """
+    archdiocese = "archdiocese"
+    diocese = "diocese"
+
+
 # ---------------------------------------------------------------------------
 # Base
 # ---------------------------------------------------------------------------
@@ -143,13 +156,62 @@ class Place(Table, table=True):
     lat: Optional[float] = _real(default=None)
     lon: Optional[float] = _real(default=None)
 
+    # Back-references — all use forward refs resolved after all classes load.
+    institutions: List["Institution"] = Relationship(
+        back_populates="place",
+        sa_relationship_kwargs={
+            "primaryjoin": "Place.id == Institution.place_id",
+            "uselist": True,
+        },
+    )
+    origin_authors: List["Author"] = Relationship(
+        sa_relationship_kwargs={
+            "primaryjoin": "Place.id == Author.place_id",
+            "foreign_keys": "[Author.place_id]",
+            "uselist": True,
+            "viewonly": True,
+        },
+    )
+    education_authors: List["Author"] = Relationship(
+        sa_relationship_kwargs={
+            "primaryjoin": "Place.id == Author.education_place_id",
+            "foreign_keys": "[Author.education_place_id]",
+            "uselist": True,
+            "viewonly": True,
+        },
+    )
+    earlier_authors: List["Author"] = Relationship(
+        sa_relationship_kwargs={
+            "primaryjoin": "Place.id == Author.earlier_place_id",
+            "foreign_keys": "[Author.earlier_place_id]",
+            "uselist": True,
+            "viewonly": True,
+        },
+    )
+    origin_texts: List["Text"] = Relationship(
+        sa_relationship_kwargs={
+            "primaryjoin": "Place.id == Text.origin_place_id",
+            "foreign_keys": "[Text.origin_place_id]",
+            "uselist": True,
+            "viewonly": True,
+        },
+    )
+    destinatary_texts: List["Text"] = Relationship(
+        sa_relationship_kwargs={
+            "primaryjoin": "Place.id == Text.primary_destinatary_place_id",
+            "foreign_keys": "[Text.primary_destinatary_place_id]",
+            "uselist": True,
+            "viewonly": True,
+        },
+    )
+
 
 class Institution(Table, table=True):
     """A heritage or educational institution, optionally linked to a place."""
     __table_args__ = (UniqueConstraint("name"), _STRICT)
     name: str = _text(index=True)
     place_id: Optional[int] = Field(default=None, foreign_key="place.id")
-    place: Optional[Place] = Relationship()
+    place: Optional[Place] = Relationship(back_populates="institutions")
 
 
 class Milieu(Table, table=True):
@@ -225,9 +287,16 @@ class ManuscriptType(Table, table=True):
 
 
 class ChurchEntity(Table, table=True):
-    """An ecclesiastical entity: archdiocese, diocese or bishopric."""
-    __table_args__ = (UniqueConstraint("name"), _STRICT)
+    """An ecclesiastical entity: archdiocese or diocese.
+
+    entity_type distinguishes archdioceses from dioceses so that the same
+    place-name (e.g. 'Trier') can exist as separate records for each
+    ecclesiastical level.  The unique constraint covers (name, entity_type)
+    so 'Trier' + 'archdiocese' and 'Trier' + 'diocese' are distinct rows.
+    """
+    __table_args__ = (UniqueConstraint("name", "entity_type"), _STRICT)
     name: str = _text(index=True)
+    entity_type: str = _text(default=ChurchEntityType.diocese, index=True)
 
 
 class ManuscriptIdentifier(Table, table=True):
@@ -280,10 +349,9 @@ class ManuscriptText(SQLModel, table=True):
     (folio pages, per-BHL number, ecclesiastical context) live here rather
     than on Manuscript or Text.
     """
-    __table_args__ = (
-        UniqueConstraint("ms_id", "text_id"),
-        _STRICT,
-    )
+    # The composite primary key (ms_id, text_id) already enforces uniqueness;
+    # no separate UniqueConstraint is needed.
+    __table_args__ = _STRICT
 
     ms_id: int = Field(
         sa_type=Integer(), foreign_key="manuscript.id", primary_key=True
@@ -484,7 +552,9 @@ class Text(Table, table=True):
     checked_dg: Optional[bool] = _bool(default=None)
     checked_philippart: Optional[bool] = _bool(default=None)
     checked_secondary: Optional[bool] = _bool(default=None)
-    checked_leg: Optional[bool] = _bool(default=None)
+    # checked_leg removed: no corresponding 'Check LEG' column exists on the
+    # 'Corpus hagio' worksheet.  The field was previously (incorrectly) filled
+    # from the same source column as checked_bhl.
 
     # Chronology
     dating_rough: Optional[str] = _text(default=None)
@@ -647,7 +717,9 @@ class Manuscript(Table, table=True):
     checked_ed_sec: Optional[bool] = _bool(default=None)
 
     collection_place_id: Optional[int] = Field(default=None, foreign_key="place.id")
-    text_origin_place_id: Optional[int] = Field(default=None, foreign_key="place.id")
+    # text_origin_place_id removed: this field was never populated by the
+    # importer (the per-text origin place lives on ManuscriptText.text_origin_place_id
+    # in the M2M join table where it belongs semantically).
     heritage_institution_id: Optional[int] = Field(
         default=None, foreign_key="institution.id"
     )
@@ -741,12 +813,6 @@ class Manuscript(Table, table=True):
     collection_place: Optional[Place] = Relationship(
         sa_relationship_kwargs={
             "primaryjoin": "Manuscript.collection_place_id == Place.id",
-            "uselist": False,
-        }
-    )
-    text_origin_place: Optional["Place"] = Relationship(
-        sa_relationship_kwargs={
-            "primaryjoin": "Manuscript.text_origin_place_id == Place.id",
             "uselist": False,
         }
     )
