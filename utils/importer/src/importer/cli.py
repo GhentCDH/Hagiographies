@@ -272,13 +272,23 @@ def _extract_hyperlink_url(cell: Cell) -> Optional[str]:
 
 
 def _normalize_name(value: Optional[str]) -> Optional[str]:
-    """Normalise a place or institution name: lowercase, collapse whitespace, fold accents."""
+    """Normalise a place, institution or author name: lowercase, collapse whitespace, fold accents."""
     if not value:
         return None
     value = " ".join(value.strip().split()).lower()
     value = unicodedata.normalize("NFKD", value)
     value = value.encode("ascii", "ignore").decode("ascii")
     return value or None
+
+
+def _normalize_col(col: str) -> str:
+    """Normalise a column lookup key: strip outer whitespace and collapse inner whitespace.
+
+    Applied in cval/cint/cfloat/cyesno so that lookup keys are always
+    consistent with the stripped headers produced by _read_headers.
+    Fixes historic trailing-space bugs (e.g. 'MGH ' and 'Dating ').
+    """
+    return re.sub(r'\s+', ' ', col.strip())
 
 
 def _validate_url(
@@ -427,10 +437,18 @@ def _get_or_create_author(
     Author, each field is back-filled only when it is currently NULL, so that
     the first non-null value encountered wins without overwriting richer data
     from a previous row.
+
+    Author names are normalised with NFKD + ASCII-fold + lowercase (same logic
+    as _get_or_create_place) so that accent variants and extra whitespace do
+    not produce duplicate Author records.  The *stored* name preserves the
+    original casing from the first occurrence that created the record.
     """
     if not name:
         return None
-    name = name.strip()
+    raw_name = name.strip()
+    norm_name = _normalize_name(raw_name)
+    if not norm_name:
+        return None
 
     def _backfill(auth: Author) -> None:
         if place_id and not auth.place_id:
@@ -442,18 +460,21 @@ def _get_or_create_author(
         if milieu_id and not auth.milieu_id:
             auth.milieu_id = milieu_id
 
-    if name in cache:
-        _backfill(cache[name])
-        return cache[name].id
+    if norm_name in cache:
+        _backfill(cache[norm_name])
+        return cache[norm_name].id
 
-    existing = session.exec(select(Author).where(Author.name == name)).first()
-    if existing:
-        _backfill(existing)
-        cache[name] = existing
-        return existing.id
+    existing_all = session.exec(select(Author)).all()
+    matched = next(
+        (a for a in existing_all if _normalize_name(a.name) == norm_name), None
+    )
+    if matched:
+        _backfill(matched)
+        cache[norm_name] = matched
+        return matched.id
 
     auth = Author(
-        name=name,
+        name=raw_name,
         place_id=place_id,
         education_place_id=education_place_id,
         earlier_place_id=earlier_place_id,
@@ -461,7 +482,7 @@ def _get_or_create_author(
     )
     session.add(auth)
     session.flush()
-    cache[name] = auth
+    cache[norm_name] = auth
     return auth.id
 
 
@@ -575,25 +596,35 @@ def _get_or_create_milieu(
 def _get_or_create_church_entity(
     session: Session,
     name: Optional[str],
-    is_arch: bool,
+    entity_type: str,
     cache: Dict[str, ChurchEntity],
 ) -> Optional[int]:
-    """Return the id of a ChurchEntity, creating it if absent."""
+    """Return the id of a ChurchEntity, creating it if absent.
+
+    entity_type must be 'archdiocese' or 'diocese'.  The unique constraint
+    in the database covers (name, entity_type), so 'Trier' can legitimately
+    exist as two separate rows — one per ecclesiastical level — and the
+    Kottster UI no longer shows spurious 'Trier Trier' duplicates.
+    """
     if not name:
         return None
     name = name.strip()
-    if name in cache:
-        return cache[name].id
+    cache_key = f"{name}|{entity_type}"
+    if cache_key in cache:
+        return cache[cache_key].id
     existing = session.exec(
-        select(ChurchEntity).where(ChurchEntity.name == name)
+        select(ChurchEntity).where(
+            ChurchEntity.name == name,
+            ChurchEntity.entity_type == entity_type,
+        )
     ).first()
     if existing:
-        cache[name] = existing
+        cache[cache_key] = existing
         return existing.id
-    ce = ChurchEntity(name=name)
+    ce = ChurchEntity(name=name, entity_type=entity_type)
     session.add(ce)
     session.flush()
-    cache[name] = ce
+    cache[cache_key] = ce
     return ce.id
 
 
@@ -788,8 +819,13 @@ def row_to_cell_dict(
 
 
 def cval(row: Dict[str, Cell], col: str) -> Optional[str]:
-    """Extract a cleaned string value from a named column."""
-    cell = row.get(col)
+    """Extract a cleaned string value from a named column.
+
+    The column name is normalised (outer strip + inner whitespace collapse)
+    before lookup so that trailing/leading spaces in literal strings never
+    cause silent misses against the stripped headers in _read_headers.
+    """
+    cell = row.get(_normalize_col(col))
     return clean_value(cell.value) if cell else None
 
 
@@ -804,20 +840,20 @@ def cval_first(row: Dict[str, Cell], *cols: str) -> Optional[str]:
 
 def cint(row: Dict[str, Cell], col: str) -> Optional[int]:
     """Extract an integer value from a named column."""
-    cell = row.get(col)
+    cell = row.get(_normalize_col(col))
     v, _ = parse_int(cell.value if cell else None)
     return v
 
 
 def cfloat(row: Dict[str, Cell], col: str) -> Optional[float]:
     """Extract a float value from a named column."""
-    cell = row.get(col)
+    cell = row.get(_normalize_col(col))
     return parse_float(cell.value if cell else None)
 
 
 def cyesno(row: Dict[str, Cell], col: str) -> Optional[bool]:
     """Extract a boolean yes/no value from a named column."""
-    cell = row.get(col)
+    cell = row.get(_normalize_col(col))
     return parse_yesno(cell.value if cell else None)
 
 
@@ -833,7 +869,7 @@ def _read_headers(ws: Worksheet) -> Tuple[List[Optional[str]], Any]:
     seen = {}
     for c in header_row:
         if c.value is not None:
-            val = str(c.value).strip()
+            val = re.sub(r'\s+', ' ', str(c.value).strip())
             if val in seen:
                 seen[val] += 1
                 headers.append(f"{val}_{seen[val]}")
@@ -943,10 +979,10 @@ def import_texts(session: Session, wb, report: ImportReport) -> Dict[str, "Text"
             continue
 
         orig_arch_id = _get_or_create_church_entity(
-            session, cval(row, "Archbishopric"), True, church_cache
+            session, cval(row, "Archbishopric"), "archdiocese", church_cache
         )
         orig_dio_id = _get_or_create_church_entity(
-            session, cval(row, "Bishopric"), False, church_cache
+            session, cval(row, "Bishopric"), "diocese", church_cache
         )
 
         orig_lat = parse_float(
@@ -1025,7 +1061,7 @@ def import_texts(session: Session, wb, report: ImportReport) -> Dict[str, "Text"
             checked_dg=cyesno(row, "Check Deutschlands Geschichtsquellen"),
             checked_philippart=checked_philippart,
             checked_secondary=cyesno(row, "Check secondaryliterature"),
-            checked_leg=cyesno(row, "Check BHL"),   # same source col as checked_bhl
+            # checked_leg removed: no 'Check LEG' column exists on the Corpus hagio tab.
             is_origin_precise=cyesno(row, "Precise origin?"),
             is_destinatary_precise=cyesno(row, "Precise destinatary?"),
             author_locally_based=locally_based_raw,
@@ -1045,7 +1081,7 @@ def import_texts(session: Session, wb, report: ImportReport) -> Dict[str, "Text"
             preferred_edition=cval(row, "Edition reference"),
             edition_link_aass=cval(row, "Direct AASS link"),
             edition_link_other=cval(row, "Direct other links"),
-            edition_link_mgh=cval(row, "MGH "),
+            edition_link_mgh=cval(row, "MGH"),   # trailing space stripped by _normalize_col
             is_ocr_pre_1800=cyesno(
                 row, "Definitely OCR pre-1800 + look for alternatives"
             ),
@@ -1193,10 +1229,10 @@ def import_manuscripts(
                         ] = ms
                 else:
                     prov_arch_id = _get_or_create_church_entity(
-                        session, cval(row, "Provenance archdiocese"), True, church_cache,
+                        session, cval(row, "Provenance archdiocese"), "archdiocese", church_cache,
                     )
                     prov_dio_id = _get_or_create_church_entity(
-                        session, cval(row, "Provenance diocese"), False, church_cache,
+                        session, cval(row, "Provenance diocese"), "diocese", church_cache,
                     )
                     prov_inst_id = _get_or_create_institution(
                         session,
@@ -1237,7 +1273,7 @@ def import_manuscripts(
                         heritage_institution_id=heri_inst_id,
                         shelfmark=shelfmark,
                         dating_century_id=century_id,
-                        dating_precise=cval(row, "Dating "),
+                        dating_precise=cval(row, "Dating"),   # trailing space fixed by _normalize_col
                         provenance_general_id=prov_gen_id,
                         provenance_archdiocese_id=prov_arch_id,
                         provenance_diocese_id=prov_dio_id,
@@ -1264,10 +1300,10 @@ def import_manuscripts(
                 # --- ManuscriptText link ---
                 if text_obj is not None:
                     txt_arch_id = _get_or_create_church_entity(
-                        session, cval(row, "Archbishopric"), True, church_cache,
+                        session, cval(row, "Archbishopric"), "archdiocese", church_cache,
                     )
                     txt_bish_id = _get_or_create_church_entity(
-                        session, cval(row, "Bishopric"), False, church_cache,
+                        session, cval(row, "Bishopric"), "diocese", church_cache,
                     )
                     txt_orig_id = _get_or_create_place(
                         session, cval(row, "Origin"), place_cache
