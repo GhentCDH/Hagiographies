@@ -55,6 +55,18 @@ services:
       postgres:
         condition: service_healthy
 
+  mathesar:
+    image: mathesar/mathesar:latest
+    env_file:
+      - dev.env
+    volumes:
+      - ./mathesar/static:/code/static
+      - ./mathesar/media:/code/.media
+      - ./mathesar/secrets:/code/.secrets
+    depends_on:
+      - postgres
+    ports:
+      - "8000:8000"
   utils:
     build:
       context: .
