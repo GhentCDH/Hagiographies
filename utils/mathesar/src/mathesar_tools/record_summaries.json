@@ -1,0 +1,20 @@
+{
+    "place": "name",
+    "milieu": "name",
+    "typology": "name",
+    "manuscripttype": "name",
+    "churchentity": "name",
+    "manuscriptidentifier": "title",
+    "datingcentury": "century",
+    "vernacularregion": "region",
+    "provenancegeneral": "description",
+    "texttype": "name",
+    "imagetype": "name",
+    "institution": "name",
+    "author": "name",
+    "manuscript": "shelfmark",
+    "external_resource": "url",
+    "image": "url",
+    "edition": "title",
+    "text": "title"
+}

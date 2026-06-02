@@ -1,21 +1,20 @@
 # Hagiographies
 
-Excel-to-SQLite import pipeline with a Kottster admin panel and MapLibre map for browsing hagiographic data.
+Excel-to-PostgreSQL import pipeline with a Mathesar admin UI and MapLibre map for browsing hagiographic data.
 
 ## Commands
 
 ```sh
-just rebuild          # build and start Docker containers
-just up / just down   # start / stop containers
-just import           # create tables and import Excel data
-just export-map       # export SQLite → GeoJSON for the map
-just kottster         # start Kottster dev server (port 5480)
-just generate-diagram # generate SVG schema diagram
-just map-data         # download PMTiles basemap
-just reset-db         # delete SQLite database
-just reinit           # full reset: rebuild + import + export + map-data
-just open-admin       # open Kottster admin in browser
-just open-map         # open map frontend in browser
+just rebuild                  # build and start Docker containers
+just up / just down           # start / stop containers
+just import-pg                # create tables and import Excel data into PostgreSQL
+just export-from-pg-to-sqlite # migrate PostgreSQL → SQLite snapshot
+just export-map               # export PostgreSQL → GeoJSON for the map
+just generate-diagram         # generate SVG schema diagram
+just map-data                 # download PMTiles basemap
+just reset-db                 # delete the derived SQLite snapshot
+just reinit                   # full reset: rebuild + import + migrate + export + map-data
+just open_url                 # open the gateway (map + admin) in browser
 ```
 
 ## Database Migration
@@ -25,14 +24,14 @@ For details on the PostgreSQL integration and how to transition to a Postgres-fi
 
 ```
 ├── utils/                 # Python utilities (Docker)
-│   ├── importer/          #   Excel → SQLite import
-│   ├── exporter/          #   SQLite → GeoJSON export
+│   ├── importer/          #   Excel → PostgreSQL import
+│   ├── exporter/          #   PostgreSQL → SQLite + GeoJSON export
 │   ├── documenter/        #   Schema diagram generator
+│   ├── mathesar/          #   Mathesar record-summary config (JSON-RPC)
 │   └── utilities/         #   Shared model & db config
-├── kottster/              # Admin UI (React/Kottster 3)
 ├── local-map/             # MapLibre map frontend
-├── caddy/                 # Reverse proxy config
-├── data/                  # SQLite db & data files (gitignored)
+├── caddy/                 # Reverse proxy config (map + Mathesar)
+├── data/                  # db & data files (gitignored)
 ├── compose.yml            # Docker Compose services
 └── justfile               # Task runner commands
 ```

@@ -1,23 +1,21 @@
 [project]
-name = "documenter"
+name = "mathesar-tools"
 version = "0.1.0"
-description = "Data documentation tools"
+description = "Configure Mathesar via its JSON-RPC API"
 readme = "README.md"
 requires-python = "~=3.13.0"
 dependencies = [
     "utilities",
-    "graphviz>=0.21"
+    "httpx>=0.27",
 ]
-
-[dependency-groups]
-dev = ["eralchemy[graphviz]>=1.6.0"]
 
 [build-system]
 requires = ["uv_build>=0.11.0,<0.12.0"]
 build-backend = "uv_build"
 
 [project.scripts]
-document = "documenter.generate_diagram:main"
+mathesar-record-summaries = "mathesar_tools.record_summaries:main"
+mathesar-connect-db = "mathesar_tools.connect_db:main"
 
 [tool.uv.sources]
 utilities = { path = "../utilities", editable = true }

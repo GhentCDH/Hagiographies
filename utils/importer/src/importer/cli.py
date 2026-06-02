@@ -1,6 +1,6 @@
 # cli.py
 # ---------------------------------------------------------------------------
-# Import hagiographies.xlsx into the SQLite database.
+# Import hagiographies.xlsx into the PostgreSQL database.
 #
 # Changelog (validated against hagiographies.xlsx):
 #
@@ -147,6 +147,29 @@ _COL_ED_REPRINT_OF = "If reprint, of what?"
 _COL_ED_SCAN_LINK = "Online scan link"
 _COL_ED_TRANSCRIBED = "Transcribed?"
 _COL_ED_COLLATED = "Collation done?"
+
+# The 'Editions' worksheet has NO header row — row 1 is already data. These
+# explicit headers map column index -> field name for the confidently-identified
+# columns only (verified against the workbook). Unconfirmed columns are left None
+# so they are never read (their Edition fields stay NULL); cols 22-42 are handled
+# positionally via _EDITION_MS_COL_INDICES / _EDITION_EDITION_COL_INDICES.
+_EDITIONS_EXPLICIT_HEADERS: List[Optional[str]] = [None] * 43
+for _idx, _name in {
+    0: _COL_ED_BHL,                              # "BHL"
+    1: "Title",
+    2: _COL_ED_ID,                              # "Ed. reference per individual text"
+    3: "DG",
+    4: "NASO",
+    5: "ED/SEC",
+    8: _COL_ED_UID_NUM,                          # "Unique ED ID"
+    10: _COL_ED_YEAR,                            # "Date"
+    11: _COL_ED_BIBREF,                          # "Edition reference"
+    12: _COL_ED_PAGES,                           # "Pages"
+    13: _COL_ED_COLLATED,                        # "Collation done?"
+    18: _COL_ED_SCAN_LINK,                       # "Online scan link"
+    21: "Our transcribed ed.?",
+}.items():
+    _EDITIONS_EXPLICIT_HEADERS[_idx] = _name
 
 # 'Check  Philippart' has a double space in the actual worksheet header.
 _COL_CHECK_PHILIPPART_VARIANTS = ("Check  Philippart", "Check Philippart")
@@ -604,7 +627,7 @@ def _get_or_create_church_entity(
     entity_type must be 'archdiocese' or 'diocese'.  The unique constraint
     in the database covers (name, entity_type), so 'Trier' can legitimately
     exist as two separate rows — one per ecclesiastical level — and the
-    Kottster UI no longer shows spurious 'Trier Trier' duplicates.
+    admin UI no longer shows spurious 'Trier Trier' duplicates.
     """
     if not name:
         return None
@@ -1517,9 +1540,10 @@ def import_editions(
       - both NO / missing → None (not a reprint or unclassified)
     """
     ws = wb["Editions"]
-    headers, rows_iter = _read_headers(ws)
-    if not headers:
-        return
+    # No header row in this sheet — use the explicit map and treat row 1 as data.
+    headers = _EDITIONS_EXPLICIT_HEADERS
+    rows_iter = ws.rows
+    logger.info(f"[Editions] no header row; using explicit headers: {headers}")
 
     resource_cache: Dict[str, ExternalResource] = {}
     edition_cache: Dict[Any, Edition] = {}
@@ -1732,7 +1756,7 @@ def import_editions(
 # ---------------------------------------------------------------------------
 
 def main() -> None:
-    """Run the full Excel → SQLite import pipeline."""
+    """Run the full Excel → PostgreSQL import pipeline."""
     logger.info(f"Using database at {DB_PATH}")
     if not EXCEL.exists():
         logger.error(

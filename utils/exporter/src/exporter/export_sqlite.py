@@ -11,9 +11,6 @@ from sqlalchemy import MetaData, Table, inspect, ForeignKeyConstraint
 from utilities.config import ROOT, DATA_ROOT
 from utilities.db import engine as source_engine
 
-# Import map export to trigger after sqlite generation
-from exporter.export_map import main as export_map_main
-
 handler = RichHandler(rich_tracebacks=True, markup=True, show_time=True, show_path=True)
 logging.basicConfig(level=logging.INFO, format="%(message)s", handlers=[handler])
 logger = logging.getLogger(__name__)
@@ -120,12 +117,6 @@ def main() -> None:
                     tgt_conn.execute(target_table.insert(), records)
                     
     logger.info(f"Successfully exported data to {OUTPUT_DB}")
-    
-    logger.info("Triggering map export...")
-    try:
-        export_map_main()
-    except Exception as e:
-        logger.error(f"Error during map export: {e}")
 
 if __name__ == "__main__":
     main()

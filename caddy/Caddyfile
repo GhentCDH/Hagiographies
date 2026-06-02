@@ -4,12 +4,12 @@
 }
 
 :80 {
-	# reverse proxy websockets to the data management service
+	# reverse proxy websockets to the Mathesar admin service
 	@websockets {
 		header Connection *Upgrade*
 		header Upgrade websocket
 	}
-	reverse_proxy @websockets data-management:5480
+	reverse_proxy @websockets mathesar:8000
 
 	# serve index.html for the root path
 	handle / {
@@ -29,8 +29,8 @@
 		file_server
 	}
 
-	# forward other requests to the data management service
+	# forward other requests to the Mathesar admin service
 	handle /* {
-		reverse_proxy data-management:5480
+		reverse_proxy mathesar:8000
 	}
 }

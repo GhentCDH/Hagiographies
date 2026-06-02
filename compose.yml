@@ -19,52 +19,23 @@ services:
       retries: 5
     restart: always
 
-  # ── Data Management (Kottster) ─────────────────────────────────────────────
-  data-management:
-    build:
-      context: .
-      dockerfile: kottster/Dockerfile
-    volumes:
-      - ./kottster/app:/app/app
-      - ./data:/data
-    env_file:
-      - dev.env
-      - path: .env
-        required: false
-    ports:
-      - "5480:5480"
-      - "5481:5481"
-    depends_on:
-      postgres:
-        condition: service_healthy
-
-  data-management-prd:
-    build:
-      context: .
-      dockerfile: kottster/prd.Dockerfile
-    volumes:
-      - ./data:/data
-    env_file:
-      - dev.env
-      - path: .env
-        required: false
-    ports:
-      - "5490:5480"
-      - "5491:5481"
-    depends_on:
-      postgres:
-        condition: service_healthy
-
   mathesar:
-    image: mathesar/mathesar:latest
+    image: mathesar/mathesar:0.11.0
     env_file:
       - dev.env
+    environment:
+      # Mathesar's internal metadata DB must be SEPARATE from the research
+      # database it manages — it refuses to manage its own internal DB.
+      POSTGRES_DB: mathesar_django
+      # Allow the in-network service name so the utils RPC client can reach it.
+      ALLOWED_HOSTS: "localhost,127.0.0.1,mathesar"
     volumes:
       - ./mathesar/static:/code/static
       - ./mathesar/media:/code/.media
       - ./mathesar/secrets:/code/.secrets
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
     ports:
       - "8000:8000"
   utils:

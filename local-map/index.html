@@ -76,7 +76,7 @@
       margin-bottom: 14px;
     }
 
-    .s-brand .logo-bantu {
+    .s-brand .logo-brand {
       font-family: var(--mono);
       font-size: 13px;
       color: var(--blue);
@@ -329,7 +329,7 @@
 
   <div id="sidebar">
     <div class="s-header">
-      <div class="s-brand"><span class="logo-bantu">HAGIOGRAPHIES</span></div>
+      <div class="s-brand"><span class="logo-brand">HAGIOGRAPHIES</span></div>
       <div class="mode-tabs">
         <button class="tab-btn active" data-mode="hagiographies" onclick="setMode('hagiographies')">Lijst</button>
         <button class="tab-btn" data-mode="search" onclick="setMode('search')">Zoeken</button>
@@ -415,34 +415,51 @@ let _lastFilter = {};
 const protocol = new pmtiles.Protocol();
 maplibregl.addProtocol("pmtiles", protocol.tile);
 
-const map = new maplibregl.Map({
-  container: "map", center: [5, 48], zoom: 4,
-  style: {
-    version: 8,
-    glyphs:  "https://protomaps.github.io/basemaps-assets/fonts/{fontstack}/{range}.pbf",
-    sprite:  "https://protomaps.github.io/basemaps-assets/sprites/v4/light",
-    sources: {
-      protomaps: {
-        type: "vector", url: `pmtiles:///local-map/data/world.pmtiles`,
-        attribution: '<a href="https://protomaps.com">Protomaps</a> © OSM',
-      }
-    },
-    layers: basemaps.layers("protomaps", basemaps.namedFlavor("dark"), { lang: "en" }),
-  },
-});
-map.addControl(new maplibregl.NavigationControl());
+let map;
+
+// The built basemap (just map-data) is preferred; world-fallback.pmtiles is a
+// committed basemap shown when no built basemap is present, so the map always renders.
+const BASEMAP_BUILT    = "local-map/data/world.pmtiles";
+const BASEMAP_FALLBACK = "local-map/data/world-fallback.pmtiles";
+
+async function pickBasemap() {
+  const ok = await fetch(BASEMAP_BUILT, { method: "HEAD" }).then(r => r.ok).catch(() => false);
+  return ok ? BASEMAP_BUILT : BASEMAP_FALLBACK;
+}
 
 /* ═══════════════════════════════════════════════════════════════
    Data loading & Map Layers
  ═══════════════════════════════════════════════════════════════ */
-map.on('load', async () => {
-  const geoRes = await fetch(`local-map/data/hagiographies_map.geojson`).then(r => r.ok ? r.json() : null);
-  if (geoRes) {
-    allFeatures = geoRes.features;
-    initFilterDropdowns(geoRes);
-    initMapLayers(geoRes);
-  }
-});
+async function init() {
+  const basemapPath = await pickBasemap();
+  map = new maplibregl.Map({
+    container: "map", center: [5, 48], zoom: 4,
+    style: {
+      version: 8,
+      glyphs:  "https://protomaps.github.io/basemaps-assets/fonts/{fontstack}/{range}.pbf",
+      sprite:  "https://protomaps.github.io/basemaps-assets/sprites/v4/light",
+      sources: {
+        protomaps: {
+          type: "vector", url: `pmtiles:///${basemapPath}`,
+          attribution: '<a href="https://protomaps.com">Protomaps</a> © OSM',
+        }
+      },
+      layers: basemaps.layers("protomaps", basemaps.namedFlavor("dark"), { lang: "en" }),
+    },
+  });
+  map.addControl(new maplibregl.NavigationControl());
+
+  map.on('load', async () => {
+    const geoRes = await fetch(`local-map/data/hagiographies_map.geojson`).then(r => r.ok ? r.json() : null);
+    if (geoRes) {
+      allFeatures = geoRes.features;
+      initFilterDropdowns(geoRes);
+      initMapLayers(geoRes);
+    }
+  });
+}
+
+init();
 
 function initFilterDropdowns(geojson) {
   const arches = new Set(), bishes = new Set(), centuries = new Set(), provs = new Set();

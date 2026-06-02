@@ -48,25 +48,18 @@ from sqlalchemy import REAL, UniqueConstraint, func
 import sqlalchemy
 from sqlmodel import Field, SQLModel, Relationship
 
-from .config import DB_STRING
-
-_STRICT = {"sqlite_strict": True} if DB_STRING.startswith("sqlite") else {}
-
-
 def _text(**kwargs):
-    """TEXT column — VARCHAR is not STRICT-mode-compatible."""
+    """TEXT column."""
     return Field(sa_type=SAText(), **kwargs)
 
 
 def _real(**kwargs):
-    """REAL column — FLOAT is not STRICT-mode-compatible."""
+    """REAL column."""
     return Field(sa_type=REAL(), **kwargs)
 
 
 def _bool(**kwargs):
-    """INTEGER column for SQLite (BOOLEAN is not STRICT-mode-compatible), else BOOLEAN."""
-    if DB_STRING.startswith("sqlite"):
-        return Field(sa_type=Integer(), **kwargs)
+    """BOOLEAN column."""
     return Field(sa_type=sqlalchemy.Boolean(), **kwargs)
 
 
@@ -119,7 +112,7 @@ class ChurchEntityType(str, Enum):
     Distinguishes archdioceses from dioceses so that the same place-name
     (e.g. 'Trier') can exist as two separate ChurchEntity records — one per
     level — without violating the unique constraint.  This also prevents the
-    'Trier Trier' visual duplicate in the Kottster UI where both
+    'Trier Trier' visual duplicate in the admin UI where both
     provenance_archdiocese and provenance_diocese columns are displayed.
     """
     archdiocese = "archdiocese"
@@ -131,7 +124,14 @@ class ChurchEntityType(str, Enum):
 # ---------------------------------------------------------------------------
 
 class Table(SQLModel):
-    """Base class: auto primary key + audit timestamps."""
+    """Base class: auto primary key + audit timestamps.
+
+    The audit columns are inherited, so SQLAlchemy would place them right after
+    ``id`` (before the subclass's own columns). ``_move_audit_columns_last()`` at
+    the bottom of this module re-appends ``created_at``/``updated_at`` to the end
+    of every table, giving CREATE TABLE statements the order
+    id, <entity columns…>, created_at, updated_at.
+    """
     id: Optional[int] = Field(default=None, primary_key=True)
     created_at: datetime = Field(
         default_factory=datetime.utcnow,
@@ -151,7 +151,7 @@ class Table(SQLModel):
 
 class Place(Table, table=True):
     """A geographic location, optionally enriched with GPS coordinates."""
-    __table_args__ = (UniqueConstraint("name"), _STRICT)
+    __table_args__ = (UniqueConstraint("name"),)
     name: str = _text(index=True)
     lat: Optional[float] = _real(default=None)
     lon: Optional[float] = _real(default=None)
@@ -208,7 +208,7 @@ class Place(Table, table=True):
 
 class Institution(Table, table=True):
     """A heritage or educational institution, optionally linked to a place."""
-    __table_args__ = (UniqueConstraint("name"), _STRICT)
+    __table_args__ = (UniqueConstraint("name"),)
     name: str = _text(index=True)
     place_id: Optional[int] = Field(default=None, foreign_key="place.id")
     place: Optional[Place] = Relationship(back_populates="institutions")
@@ -216,7 +216,7 @@ class Institution(Table, table=True):
 
 class Milieu(Table, table=True):
     """The intellectual or social milieu associated with an author."""
-    __table_args__ = (UniqueConstraint("name"), _STRICT)
+    __table_args__ = (UniqueConstraint("name"),)
     name: str = _text(index=True)
 
 
@@ -269,7 +269,7 @@ class Author(Table, table=True):
 
 class Typology(Table, table=True):
     """Hierarchical source typology (e.g. Vita > Passio)."""
-    __table_args__ = (UniqueConstraint("name"), _STRICT)
+    __table_args__ = (UniqueConstraint("name"),)
     name: str = _text(index=True)
     parent_id: Optional[int] = Field(default=None, foreign_key="typology.id")
 
@@ -282,7 +282,7 @@ class Typology(Table, table=True):
 
 class ManuscriptType(Table, table=True):
     """Type classification for a manuscript (e.g. legendarium, collectio)."""
-    __table_args__ = (UniqueConstraint("name"), _STRICT)
+    __table_args__ = (UniqueConstraint("name"),)
     name: str = _text(index=True)
 
 
@@ -294,14 +294,14 @@ class ChurchEntity(Table, table=True):
     ecclesiastical level.  The unique constraint covers (name, entity_type)
     so 'Trier' + 'archdiocese' and 'Trier' + 'diocese' are distinct rows.
     """
-    __table_args__ = (UniqueConstraint("name", "entity_type"), _STRICT)
+    __table_args__ = (UniqueConstraint("name", "entity_type"),)
     name: str = _text(index=True)
     entity_type: str = _text(default=ChurchEntityType.diocese, index=True)
 
 
 class ManuscriptIdentifier(Table, table=True):
     """A canonical title + BHL identifier combination for a manuscript group."""
-    __table_args__ = (UniqueConstraint("title", "bhl_number"), _STRICT)
+    __table_args__ = (UniqueConstraint("title", "bhl_number"),)
     title: str = _text(index=True)
     bhl_number: Optional[str] = _text(index=True)
     identifier: str = _text(index=True)
@@ -310,31 +310,31 @@ class ManuscriptIdentifier(Table, table=True):
 
 class DatingCentury(Table, table=True):
     """A century used for manuscript dating (integer, e.g. 10 for Xth c.)."""
-    __table_args__ = (UniqueConstraint("century"), _STRICT)
+    __table_args__ = (UniqueConstraint("century"),)
     century: int = Field(index=True, sa_type=Integer())
 
 
 class VernacularRegion(Table, table=True):
     """Vernacular region category (e.g. Romance, Germanic)."""
-    __table_args__ = (UniqueConstraint("region"), _STRICT)
+    __table_args__ = (UniqueConstraint("region"),)
     region: str = _text(index=True)
 
 
 class ProvenanceGeneral(Table, table=True):
     """General provenance description for a manuscript."""
-    __table_args__ = (UniqueConstraint("description"), _STRICT)
+    __table_args__ = (UniqueConstraint("description"),)
     description: str = _text(index=True)
 
 
 class TextType(Table, table=True):
     """Prose vs. verse classification for a hagiographic text."""
-    __table_args__ = (UniqueConstraint("name"), _STRICT)
+    __table_args__ = (UniqueConstraint("name"),)
     name: str = _text(index=True)
 
 
 class ImageType(Table, table=True):
     """Image delivery type (e.g. iiif, iiif_mf, scan, iphone_photo)."""
-    __table_args__ = (UniqueConstraint("name"), _STRICT)
+    __table_args__ = (UniqueConstraint("name"),)
     name: str = _text(index=True)
 
 
@@ -351,7 +351,6 @@ class ManuscriptText(SQLModel, table=True):
     """
     # The composite primary key (ms_id, text_id) already enforces uniqueness;
     # no separate UniqueConstraint is needed.
-    __table_args__ = _STRICT
 
     ms_id: int = Field(
         sa_type=Integer(), foreign_key="manuscript.id", primary_key=True
@@ -391,7 +390,6 @@ class ManuscriptText(SQLModel, table=True):
 
 class EditionManuscript(SQLModel, table=True):
     """Many-to-many join: Edition ↔ Manuscript, with inspection metadata."""
-    __table_args__ = _STRICT
 
     edition_id: int = Field(
         sa_type=Integer(), foreign_key="edition.id", primary_key=True
@@ -420,7 +418,6 @@ class EditionManuscript(SQLModel, table=True):
 
 class EditionExternalResource(SQLModel, table=True):
     """Many-to-many join: Edition ↔ ExternalResource (e.g. scan links)."""
-    __table_args__ = _STRICT
 
     edition_id: int = Field(
         sa_type=Integer(), foreign_key="edition.id", primary_key=True
@@ -442,7 +439,6 @@ class ExternalResource(SQLModel, table=True):
     __tablename__ = "external_resource"
     __table_args__ = (
         UniqueConstraint("manuscript_id", "url", name="uix_manuscript_url"),
-        _STRICT,
     )
 
     id: Optional[int] = Field(default=None, primary_key=True)
@@ -480,7 +476,6 @@ class ManuscriptRelation(SQLModel, table=True):
             "relation_type",
             name="uix_source_target_relation",
         ),
-        _STRICT,
     )
 
     id: Optional[int] = Field(default=None, primary_key=True)
@@ -539,7 +534,6 @@ class Text(Table, table=True):
     importer uses a starts-with-"yes" check only to decide whether to assign
     the text's origin place as the author's place_id.
     """
-    __table_args__ = _STRICT
 
     bhl_number: Optional[str] = _text(default=None, index=True)
     title: Optional[str] = _text(default=None)
@@ -697,7 +691,6 @@ class Manuscript(Table, table=True):
     Image availability is no longer stored as a lookup FK; it is derivable
     from the presence of Image records linked to this manuscript.
     """
-    __table_args__ = _STRICT
 
     unique_id: Optional[int] = Field(default=None, unique=True, index=True)
 
@@ -856,7 +849,6 @@ class Image(Table, table=True):
     """A digitized image URL associated with a manuscript."""
     __table_args__ = (
         UniqueConstraint("ms_id", "url"),
-        _STRICT,
     )
 
     url: str = _text()
@@ -891,7 +883,7 @@ class Edition(Table, table=True):
     shows 14 rows with NO+YES and 18 rows with both set to 'to be verified',
     but no YES+YES rows, so the collapse into a single enum is lossless.
     """
-    __table_args__ = (UniqueConstraint("unique_id_numeric"), _STRICT)
+    __table_args__ = (UniqueConstraint("unique_id_numeric"),)
 
     bhl_number: Optional[str] = _text(default=None, index=True)
     title: Optional[str] = _text(default=None)
@@ -938,3 +930,24 @@ class Edition(Table, table=True):
             "overlaps": "edition_associations,manuscript,manuscripts,manuscript_associations,edition,editions",
         }
     )
+
+
+# ---------------------------------------------------------------------------
+# Column ordering
+# ---------------------------------------------------------------------------
+# The audit columns are inherited from ``Table`` so SQLAlchemy places them
+# right after ``id``, before each subclass's own columns. Re-appending them
+# moves them to the end of the column collection, so CREATE TABLE statements
+# read: id, <entity columns…>, created_at, updated_at.
+def _move_audit_columns_last() -> None:
+    for table in SQLModel.metadata.tables.values():
+        audit = [table.columns[n] for n in ("created_at", "updated_at") if n in table.columns]
+        if not audit:
+            continue
+        for col in audit:
+            table._columns.remove(col)
+        for col in audit:
+            table.append_column(col)
+
+
+_move_audit_columns_last()

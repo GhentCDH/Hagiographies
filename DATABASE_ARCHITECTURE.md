@@ -9,15 +9,13 @@ The project is organized into modular directories, separating the Python import/
 ```text
 .
 ├── caddy/                  # Reverse proxy configuration (Caddyfile)
-├── data/                   # Gitignored: SQLite databases and Excel sources
-├── kottster/               # Administrative interface (Node.js/React)
-│   ├── app/                # Main app logic and UI definitions
-│   │   └── pages/          # Individual page configurations (JSON)
-│   └── Dockerfile          # Admin panel container
+├── data/                   # Gitignored: databases and Excel sources
 ├── local-map/              # Static MapLibre GL JS frontend
 ├── utils/                  # Python backend utilities (UV-managed)
-│   ├── importer/           # Excel-to-SQLite pipeline
-│   ├── exporter/           # SQLite-to-GeoJSON pipeline
+│   ├── importer/           # Excel-to-PostgreSQL pipeline
+│   ├── exporter/           # PostgreSQL-to-SQLite + GeoJSON pipelines
+│   ├── documenter/         # Schema diagram generator
+│   ├── mathesar/           # Mathesar record-summary config (JSON-RPC)
 │   ├── utilities/          # Core: SQLModel definitions and DB configuration
 │   └── Dockerfile          # Python utilities container
 ├── compose.yml             # System orchestration
@@ -55,13 +53,13 @@ The following Python enumerations are used for constrained text columns:
 
 All primary models inherit from `Table`, which provides:
 *   `id` — auto-incrementing integer primary key.
-*   `created_at` / `updated_at` — audit timestamps stored as `TEXT` (STRICT-compatible).
+*   `created_at` / `updated_at` — audit timestamps, re-ordered to appear last in each table.
 
-Models categorized below based on their visibility in the Kottster Admin UI and their structural role.
+Models categorized below based on their visibility in the admin UI (Mathesar) and their structural role.
 
 ### 4.1 Primary Entities (Exposed in Admin UI)
 
-These models have dedicated pages in the Kottster sidebar and constitute the main data management effort.
+These models are the main data management effort, surfaced in the Mathesar admin UI.
 
 #### Text
 Central hagiographic work entry, identified by its BHL number. Author location and milieu live on `Author`, not here.

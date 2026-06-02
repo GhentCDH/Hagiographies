@@ -1,5 +1,5 @@
 set dotenv-load := true
-KOTTSTER_URL := "http://localhost:9160"
+GATEWAY_URL := "http://localhost:9160"
 
 # ── Docker lifecycle ─────────────────────────────────────────────────────────
 
@@ -18,24 +18,19 @@ down:
 
 # ── Import ───────────────────────────────────────────────────────────────────
 
-# Import Excel data into SQLite
-import:
-    docker compose run  -w /app/importer --rm utils  uv run importer
-
 # Import Excel data into PostgreSQL
 import-pg:
     docker compose run -e DATABASE_URL=$PG_DATABASE_URL -w /app/importer --rm utils  uv run importer
 
 
-# Export SQLite → GeoJSON and copy to local-map/data/
+# Export PostgreSQL → GeoJSON and copy to local-map/data/
 export-map:
-    docker compose run  -w /app/exporter --rm utils  uv run export-map
+    docker compose run -e DATABASE_URL=$PG_DATABASE_URL -w /app/exporter --rm utils  uv run export-map
     cp data/hagiographies_map.geojson local-map/data/
 
-# Export PostgreSQL → SQLite database and extract GeoJSON mapping
+# Migrate PostgreSQL → SQLite snapshot (columns in exporter/filter.json are dropped)
 export-from-pg-to-sqlite:
     docker compose run -e DATABASE_URL=$PG_DATABASE_URL -w /app/exporter --rm utils  uv run export-from-pg-to-sqlite
-    cp data/hagiographies_map.geojson local-map/data/
 
 # Alias for export-map
 export: export-map
@@ -49,6 +44,31 @@ test-export:
 # Generate SVG schema diagram from SQLModel
 generate-diagram:
     docker compose run  -w /app/documenter --rm utils  uv run document
+
+# ── Mathesar ─────────────────────────────────────────────────────────────────
+
+# Bootstrap a fresh Mathesar: create its metadata DB, the admin superuser, and
+# register the research DB connection. Idempotent — safe to re-run.
+mathesar-bootstrap:
+    # Mathesar does not create its own metadata DB; create it if missing.
+    docker compose exec -T postgres psql -U "$POSTGRES_USER" -d postgres -tc \
+        "SELECT 1 FROM pg_database WHERE datname='mathesar_django'" | grep -q 1 \
+        || docker compose exec -T postgres psql -U "$POSTGRES_USER" -d postgres -c \
+        "CREATE DATABASE mathesar_django OWNER $POSTGRES_USER;"
+    docker compose restart mathesar
+    # Wait until Mathesar has migrated its metadata DB (mathesar_user exists).
+    until docker compose exec -T postgres psql -U "$POSTGRES_USER" -d mathesar_django \
+        -c "select 1 from mathesar_user limit 1;" >/dev/null 2>&1; do sleep 2; done
+    # Create the admin superuser if it does not already exist.
+    docker compose exec -T -e DJANGO_SUPERUSER_PASSWORD="$MATHESAR_PASSWORD" mathesar \
+        sh -c 'cd /code && python manage.py createsuperuser --no-input \
+        --username "$MATHESAR_USERNAME" --email admin@example.com' || true
+    # Register the research database connection (id should be MATHESAR_DATABASE_ID).
+    docker compose run -w /app/mathesar --rm utils uv run mathesar-connect-db || true
+
+# Apply record summaries to Mathesar tables from record_summaries.json
+mathesar-summaries:
+    docker compose run -w /app/mathesar --rm utils uv run mathesar-record-summaries
 
 # ── Kaartdata (pmtiles) ──────────────────────────────────────────────────────
 
@@ -72,23 +92,27 @@ download-world:
         --output=local-map/data/world.pmtiles \
         --maxzoom=8
 
-# ── Data Management (Kottster) ───────────────────────────────────────────────
-
-# Start Kottster dev server (port 5480)
-kottster:
-    docker compose exec data-management ./scripts/dev.sh
-
 # ── Database ─────────────────────────────────────────────────────────────────
 
-# Delete SQLite database files
+# Delete the derived SQLite snapshot files
 reset-db:
-    rm -f data/hagiographies.db*
+    rm -f data/public_hagiographies.db*
 
-# Full reset: rebuild, reset db, import (SQLite & PG), export map data, and download map data
-reinit: rebuild reset-db import import-pg export-map map-data
+# Wipe the PostgreSQL data (research DB + Mathesar metadata) by recreating its
+# volume, then start clean. The importer is insert-only and skips existing BHLs,
+# so a true "from the Excel" re-import requires this wipe first.
+reset-pg:
+    docker compose down -t 5
+    docker volume rm hagiographies_postgres-data
+    docker compose up -d
+
+# Full reset: wipe PG, rebuild, reset db, import to PG, bootstrap Mathesar
+# (metadata DB + admin user + DB connection), apply summaries, migrate to
+# SQLite, export map data, download map data
+reinit: reset-pg rebuild reset-db import-pg mathesar-bootstrap mathesar-summaries export-from-pg-to-sqlite export-map map-data
 
 # ── Dev helpers ──────────────────────────────────────────────────────────────
 
-# Wait for Kottster and open admin UI in browser
+# Open the gateway (map + Mathesar admin) in browser
 open_url:
-  open "{{KOTTSTER_URL}}"
+  open "{{GATEWAY_URL}}"

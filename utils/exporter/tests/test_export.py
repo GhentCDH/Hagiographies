@@ -13,7 +13,7 @@ FILTER_JSON_PATH = Path(__file__).parent.parent / "src" / "exporter" / "filter.j
 def sqlite_conn():
     """Connection to the exported SQLite database."""
     if not OUTPUT_DB.exists():
-        pytest.fail(f"Exported database not found at {OUTPUT_DB}. Run 'just export-from-pg-to-sqlite' first.")
+        pytest.fail(f"Migrated database not found at {OUTPUT_DB}. Run 'just export-from-pg-to-sqlite' first.")
     conn = sqlite3.connect(OUTPUT_DB)
     yield conn
     conn.close()
