@@ -10,17 +10,27 @@ Hagiographies is an Excel-to-PostgreSQL import pipeline with a Mathesar admin UI
 
 All commands use `just` (a command runner). Everything runs in Docker containers.
 
+Recipes are grouped by area prefix (`container_`, `db_`, `iiif_`, `mathesar_`,
+`pg_`); run `just --list` to see them all.
+
 ```sh
-just rebuild                  # build and start all Docker containers
-just import-pg                # import Excel data into PostgreSQL (runs in utils container)
-just export-from-pg-to-sqlite # dump PostgreSQL → data/hagiographies_full_export.sqlite via Dataflow (see dataflow/config.json)
-just export-from-pg-to-sqlite-dry-run # validate the Dataflow config, write nothing
-just check-iiif               # verify IIIF image links point to real manifests (report CSV)
-just fix-iiif                 # also discover manifests on viewer pages → image.iiif_manifest_url
-just generate-diagram         # generate SVG schema diagram from SQLModel
-just reinit                   # full reset: rebuild + import-pg + Mathesar bootstrap + summaries
-just up / just down           # start/stop containers without rebuilding
+just container_rebuild        # build and start all Docker containers
+just pg_import                # import Excel data into PostgreSQL (runs in utils container)
+just pg_export_sqlite         # dump PostgreSQL → data/hagiographies_full_export.sqlite via Dataflow (see dataflow/config.json)
+just pg_export_sqlite_dry_run # validate the Dataflow config, write nothing
+just iiif_check               # verify IIIF image links point to real manifests (report CSV)
+just iiif_fix                 # also discover manifests on viewer pages → image.iiif_manifest_url
+just db_diagram               # generate SVG schema diagram from SQLModel
+just reinit                   # full reset: rebuild + pg_import + Mathesar bootstrap + summaries (local Docker only)
+just container_up / container_down  # start/stop containers without rebuilding
 ```
+
+**Database selection:** `pg_import` and the `iiif_*` recipes target whatever
+`PG_DATABASE_URL` resolves to in the `utils` container — `dev.env`'s local Docker
+Postgres by default, or a remote server if a local `.env` overrides
+`PG_DATABASE_URL`. `config.py` reads `DATABASE_URL` or `PG_DATABASE_URL`, so no
+explicit `-e` is passed. `pg_reset` and `reinit` recreate the `postgres-data`
+volume and are therefore **local Docker only** — skip them for a remote DB.
 
 Gateway (Caddy) runs on port 9160, reverse-proxying the Mathesar admin UI.
 
@@ -48,7 +58,7 @@ The canonical data model lives in `utils/utilities/src/utilities/model.py` and t
 Mathesar (`mathesar/mathesar:0.11.0`) browses and edits the PostgreSQL data directly.
 It keeps its own Django metadata DB (`mathesar_django`), separate from the research
 database. Record summaries (the display label per table) are configured via the
-JSON-RPC API by `utils/mathesar/` (`just mathesar-summaries`).
+JSON-RPC API by `utils/mathesar/` (`just mathesar_summaries`).
 
 ### Data Flow
 

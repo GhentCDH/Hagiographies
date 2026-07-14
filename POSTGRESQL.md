@@ -11,9 +11,27 @@ This document describes the PostgreSQL-primary architecture of the Hagiographies
 
 ## 2. Lifecycle Commands
 
-- **Import**: `just import-pg` loads the Excel workbook into PostgreSQL (passes `DATABASE_URL=$PG_DATABASE_URL`).
-- **SQLite export**: `just export-from-pg-to-sqlite` dumps PostgreSQL to `data/hagiographies_full_export.sqlite` via Dataflow.
-- **Full reset**: `just reinit` runs reset-pg → rebuild → import-pg → Mathesar bootstrap → summaries.
+- **Import**: `just pg_import` loads the Excel workbook into PostgreSQL.
+- **SQLite export**: `just pg_export_sqlite` dumps PostgreSQL to `data/hagiographies_full_export.sqlite` via Dataflow.
+- **Full reset**: `just reinit` runs pg_reset → container_rebuild → pg_import → Mathesar bootstrap → summaries (local Docker only).
+
+### Local vs remote database
+
+The Python recipes (`pg_import`, `iiif_check`, `iiif_fix`) connect to whatever
+`PG_DATABASE_URL` resolves to inside the `utils` container:
+
+- **Local Docker Postgres** (default): `dev.env` defines
+  `PG_DATABASE_URL=…@postgres:5432/…` (the in-network `postgres` service).
+- **Remote server**: create a local, gitignored `.env` with a remote
+  `PG_DATABASE_URL=…@your-host:5432/…`. Docker Compose layers `.env` on top of
+  `dev.env` for the `utils` container (`compose.yml`), so it overrides the local
+  value. `utils/utilities/src/utilities/config.py` reads `DATABASE_URL` or
+  `PG_DATABASE_URL`, so no explicit `-e` flag is needed.
+
+`pg_reset` and `reinit` recreate the `postgres-data` volume and `exec` `psql`
+inside the local `postgres` container, so they only apply to the **local Docker**
+database. When pointing at a remote DB, run `pg_import`/`iiif_*` directly and do
+not use `pg_reset`/`reinit`.
 
 ---
 

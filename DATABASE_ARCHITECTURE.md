@@ -161,7 +161,7 @@ M2M join for Edition ↔ ExternalResource (e.g. scan links).
 *   **Composite PK**: `(edition_id, resource_id)`
 
 #### Image
-A digitized image URL associated with a codex. `url` is the source link as recorded in the workbook (often a viewer/landing page); `iiif_manifest_url` is the validated IIIF manifest link maintained by `just check-iiif` / `just fix-iiif` — renderable in any IIIF viewer, e.g. `https://tify.rocks/?manifest=<iiif_manifest_url>`.
+A digitized image URL associated with a codex. `url` is the source link as recorded in the workbook (often a viewer/landing page); `iiif_manifest_url` is the validated IIIF manifest link maintained by `just iiif_check` / `just iiif_fix` — renderable in any IIIF viewer, e.g. `https://tify.rocks/?manifest=<iiif_manifest_url>`.
 *   **Fields**: `url`, `iiif_manifest_url`, `comment`
 *   **Relationships**: Links to `Codex` and `ImageType`.
 *   **Unique constraint**: `(codex_id, url)`

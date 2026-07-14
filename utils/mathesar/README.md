@@ -16,12 +16,12 @@ in foreign-key cells and record pickers) to a single column, driven by a JSON co
 ```
 
 Table and column names are resolved to oids/attnums on every run, so the config
-survives a table drop + reimport. Run it any time after `just import-pg`.
+survives a table drop + reimport. Run it any time after `just pg_import`.
 
 ### Run
 
 ```sh
-just mathesar-summaries                 # uses the bundled record_summaries.json
+just mathesar_summaries                 # uses the bundled record_summaries.json
 ```
 
 Pass a different config path as the first argument to the script.

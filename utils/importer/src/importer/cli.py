@@ -862,8 +862,13 @@ def import_texts(session: Session, wb, report: ImportReport) -> Dict[str, "Text"
 
     inserted = skipped = 0
 
+    logger.info("[Texts] Reading TEXTS sheet…")
     for excel_row, cells in _iter_data_rows(rows_iter, SHEET_TEXTS):
         row = Row(cells, headers)
+
+        seen = inserted + skipped
+        if seen and seen % 200 == 0:
+            logger.info(f"[Texts] {seen} rows read…")
 
         uid = row.i("Unique identifier")
         uid_str = row.s("Unique identifier")  # used as fallback string key
@@ -1079,7 +1084,10 @@ def import_manuscripts(
     relation_tasks: List[Tuple[str, str, RelationType, Certainty,
                                Optional[str], str, int]] = []
 
+    logger.info("[Manuscripts] Reading MANUSCRIPTS sheet…")
+    batch_no = 0
     for batch in _chunked(_iter_data_rows(rows_iter, SHEET_MANUSCRIPTS), 500):
+        batch_no += 1
         try:
             for excel_row, cells in batch:
                 row = Row(cells, headers)
@@ -1347,6 +1355,10 @@ def import_manuscripts(
                             ))
 
             session.commit()
+            logger.info(
+                f"[Manuscripts] batch {batch_no} committed "
+                f"({stats['copies']} copies so far)…"
+            )
         except Exception as e:
             logger.error(f"[Manuscripts] Batch error: {e}")
             report.add("critical_error", {"Error": str(e)})
@@ -1482,7 +1494,10 @@ def import_editions(
     # Deferred: consulted refs may name volumes that appear later in the sheet.
     consulted_tasks: List[Tuple[Edition, List[str], int]] = []
 
+    logger.info("[Editions] Reading EDITIONS sheet…")
+    batch_no = 0
     for batch in _chunked(_iter_data_rows(rows_iter, SHEET_EDITIONS), 500):
+        batch_no += 1
         try:
             for excel_row, cells in batch:
                 row = Row(cells, headers)
@@ -1638,6 +1653,10 @@ def import_editions(
                             stats["ms_links"] += 1
 
             session.commit()
+            logger.info(
+                f"[Editions] batch {batch_no} committed "
+                f"({stats['inserted']} editions so far)…"
+            )
         except Exception as e:
             logger.error(f"[Editions] Batch error: {e}")
             report.add("critical_error", {"Error": str(e)})
@@ -1708,6 +1727,7 @@ def validate_import(session: Session, report: ImportReport) -> int:
     conn = session.connection()
     problems = 0
 
+    logger.info("[Validate] Checking foreign-key integrity…")
     fk_pairs = 0
     for table in SQLModel.metadata.tables.values():
         for fk in sorted(table.foreign_keys, key=lambda f: f.parent.name):
@@ -1728,6 +1748,8 @@ def validate_import(session: Session, report: ImportReport) -> int:
                     "Error": f"{orphans} orphaned FK values in "
                              f"{table.name}.{col.name}",
                 })
+
+    logger.info(f"[Validate] {fk_pairs} FK relationships checked.")
 
     confidence_cols = [
         (t.name, c.name)
