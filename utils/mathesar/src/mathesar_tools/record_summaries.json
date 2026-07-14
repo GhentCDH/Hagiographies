@@ -1,18 +1,10 @@
 {
-    "place": "name",
-    "typology": "name",
-    "manuscripttype": "name",
-    "churchentity": "name",
-    "datingcentury": "century",
-    "vernacularregion": "region",
-    "imagetype": "name",
-    "institution": "name",
-    "author": "name",
-    "codex": "codex_unique_identifier",
-    "manuscript": "manuscript_copy_identifier_per_text",
-    "external_resource": "url",
-    "image": "url",
-    "edition": "edition_unique_identifier_per_text",
-    "edition_volume": "identifier",
-    "text": "title"
+    "text": "identifier",
+    "text_form": "label",
+    "text_source_type": "label",
+    "text_source_subtype": "label",
+    "manuscript": "identifier",
+    "manuscript_preservation_status": "label",
+    "manuscript_holding_institution": "name",
+    "edition": "title"
 }

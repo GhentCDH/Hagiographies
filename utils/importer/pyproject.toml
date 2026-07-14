@@ -1,15 +1,15 @@
 [project]
 name = "importer"
-version = "0.1.0"
+version = "0.2.0"
 description = "Hagiographies data import"
 readme = "README.md"
 requires-python = "~=3.13.0"
 dependencies = [
-    "pandas>=2.0.0",
     "openpyxl>=3.1.0",
     "utilities",
     "rich>=13.0.0",
     "sqlmodel>=0.0.21",
+    "typer>=0.15",
     "httpx>=0.27",
 ]
 
@@ -19,7 +19,8 @@ build-backend = "uv_build"
 
 [project.scripts]
 importer = "importer.cli:main"
-check-iiif = "importer.iiif_manifests:main"
+# LEGACY — targets the parked old schema (utilities.legacy_model)
+check-iiif = "importer.legacy.iiif_manifests:main"
 
 [tool.uv.sources]
 utilities = { path = "../utilities", editable = true }

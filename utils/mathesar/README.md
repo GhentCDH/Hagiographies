@@ -15,8 +15,9 @@ in foreign-key cells and record pickers) to a single column, driven by a JSON co
 }
 ```
 
-Table and column names are resolved to oids/attnums on every run, so the config
-survives a table drop + reimport. Run it any time after `just pg_import`.
+Schema, table and column names are resolved to oids/attnums on every run, so
+the config survives a schema drop + reimport (`just pg_reimport`). Run it any
+time after `just pg_import`.
 
 ### Run
 
@@ -31,4 +32,4 @@ Pass a different config path as the first argument to the script.
 - `MATHESAR_URL` (default `http://mathesar:8000` — the Docker service name)
 - `MATHESAR_USERNAME` / `MATHESAR_PASSWORD` (default `admin` / `admin`)
 - `MATHESAR_DATABASE_ID` (default `1`)
-- `MATHESAR_SCHEMA_OID` (default `2200`, the `public` schema)
+- `MATHESAR_SCHEMA` (default `public`; resolved to its oid on every run)

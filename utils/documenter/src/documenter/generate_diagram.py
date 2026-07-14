@@ -1,19 +1,16 @@
 from utilities.model import (
-    Place, Institution, Author, Typology, ManuscriptType, ImageType,
-    ChurchEntity, DatingCentury, VernacularRegion, Text, Codex, Manuscript,
-    Image, ExternalResource, EditionExternalResource, ManuscriptRelation,
-    Edition, EditionVolume, EditionConsultedVolume, EditionManuscript,
+    Edition, Manuscript, ManuscriptHoldingInstitution,
+    ManuscriptPreservationStatus, Text, TextForm, TextSourceType,
+    TextSourceSubtype,
 )
-from utilities.db import engine
 from sqlalchemy_data_model_visualizer import generate_data_model_diagram
 import os
 
 def main():
     models = [
-        Place, Institution, Author, Typology, ManuscriptType, ImageType,
-        ChurchEntity, DatingCentury, VernacularRegion, Text, Codex, Manuscript,
-        Image, ExternalResource, EditionExternalResource, ManuscriptRelation,
-        Edition, EditionVolume, EditionConsultedVolume, EditionManuscript,
+        Text, TextForm, TextSourceType, TextSourceSubtype,
+        Manuscript, ManuscriptPreservationStatus,
+        ManuscriptHoldingInstitution, Edition,
     ]
     output_file_name = '../../data/hagiographies_model'
     try:

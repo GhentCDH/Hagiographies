@@ -73,6 +73,18 @@ class MathesarClient:
         return payload.get("result")
 
     # ── typed helpers ────────────────────────────────────────────────────────
+    def schema_oid(self, database_id: int, schema_name: str) -> int:
+        # Resolved by name on every run: DROP SCHEMA public CASCADE + CREATE
+        # SCHEMA public (importer drop-schema) assigns a new oid, so a stored
+        # oid goes stale after every reimport.
+        schemas = self.rpc("schemas.list", {"database_id": database_id})
+        for schema in schemas:
+            if schema["name"] == schema_name:
+                return schema["oid"]
+        raise MathesarError(
+            f"schema '{schema_name}' not found in database {database_id}"
+        )
+
     def list_tables(self, database_id: int, schema_oid: int) -> list[dict]:
         return self.rpc("tables.list", {"database_id": database_id, "schema_oid": schema_oid})
 

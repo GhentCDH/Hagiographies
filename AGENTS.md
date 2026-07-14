@@ -15,15 +15,27 @@ Recipes are grouped by area prefix (`container_`, `db_`, `iiif_`, `mathesar_`,
 
 ```sh
 just container_rebuild        # build and start all Docker containers
-just pg_import                # import Excel data into PostgreSQL (runs in utils container)
+just pg_validate              # validate the Excel workbook only, no DB writes (report: data/import_report.csv)
+just pg_import                # import Excel data into PostgreSQL, creating the schema if needed
+just pg_schema_create         # create the metadata schema only (DDL, no data)
+just pg_schema_drop           # drop + recreate the research DB's public schema (destructive)
+just pg_reimport              # full refresh: pg_schema_drop + pg_import
 just pg_export_sqlite         # dump PostgreSQL → data/hagiographies_full_export.sqlite via Dataflow (see dataflow/config.json)
 just pg_export_sqlite_dry_run # validate the Dataflow config, write nothing
-just iiif_check               # verify IIIF image links point to real manifests (report CSV)
-just iiif_fix                 # also discover manifests on viewer pages → image.iiif_manifest_url
 just db_diagram               # generate SVG schema diagram from SQLModel
 just reinit                   # full reset: rebuild + pg_import + Mathesar bootstrap + summaries (local Docker only)
 just container_up / container_down  # start/stop containers without rebuilding
+just iiif_check / iiif_fix    # LEGACY — target the parked old schema; do not run against the current DB
 ```
+
+## Import Policy: Strict Validation, Never Fix Data
+
+The import script never fixes Excel data. Any cell that fails strict
+validation (e.g. a number/year is expected but a character is present) causes
+that row to be skipped and reported with its Excel row number; valid rows are
+still imported and the importer exits non-zero (1). Rejected rows are printed
+to the console and written to `data/import_report.csv`. Fix the data in the
+workbook, never in the importer.
 
 **Database selection:** `pg_import` and the `iiif_*` recipes target whatever
 `PG_DATABASE_URL` resolves to in the `utils` container — `dev.env`'s local Docker
@@ -48,10 +60,20 @@ Gateway (Caddy) runs on port 9160, reverse-proxying the Mathesar admin UI.
 Three Python sub-packages, each standalone with its own `pyproject.toml`, run via `docker compose run -w /app/<pkg>`:
 
 - **`utilities/`** — Shared library: SQLModel data model (`model.py`), database engine config (`db.py`), env config (`config.py`)
-- **`importer/`** — Reads `hagiographies.xlsx`, normalizes data, populates PostgreSQL via SQLModel
+- **`importer/`** — Typer CLI reading the corpus workbook (`EXCEL_FILE` in `data/`), strictly validating and populating PostgreSQL via SQLModel. Modules: `excel.py` (workbook access), `fields.py` (strict parsers + FieldSpec), `report.py` (rejected-row reporting), `schema.py` (DDL ops), `sheets/` (one module per worksheet)
 - **`documenter/`** — Generates SVG entity diagram from SQLModel classes
 
-The canonical data model lives in `utils/utilities/src/utilities/model.py` and targets PostgreSQL. The `Table` base class provides an auto-incrementing ID. Core entities: **Text**, **Codex** (physical book), **Manuscript** (one copy of a text in a codex), **Edition** (+ **EditionVolume** for the containing book), with normalized lookups (Place, Institution, Author, Typology) and join tables (EditionManuscript, EditionConsultedVolume, ManuscriptRelation).
+The canonical data model lives in `utils/utilities/src/utilities/model.py` and targets PostgreSQL. Conventions:
+
+- Primary keys are `<table>_id` (autoincrement), never plain `id`.
+- Foreign keys are real database constraints (`Field(foreign_key=...)` emits `FOREIGN KEY ... REFERENCES` DDL), and every FK pair also has SQLModel `Relationship(back_populates=...)` navigation on both sides. `just pg_schema_create` recreates the full schema, FKs included, without any data.
+- Every imported field records its source Excel column via `excel_field()`, both as a pydantic description and as a PostgreSQL column comment (visible in `\d+` and Mathesar).
+- Identifiers are the given, stable workbook identifiers, concatenated as-is: `text.identifier` = `BHL or NO BHL` prefix (spaces → `_`) + `_` + `Unique identifier` (e.g. `BHL_29`, `NO_BHL_ALPER`); `manuscript.identifier` = prefix + `_` + `Manuscript copy unique identifier per text` (e.g. `BHL_29-4`).
+- Two documented exceptions to the no-normalization rule: manuscript preservation-status labels are matched case-insensitively to `Lost`/`Preserved`, and holding-institution names differing only in case/whitespace are merged (most frequent spelling wins); an institution of `N/A` becomes a NULL FK.
+
+Current entities (schema restart, July 2026 — grown incrementally from here): **Text** with lookups **TextForm** (`text_form`, prose/verse), **TextSourceType** (`text_source_type`), **TextSourceSubtype** (`text_source_subtype`); **Manuscript** with lookups **ManuscriptPreservationStatus** (`manuscript_preservation_status`) and **ManuscriptHoldingInstitution** (`manuscript_holding_institution`); **Edition** (basic metadata: title, publication_year, reprint).
+
+The pre-restart 20-table model and its importer are **parked, reference only**: `utils/utilities/src/utilities/legacy_model.py` and `utils/importer/src/importer/legacy/`. Do not build new code against them.
 
 ### Mathesar Admin
 
@@ -63,11 +85,11 @@ JSON-RPC API by `utils/mathesar/` (`just mathesar_summaries`).
 ### Data Flow
 
 ```
-hagiographies.xlsx → [importer] → PostgreSQL
-                                       │
-                                       ├────── Mathesar Admin (edits PostgreSQL directly)
-                                       │
-                                       └────── [Dataflow] → data/hagiographies_full_export.sqlite
+corpus workbook (data/*.xlsx) → [importer] → PostgreSQL
+                                                  │
+                                                  ├────── Mathesar Admin (edits PostgreSQL directly)
+                                                  │
+                                                  └────── [Dataflow] → data/hagiographies_full_export.sqlite
 ```
 
 ## Key Details

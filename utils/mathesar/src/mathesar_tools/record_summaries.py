@@ -71,11 +71,12 @@ def main() -> None:
     username = _env("MATHESAR_USERNAME", "admin")
     password = _env("MATHESAR_PASSWORD", "admin")
     database_id = int(_env("MATHESAR_DATABASE_ID", "1"))
-    schema_oid = int(_env("MATHESAR_SCHEMA_OID", "2200"))
+    schema_name = _env("MATHESAR_SCHEMA", "public")
 
     print(f"Applying {len(config)} record summaries from {config_path}")
-    print(f"  target: {base_url} db={database_id} schema={schema_oid}")
     with MathesarClient(base_url, username, password) as client:
+        schema_oid = client.schema_oid(database_id, schema_name)
+        print(f"  target: {base_url} db={database_id} schema={schema_name} (oid {schema_oid})")
         failures = apply_summaries(client, database_id, schema_oid, config)
 
     if failures:

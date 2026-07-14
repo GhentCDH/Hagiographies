@@ -26,6 +26,8 @@ db_diagram:
     docker compose run  -w /app/documenter --rm utils  uv run document
 
 # ── IIIF ─────────────────────────────────────────────────────────────────────
+# LEGACY — check-iiif targets the parked old schema (image/codex tables in
+# utilities.legacy_model) and cannot run against the current database.
 
 # Check IIIF image links point to a real manifest (writes data/iiif_manifest_report.csv)
 iiif_check:
@@ -72,9 +74,28 @@ mathesar_display:
 # dev.env's local Docker Postgres by default, or a remote server if .env
 # overrides PG_DATABASE_URL. config.py reads DATABASE_URL or PG_DATABASE_URL,
 # so no explicit -e is needed.
-# Import Excel data into PostgreSQL (local Docker DB, or remote if .env sets PG_DATABASE_URL)
+# The importer never fixes Excel data: rows failing strict validation are
+# skipped and reported (exit 1); fix the workbook, then re-run.
+
+# Validate the Excel workbook only — no database writes (report: data/import_report.csv)
+pg_validate:
+    docker compose run -w /app/importer --rm utils uv run importer validate
+
+# Create the metadata schema (DDL only, no data)
+pg_schema_create:
+    docker compose run -w /app/importer --rm utils uv run importer create-schema
+
+# Drop + recreate the public schema of the research DB (destructive; local or remote!)
+pg_schema_drop:
+    docker compose run -w /app/importer --rm utils uv run importer drop-schema --yes
+
+# Import Excel data into PostgreSQL, creating the schema if needed
 pg_import:
-    docker compose run -w /app/importer --rm utils uv run importer
+    docker compose run -w /app/importer --rm utils uv run importer import-data --create-schema
+
+# Full DB-level refresh: drop the public schema, recreate it, re-import.
+# Re-run mathesar_summaries/mathesar_display afterwards (table OIDs change).
+pg_reimport: pg_schema_drop pg_import
 
 # Full dump; config in dataflow/config.json. Output at data/hagiographies_full_export.sqlite.
 # Export PostgreSQL → SQLite via Dataflow
@@ -89,10 +110,11 @@ pg_export_sqlite_dry_run:
         -v "$(pwd)/dataflow:/data" -v "$(pwd)/data:/out" \
         ghcr.io/ghentcdh/dataflow:v0.1.0 run --config /data/config.json --dry-run
 
-# Recreates the postgres-data volume then starts clean. The importer is
-# insert-only and skips existing BHLs, so a true "from the Excel" re-import
-# requires this wipe first. LOCAL Docker Postgres ONLY — it removes the volume
-# and cannot reset a remote DB; skip when pointing at a remote PG_DATABASE_URL.
+# Recreates the postgres-data volume then starts clean. For a normal refresh
+# use pg_reimport (schema drop + import) — this wipe is only needed to also
+# reset Mathesar's metadata DB. LOCAL Docker Postgres ONLY — it removes the
+# volume and cannot reset a remote DB; skip when pointing at a remote
+# PG_DATABASE_URL.
 # Wipe the PostgreSQL data (research DB + Mathesar metadata); LOCAL Docker only
 pg_reset:
     docker compose down -t 5

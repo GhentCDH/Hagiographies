@@ -40,7 +40,7 @@ from sqlmodel import Session, select
 
 from utilities.config import DATA_ROOT
 from utilities.db import engine
-from utilities.model import Codex, Image, ImageType
+from utilities.legacy_model import Codex, Image, ImageType
 
 logging.basicConfig(
     level=logging.INFO, format="%(message)s",
