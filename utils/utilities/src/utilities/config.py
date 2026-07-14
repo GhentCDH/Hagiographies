@@ -13,9 +13,7 @@ load_dotenv(ROOT / "dev.env")
 # recipes from PG_DATABASE_URL) wins; otherwise fall back to PG_DATABASE_URL.
 DB_STRING = os.getenv("DATABASE_URL") or os.environ["PG_DATABASE_URL"]
 
-# Output path for the derived, publishable SQLite snapshot.
-DB_PATH = Path(os.getenv("DB_PATH", "/data/hagiographies.db"))
-
 DATA_ROOT = Path(os.getenv("DATA_ROOT", "/data"))
 CSV = DATA_ROOT / "hagiographies.csv"
-EXCEL = DATA_ROOT / "hagiographies.xlsx"
+# Source workbook. Override with EXCEL_FILE; defaults to the June 2026 corpus.
+EXCEL = DATA_ROOT / os.getenv("EXCEL_FILE", "CORPUS for JOREN SIX 4 June 2026.xlsx")

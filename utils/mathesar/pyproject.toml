@@ -15,6 +15,7 @@ build-backend = "uv_build"
 
 [project.scripts]
 mathesar-record-summaries = "mathesar_tools.record_summaries:main"
+mathesar-column-display = "mathesar_tools.column_display:main"
 mathesar-connect-db = "mathesar_tools.connect_db:main"
 
 [tool.uv.sources]

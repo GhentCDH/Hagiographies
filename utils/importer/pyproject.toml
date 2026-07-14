@@ -10,6 +10,7 @@ dependencies = [
     "utilities",
     "rich>=13.0.0",
     "sqlmodel>=0.0.21",
+    "httpx>=0.27",
 ]
 
 [build-system]
@@ -18,6 +19,7 @@ build-backend = "uv_build"
 
 [project.scripts]
 importer = "importer.cli:main"
+check-iiif = "importer.iiif_manifests:main"
 
 [tool.uv.sources]
 utilities = { path = "../utilities", editable = true }

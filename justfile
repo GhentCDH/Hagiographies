@@ -1,4 +1,7 @@
 set dotenv-load := true
+# just only loads `.env` by default; the recipes need the POSTGRES_*/MATHESAR_*
+# variables that live in dev.env (shared with the Docker services).
+set dotenv-filename := "dev.env"
 GATEWAY_URL := "http://localhost:9160"
 
 # ── Docker lifecycle ─────────────────────────────────────────────────────────
@@ -22,22 +25,30 @@ down:
 import-pg:
     docker compose run -e DATABASE_URL=$PG_DATABASE_URL -w /app/importer --rm utils  uv run importer
 
-
-# Export PostgreSQL → GeoJSON and copy to local-map/data/
-export-map:
-    docker compose run -e DATABASE_URL=$PG_DATABASE_URL -w /app/exporter --rm utils  uv run export-map
-    cp data/hagiographies_map.geojson local-map/data/
-
-# Migrate PostgreSQL → SQLite snapshot (columns in exporter/filter.json are dropped)
+# Export PostgreSQL → SQLite via Dataflow (full dump; config in dataflow/config.json).
+# Output appears at data/hagiographies_full_export.sqlite.
 export-from-pg-to-sqlite:
-    docker compose run -e DATABASE_URL=$PG_DATABASE_URL -w /app/exporter --rm utils  uv run export-from-pg-to-sqlite
+    docker run --rm --network hagiographies_default \
+        -v "$(pwd)/dataflow:/data" -v "$(pwd)/data:/out" \
+        ghcr.io/ghentcdh/dataflow:v0.1.0 run --config /data/config.json
 
-# Alias for export-map
-export: export-map
+# Validate the Dataflow export config and show the plan without writing anything
+export-from-pg-to-sqlite-dry-run:
+    docker run --rm --network hagiographies_default \
+        -v "$(pwd)/dataflow:/data" -v "$(pwd)/data:/out" \
+        ghcr.io/ghentcdh/dataflow:v0.1.0 run --config /data/config.json --dry-run
 
-# Run export pipeline tests
-test-export:
-    docker compose run -e DATABASE_URL=$PG_DATABASE_URL -w /app/exporter --rm utils uv run pytest -v tests/
+# ── IIIF ─────────────────────────────────────────────────────────────────────
+
+# Check whether IIIF image links point to a real manifest; writes
+# data/iiif_manifest_report.csv
+check-iiif:
+    docker compose run -e DATABASE_URL=$PG_DATABASE_URL -w /app/importer --rm utils uv run check-iiif
+
+# Same, but also discover manifests on viewer pages and store them in
+# image.iiif_manifest_url
+fix-iiif:
+    docker compose run -e DATABASE_URL=$PG_DATABASE_URL -w /app/importer --rm utils uv run check-iiif --fix
 
 # ── Modelgeneratie ───────────────────────────────────────────────────────────
 
@@ -70,33 +81,12 @@ mathesar-bootstrap:
 mathesar-summaries:
     docker compose run -w /app/mathesar --rm utils uv run mathesar-record-summaries
 
-# ── Kaartdata (pmtiles) ──────────────────────────────────────────────────────
-
-# Download latest Protomaps PMTiles basemap (Europe/Africa bbox)
-map-data:
-    mkdir -p local-map/data
-    docker run --rm \
-        -v "$(pwd)/local-map/data:/out" \
-        ghcr.io/protomaps/go-pmtiles:latest extract \
-        "https://build.protomaps.com/$(curl -s https://build-metadata.protomaps.dev/builds.json | \
-          node -e "const b=require('fs').readFileSync('/dev/stdin','utf8');\
-          console.log(JSON.parse(b).sort((a,b)=>b.key<a.key?-1:1)[0].key)")" \
-        /out/world.pmtiles \
-        --bbox=-15,30,45,70 \
-        --maxzoom=8
-
-# Alternative PMTiles download via Node script
-download-world:
-    node local-map/scripts/download-world-pmtiles.js \
-        --bbox=-15,30,45,70 \
-        --output=local-map/data/world.pmtiles \
-        --maxzoom=8
+# Apply column display metadata (e.g. no thousands separator on year columns)
+# from column_display.json
+mathesar-display:
+    docker compose run -w /app/mathesar --rm utils uv run mathesar-column-display
 
 # ── Database ─────────────────────────────────────────────────────────────────
-
-# Delete the derived SQLite snapshot files
-reset-db:
-    rm -f data/public_hagiographies.db*
 
 # Wipe the PostgreSQL data (research DB + Mathesar metadata) by recreating its
 # volume, then start clean. The importer is insert-only and skips existing BHLs,
@@ -106,13 +96,12 @@ reset-pg:
     docker volume rm hagiographies_postgres-data
     docker compose up -d
 
-# Full reset: wipe PG, rebuild, reset db, import to PG, bootstrap Mathesar
-# (metadata DB + admin user + DB connection), apply summaries, migrate to
-# SQLite, export map data, download map data
-reinit: reset-pg rebuild reset-db import-pg mathesar-bootstrap mathesar-summaries export-from-pg-to-sqlite export-map map-data
+# Full reset: wipe PG, rebuild, import to PG, bootstrap Mathesar
+# (metadata DB + admin user + DB connection), apply summaries + display config
+reinit: reset-pg rebuild import-pg mathesar-bootstrap mathesar-summaries mathesar-display
 
 # ── Dev helpers ──────────────────────────────────────────────────────────────
 
-# Open the gateway (map + Mathesar admin) in browser
+# Open the gateway (Mathesar admin) in browser
 open_url:
   open "{{GATEWAY_URL}}"

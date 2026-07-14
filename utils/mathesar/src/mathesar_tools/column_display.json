@@ -1,0 +1,19 @@
+{
+    "text": {
+        "unique_identifier": {"num_grouping": "never"},
+        "dating_range_start": {"num_grouping": "never"},
+        "dating_range_end": {"num_grouping": "never"}
+    },
+    "codex": {
+        "codex_number_in_database": {"num_grouping": "never"},
+        "dating_range_start": {"num_grouping": "never"},
+        "dating_range_end": {"num_grouping": "never"}
+    },
+    "edition": {
+        "publication_year": {"num_grouping": "never"},
+        "text_unique_identifier": {"num_grouping": "never"}
+    },
+    "datingcentury": {
+        "century": {"num_grouping": "never"}
+    }
+}

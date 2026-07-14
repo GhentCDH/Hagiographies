@@ -90,3 +90,18 @@ class MathesarClient:
                 "metadata": {"record_summary_template": [[attnum]]},
             },
         )
+
+    def set_column_metadata(
+        self, database_id: int, table_oid: int, blobs: list[dict]
+    ) -> None:
+        # Each blob is a ColumnMetaDataBlob: {"attnum": N, ...display keys...},
+        # e.g. {"attnum": 5, "num_grouping": "never"} to disable the locale
+        # thousands separator on an integer column.
+        self.rpc(
+            "columns.metadata.set",
+            {
+                "database_id": database_id,
+                "table_oid": table_oid,
+                "column_meta_data_list": blobs,
+            },
+        )

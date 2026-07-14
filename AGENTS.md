@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Hagiographies is an Excel-to-PostgreSQL import pipeline with a Mathesar admin UI and MapLibre map frontend for browsing hagiographic manuscript data. A general PostgreSQL→SQLite migration produces a derived, publishable SQLite snapshot. Developed by Ghent Centre for Digital Humanities.
+Hagiographies is an Excel-to-PostgreSQL import pipeline with a Mathesar admin UI for browsing hagiographic manuscript data. Developed by Ghent Centre for Digital Humanities.
 
 ## Common Commands
 
@@ -13,16 +13,16 @@ All commands use `just` (a command runner). Everything runs in Docker containers
 ```sh
 just rebuild                  # build and start all Docker containers
 just import-pg                # import Excel data into PostgreSQL (runs in utils container)
-just export-from-pg-to-sqlite # migrate PostgreSQL → SQLite snapshot (filter.json drops columns)
-just export-map               # export PostgreSQL → GeoJSON, copy to local-map/data/
+just export-from-pg-to-sqlite # dump PostgreSQL → data/hagiographies_full_export.sqlite via Dataflow (see dataflow/config.json)
+just export-from-pg-to-sqlite-dry-run # validate the Dataflow config, write nothing
+just check-iiif               # verify IIIF image links point to real manifests (report CSV)
+just fix-iiif                 # also discover manifests on viewer pages → image.iiif_manifest_url
 just generate-diagram         # generate SVG schema diagram from SQLModel
-just map-data                 # download PMTiles basemap for local-map
-just reset-db                 # delete the derived SQLite snapshot
-just reinit                   # full reset: rebuild + reset-db + import-pg + migrate + export + map-data
+just reinit                   # full reset: rebuild + import-pg + Mathesar bootstrap + summaries
 just up / just down           # start/stop containers without rebuilding
 ```
 
-Gateway (Caddy) runs on port 9160, serving the static map and reverse-proxying the Mathesar admin UI.
+Gateway (Caddy) runs on port 9160, reverse-proxying the Mathesar admin UI.
 
 ## Architecture
 
@@ -31,18 +31,17 @@ Gateway (Caddy) runs on port 9160, serving the static map and reverse-proxying t
 - **postgres** — PostgreSQL 17, the canonical data store
 - **mathesar** — Mathesar admin UI (port 8000), browses/edits the PostgreSQL data
 - **utils** — Python utilities container (no long-running process; used for one-off tasks via `docker compose run`)
-- **gateway** — Caddy reverse proxy (port 9160 → static map files + Mathesar)
+- **gateway** — Caddy reverse proxy (port 9160 → Mathesar)
 
 ### Python Utilities (`utils/`)
 
-Four Python sub-packages managed with UV workspaces:
+Three Python sub-packages, each standalone with its own `pyproject.toml`, run via `docker compose run -w /app/<pkg>`:
 
 - **`utilities/`** — Shared library: SQLModel data model (`model.py`), database engine config (`db.py`), env config (`config.py`)
 - **`importer/`** — Reads `hagiographies.xlsx`, normalizes data, populates PostgreSQL via SQLModel
-- **`exporter/`** — `export_sqlite.py` migrates PostgreSQL → SQLite (dropping columns listed in `filter.json`); `export_map.py` reads Places with coordinates → GeoJSON for the map
 - **`documenter/`** — Generates SVG entity diagram from SQLModel classes
 
-The canonical data model lives in `utils/utilities/src/utilities/model.py` and targets PostgreSQL. The `Table` base class provides auto-incrementing ID and `created_at`/`updated_at` audit columns (re-ordered to appear last via `_move_audit_columns_last()`). Core entities: **Text** (~60 fields), **Manuscript** (~40 fields), **Edition**, with normalized lookups (Place, Institution, Author, Typology) and many-to-many join tables.
+The canonical data model lives in `utils/utilities/src/utilities/model.py` and targets PostgreSQL. The `Table` base class provides an auto-incrementing ID. Core entities: **Text**, **Codex** (physical book), **Manuscript** (one copy of a text in a codex), **Edition** (+ **EditionVolume** for the containing book), with normalized lookups (Place, Institution, Author, Typology) and join tables (EditionManuscript, EditionConsultedVolume, ManuscriptRelation).
 
 ### Mathesar Admin
 
@@ -51,25 +50,20 @@ It keeps its own Django metadata DB (`mathesar_django`), separate from the resea
 database. Record summaries (the display label per table) are configured via the
 JSON-RPC API by `utils/mathesar/` (`just mathesar-summaries`).
 
-### Local Map (`local-map/`)
-
-Static MapLibre GL JS app served by Caddy at `/map/`. Reads `hagiographies_map.geojson` and `world.pmtiles` from `local-map/data/`.
-
 ### Data Flow
 
 ```
-hagiographies.xlsx → [importer] → PostgreSQL → [export_sqlite] → public_hagiographies.db
+hagiographies.xlsx → [importer] → PostgreSQL
                                        │
                                        ├────── Mathesar Admin (edits PostgreSQL directly)
                                        │
-                                       └────── [export_map] → hagiographies_map.geojson → MapLibre Map (local-map/)
+                                       └────── [Dataflow] → data/hagiographies_full_export.sqlite
 ```
 
 ## Key Details
 
 - PostgreSQL is the canonical store (service `postgres`); the importer and model target it
 - Mathesar (port 8000) is the admin UI, editing PostgreSQL directly; fronted by the gateway at port 9160
-- Derived SQLite snapshot at `/data/public_hagiographies.db` (container path); `data/` dir on host
-- All `data/` contents are gitignored (db, csv, xlsx, geojson, pmtiles)
+- All `data/` contents are gitignored (db, sqlite, csv, xlsx)
 - Python version: 3.13, managed with UV
 - Environment config: `dev.env` (shared by all services), `.env` (local Python path override)

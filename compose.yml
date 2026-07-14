@@ -60,7 +60,6 @@ services:
       - "9160:80"
     volumes:
       - ./caddy/:/etc/caddy/:ro
-      - ./local-map:/srv/local-map:ro
       - caddy-data:/data
       - caddy-config:/config
     restart: always

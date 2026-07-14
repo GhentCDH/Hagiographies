@@ -11,22 +11,8 @@
 	}
 	reverse_proxy @websockets mathesar:8000
 
-	# serve index.html for the root path
-	handle / {
-		file_server {
-			root /srv/local-map
-			index index.html
-		}
-	}
-
 	handle /health {
 		respond "OK" 200
-	}
-
-	# match static files and serve them directly
-	@file file
-	handle @file {
-		file_server
 	}
 
 	# forward other requests to the Mathesar admin service

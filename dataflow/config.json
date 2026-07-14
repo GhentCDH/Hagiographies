@@ -1,0 +1,12 @@
+{
+  "source": {
+    "dsn": "postgresql://hagiographies:changeme@postgres:5432/hagiographies",
+    "schema": "public"
+  },
+  "target": {
+    "path": "/out/hagiographies_full_export.sqlite"
+  },
+  "defaults": {
+    "include": true
+  }
+}
