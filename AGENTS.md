@@ -30,12 +30,16 @@ just iiif_check / iiif_fix    # LEGACY — target the parked old schema; do not 
 
 ## Import Policy: Strict Validation, Never Fix Data
 
-The import script never fixes Excel data. Any cell that fails strict
-validation (e.g. a number/year is expected but a character is present) causes
-that row to be skipped and reported with its Excel row number; valid rows are
-still imported and the importer exits non-zero (1). Rejected rows are printed
-to the console and written to `data/import_report.csv`. Fix the data in the
-workbook, never in the importer.
+The import script never fixes Excel data. The report distinguishes two
+severities: **errors** — validation fails (e.g. a number/year is expected but
+a character is present) or a required text link cannot be resolved; the row
+is rejected and reported with its Excel row number — and **warnings** — a
+linked reference (manuscript used, consulted edition, reprint-of) is not
+found; the entity itself is still imported and only the link is skipped.
+Valid rows are always imported and the importer exits non-zero (1) whenever
+anything is reported. The report is printed to the console and written to
+`data/import_report.csv`. Fix the data in the workbook, never in the
+importer.
 
 **Database selection:** `pg_import` and the `iiif_*` recipes target whatever
 `PG_DATABASE_URL` resolves to in the `utils` container — `dev.env`'s local Docker
@@ -68,10 +72,15 @@ The canonical data model lives in `utils/utilities/src/utilities/model.py` and t
 - Primary keys are `<table>_id` (autoincrement), never plain `id`.
 - Foreign keys are real database constraints (`Field(foreign_key=...)` emits `FOREIGN KEY ... REFERENCES` DDL), and every FK pair also has SQLModel `Relationship(back_populates=...)` navigation on both sides. `just pg_schema_create` recreates the full schema, FKs included, without any data.
 - Every imported field records its source Excel column via `excel_field()`, both as a pydantic description and as a PostgreSQL column comment (visible in `\d+` and Mathesar).
-- Identifiers are the given, stable workbook identifiers, concatenated as-is: `text.identifier` = `BHL or NO BHL` prefix (spaces → `_`) + `_` + `Unique identifier` (e.g. `BHL_29`, `NO_BHL_ALPER`); `manuscript.identifier` = prefix + `_` + `Manuscript copy unique identifier per text` (e.g. `BHL_29-4`).
+- Identifiers are the given, stable workbook identifiers, concatenated as-is: `text.identifier` = `BHL or NO BHL` prefix (spaces → `_`) + `_` + `Unique identifier` (e.g. `BHL_29`, `NO_BHL_ALPER`); `manuscript.identifier` = prefix + `_` + `Manuscript copy unique identifier per text` (e.g. `BHL_29-4`); `edition.identifier_per_text` = the text's prefix + `_` + `Edition unique identifier per individual text` (e.g. `BHL_29-A`).
+- `manuscript` and `edition` carry no `title` — the title lives on `text`, reachable via the required `text_id` FK on both.
 - Two documented exceptions to the no-normalization rule: manuscript preservation-status labels are matched case-insensitively to `Lost`/`Preserved`, and holding-institution names differing only in case/whitespace are merged (most frequent spelling wins); an institution of `N/A` becomes a NULL FK.
 
-Current entities (schema restart, July 2026 — grown incrementally from here): **Text** with lookups **TextForm** (`text_form`, prose/verse), **TextSourceType** (`text_source_type`), **TextSourceSubtype** (`text_source_subtype`); **Manuscript** with lookups **ManuscriptPreservationStatus** (`manuscript_preservation_status`) and **ManuscriptHoldingInstitution** (`manuscript_holding_institution`); **Edition** (basic metadata: title, publication_year, reprint).
+Current entities (schema restart, July 2026 — grown incrementally from here): **Text** (identification, dating incl. `dating_confidence` FK, réécriture incl. self-FK `reecriture_text_id`, author FK, creation/destinatary geography FKs, reference, general_note) with lookups **TextForm**, **TextSourceType**, **TextSourceSubtype**, **DatingConfidence**; **Author** (deduped by name; anonymous authors are one row per text named `Anonymous <text.identifier>` with the raw cell in `note`) with lookup **AuthorMilieu**; geography **Location** (lat/long, deduped by coordinates), **Archdiocese**, **Diocese**, **Institution** (each `name` + optional `location_id` + `note`); **Manuscript** (FK to text) with lookups **ManuscriptPreservationStatus** and **ManuscriptHoldingInstitution**; **Edition** (FK to text, prefixed per-text identifier, publication metadata, reprint flags + self-FK `reprint_of_edition_id`); link tables **EditionManuscript** (`edition__manuscripts`, tri-state `likely_use_of_a_copy`) and **EditionEdition** (`edition__edition`); **Repertory** and **RepertoryLink** — hand-curated, not populated by the importer.
+
+TEXTS-sheet geography quirks: the GPS column headers are **swapped** in the workbook — the '… GPS Longitude' column holds latitude ×10⁶ and '… GPS Latitude' holds longitude ×10⁶; the importer reads them swapped/unscaled and requires Western-Europe coordinates (lat 44–56, lon −2–10), warning otherwise. `'Unknown'` and `'N/A'` in institution/destinatary/milieu columns mean NULL. The 'Precise institutional origin?'/'Precise destinatary?' flags are not stored (institution presence implies precision).
+
+EDITIONS-sheet reference resolution (all cross-links resolve within the parsed workbook, purely, before any DB write): the edition→text link matches `Unique identifier` against the TEXTS identifier suffix; manuscript refs are tried as a copy identifier (`29-1`) then as a codex identifier within the edition's text (`Cologne HA 6`); edition refs (consulted, reprint-of) are tried as a per-text edition identifier (`618-A`, when globally unique) then as an `(inc. volume)` identifier within the same text (`Surius 5 (1574)`). A ref of `N/A` means no link; every other unresolvable or ambiguous ref is reported (the edition row itself is kept, except an unresolvable *text* link which rejects the row).
 
 The pre-restart 20-table model and its importer are **parked, reference only**: `utils/utilities/src/utilities/legacy_model.py` and `utils/importer/src/importer/legacy/`. Do not build new code against them.
 

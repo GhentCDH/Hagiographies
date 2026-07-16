@@ -6,6 +6,7 @@ with trailing spaces. A missing sheet or header is a fatal error — the
 workbook layout is a contract, not something to guess around.
 """
 
+import re
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
@@ -35,23 +36,31 @@ def sheet(workbook: Workbook, name: str) -> Worksheet:
     )
 
 
+def _normalize_header(header: str) -> str:
+    """Collapse all whitespace runs (incl. non-breaking spaces) to one space.
+
+    The workbook has headers like 'Likely\\xa0use of a copy of Manuscript 3?'
+    where a non-breaking space stands in for a regular one.
+    """
+    return re.sub(r"\s+", " ", header).strip()
+
+
 def header_map(ws: Worksheet, expected: list[str]) -> dict[str, int]:
     """Map each expected header to its 0-based column index.
 
-    Headers are matched on their stripped form (row 1). Every expected
-    header must be present.
+    Headers are matched on their whitespace-normalized form (row 1). Every
+    expected header must be present.
     """
     first_row = next(ws.iter_rows(min_row=1, max_row=1, values_only=True), ())
     positions: dict[str, int] = {}
     for index, header in enumerate(first_row):
         if header is None:
             continue
-        stripped = str(header).strip()
-        positions.setdefault(stripped, index)
-    missing = [h for h in expected if h not in positions]
+        positions.setdefault(_normalize_header(str(header)), index)
+    missing = [h for h in expected if _normalize_header(h) not in positions]
     if missing:
         raise WorkbookError(f"sheet {ws.title.strip()!r} is missing headers: {missing}")
-    return {h: positions[h] for h in expected}
+    return {h: positions[_normalize_header(h)] for h in expected}
 
 
 def data_rows(ws: Worksheet) -> Iterator[tuple[int, tuple[Any, ...]]]:

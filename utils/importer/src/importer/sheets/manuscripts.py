@@ -5,7 +5,9 @@ by utilities.model.excel_field):
 
     'BHL or NO BHL' + '_' + 'Manuscript copy unique identifier per text'
                                      →  manuscript.identifier (e.g. BHL_29-4)
-    'Title'                          →  manuscript.title
+    'Unique text identifier'         →  manuscript.text_id (prefix + uid must
+                                        match a text.identifier; no match
+                                        rejects the row)
     'Preservation status of manuscript copy'
                                      →  manuscript_preservation_status lookup
     'Manuscript holding institution' →  manuscript_holding_institution lookup
@@ -30,6 +32,7 @@ from utilities.model import (
     Manuscript,
     ManuscriptHoldingInstitution,
     ManuscriptPreservationStatus,
+    Text,
 )
 
 from ..excel import data_rows, header_map, is_empty
@@ -45,7 +48,8 @@ SPECS: dict[str, FieldSpec] = {
     "copy_id": FieldSpec(
         "Manuscript copy unique identifier per text", strict_str, required=True
     ),
-    "title": FieldSpec("Title", strict_str),
+    "text_uid": FieldSpec("Unique text identifier", strict_str, required=True),
+    "codex": FieldSpec("Codex unique identifier", strict_str),
     "preservation": FieldSpec(
         "Preservation status of manuscript copy", strict_canonical("Lost", "Preserved")
     ),
@@ -55,17 +59,31 @@ SPECS: dict[str, FieldSpec] = {
 
 @dataclass(frozen=True)
 class ManuscriptRow:
-    """A fully validated MANUSCRIPTS row, ready for the database."""
+    """A fully validated MANUSCRIPTS row, ready for the database.
+
+    codex_identifier is not stored in the manuscript table (yet); the
+    EDITIONS sheet references manuscripts by copy id or by codex-within-text,
+    so the editions linker needs it (and text_unique_id).
+    """
 
     excel_row: int
     identifier: str
-    title: str | None
+    copy_id: str
+    text_identifier: str
+    text_unique_id: str
+    codex_identifier: str | None
     preservation_label: str | None
     institution_name: str | None
 
 
-def parse_sheet(ws: Worksheet, report: ImportReport) -> list[ManuscriptRow]:
-    """Phase 1 — validate every row; no database involved."""
+def parse_sheet(
+    ws: Worksheet, report: ImportReport, context: dict[str, list] | None = None
+) -> list[ManuscriptRow]:
+    """Phase 1 — validate every row; no database involved.
+
+    Requires the parsed TEXTS rows in context to resolve the text link.
+    """
+    text_identifiers = {t.identifier for t in (context or {}).get("TEXTS", [])}
     columns = header_map(ws, [spec.column for spec in SPECS.values()])
     rows: list[ManuscriptRow] = []
     first_seen: dict[str, int] = {}
@@ -95,7 +113,22 @@ def parse_sheet(ws: Worksheet, report: ImportReport) -> list[ManuscriptRow]:
         if not row_ok:
             continue
 
-        identifier = f"{parsed['bhl_prefix'].replace(' ', '_')}_{parsed['copy_id']}"
+        prefix = parsed["bhl_prefix"].replace(" ", "_")
+        text_identifier = f"{prefix}_{parsed['text_uid']}"
+        if text_identifier not in text_identifiers:
+            report.errors.append(
+                RowError(
+                    SHEET,
+                    excel_row,
+                    "Unique text identifier",
+                    parsed["text_uid"],
+                    f"no text with identifier {text_identifier!r} "
+                    "(or its TEXTS row was rejected)",
+                )
+            )
+            continue
+
+        identifier = f"{prefix}_{parsed['copy_id']}"
         if identifier in first_seen:
             report.errors.append(
                 RowError(
@@ -117,7 +150,10 @@ def parse_sheet(ws: Worksheet, report: ImportReport) -> list[ManuscriptRow]:
             ManuscriptRow(
                 excel_row=excel_row,
                 identifier=identifier,
-                title=parsed["title"],
+                copy_id=parsed["copy_id"],
+                text_identifier=text_identifier,
+                text_unique_id=parsed["text_uid"],
+                codex_identifier=parsed["codex"],
                 preservation_label=parsed["preservation"],
                 institution_name=institution,
             )
@@ -157,6 +193,10 @@ def _canonical_institutions(rows: list[ManuscriptRow]) -> dict[str, str]:
 
 def import_rows(session: Session, rows: list[ManuscriptRow]) -> int:
     """Phase 2 — insert lookups then manuscript rows. Caller commits."""
+    text_ids = {
+        identifier: pk
+        for identifier, pk in session.exec(select(Text.identifier, Text.text_id)).all()
+    }
     canonical = _canonical_institutions(rows)
 
     statuses: dict[str, int] = {}
@@ -189,7 +229,7 @@ def import_rows(session: Session, rows: list[ManuscriptRow]) -> int:
         session.add(
             Manuscript(
                 identifier=row.identifier,
-                title=row.title,
+                text_id=text_ids[row.text_identifier],
                 manuscript_preservation_status_id=statuses[row.preservation_label]
                 if row.preservation_label
                 else None,

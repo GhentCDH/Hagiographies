@@ -6,5 +6,13 @@
     "manuscript": "identifier",
     "manuscript_preservation_status": "label",
     "manuscript_holding_institution": "name",
-    "edition": "title"
+    "edition": "identifier_per_text",
+    "repertory": "name",
+    "location": "name",
+    "archdiocese": "name",
+    "diocese": "name",
+    "institution": "name",
+    "author": "name",
+    "author_milieu": "label",
+    "dating_confidence": "label"
 }

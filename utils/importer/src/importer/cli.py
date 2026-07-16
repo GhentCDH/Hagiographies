@@ -58,10 +58,13 @@ def _parse_workbook(report: ImportReport) -> dict[str, list]:
     """Phase 1 for every registered sheet. Fatal workbook problems exit 2."""
     try:
         workbook = excel.load(EXCEL)
+        # Parsed rows accumulate in registry order so later sheets can
+        # resolve cross-sheet references (EDITIONS links to TEXTS and
+        # MANUSCRIPTS) purely, without a database.
         parsed = {}
         for module in SHEET_MODULES:
             ws = excel.sheet(workbook, module.SHEET)
-            parsed[module.SHEET] = module.parse_sheet(ws, report)
+            parsed[module.SHEET] = module.parse_sheet(ws, report, parsed)
             log.info("sheet %s: %d valid rows", module.SHEET, len(parsed[module.SHEET]))
         return parsed
     except excel.WorkbookError as error:

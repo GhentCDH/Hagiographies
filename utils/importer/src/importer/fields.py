@@ -90,10 +90,9 @@ def strict_canonical(*canonical: str) -> Parser:
 
 
 def strict_yesno(value: Any) -> bool | None:
-    """A YES/NO cell (case-insensitive) → bool; empty → None.
+    """A YES/NO cell (case-insensitive) → bool; empty or 'N/A' → None.
 
-    Anything else — 'to be verified', 'N/A', 'NO (?)' — is a validation
-    failure.
+    Anything else — 'to be verified', 'NO (?)' — is a validation failure.
     """
     text = strict_str(value)
     if text is None:
@@ -103,7 +102,28 @@ def strict_yesno(value: Any) -> bool | None:
         return True
     if fold == "no":
         return False
-    raise CellError(f"expected YES or NO, got {text!r}")
+    if fold == "n/a":
+        return None
+    raise CellError(f"expected YES, NO or N/A, got {text!r}")
+
+
+def strict_tristate(value: Any) -> bool | None:
+    """A tri-state cell: YES → True, NO → False, unknown → None.
+
+    'N/A', '?', 'Unknown' and empty all mean unknown; anything else
+    ('to be verified', stray values) is a validation failure.
+    """
+    text = strict_str(value)
+    if text is None:
+        return None
+    fold = text.casefold()
+    if fold == "yes":
+        return True
+    if fold == "no":
+        return False
+    if fold in {"n/a", "?", "unknown"}:
+        return None
+    raise CellError(f"expected YES, NO, N/A, ? or Unknown, got {text!r}")
 
 
 @dataclass(frozen=True)
