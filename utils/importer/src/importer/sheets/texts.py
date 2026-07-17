@@ -199,10 +199,12 @@ def parse_sheet(
 
     prelim: list[dict[str, Any]] = []
     first_seen: dict[str, int] = {}
+    data_row_count = 0
     for excel_row, values in data_rows(ws):
         if is_empty(values):
             report.skipped_empty.append(excel_row)
             continue
+        data_row_count += 1
 
         parsed: dict[str, Any] = {"excel_row": excel_row}
         row_ok = True
@@ -211,11 +213,13 @@ def parse_sheet(
             try:
                 parsed[name] = spec.parser(raw)
             except CellError as error:
+                # Relaxed validation (user decision, July 2026): a bad cell
+                # empties the field, it never rejects the row.
+                parsed[name] = None
                 report.errors.append(
-                    RowError(SHEET, excel_row, spec.column, raw, str(error))
+                    RowError(SHEET, excel_row, spec.column, raw,
+                             f"{error}; field left empty", severity="warning")
                 )
-                row_ok = False
-                continue
             if spec.required and parsed[name] is None:
                 report.errors.append(
                     RowError(SHEET, excel_row, spec.column, raw, "required value is missing")
@@ -372,6 +376,7 @@ def parse_sheet(
         )
 
     report.parsed += len(rows)
+    report.sheet_counts[SHEET] = (data_row_count, len(rows))
     return rows
 
 

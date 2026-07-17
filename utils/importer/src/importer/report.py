@@ -39,6 +39,9 @@ class ImportReport:
     # (sheet, column header) → Excel column letter ('AI'), registered by each
     # sheet parser from its header map so reports can point at the exact cell.
     column_letters: dict[tuple[str, str], str] = field(default_factory=dict)
+    # sheet → (non-empty data rows seen, rows parsed for import). The two
+    # numbers must match: no record may be lost to validation.
+    sheet_counts: dict[str, tuple[int, int]] = field(default_factory=dict)
 
     def register_columns(self, sheet: str, columns: dict[str, int]) -> None:
         """Record the Excel letter of each header (0-based index) of a sheet."""
@@ -91,6 +94,14 @@ class ImportReport:
             empty_note = f", {len(rows)} empty rows skipped (Excel rows {shown})"
         else:
             empty_note = ""
+        for sheet, (seen, parsed) in self.sheet_counts.items():
+            style = "green" if seen == parsed else "bold red"
+            console.print(
+                f"[{style}]{sheet}: {parsed} of {seen} data rows "
+                f"{'imported' if imported else 'valid'}"
+                + ("" if seen == parsed else " — RECORDS LOST")
+                + f"[/{style}]"
+            )
         console.print(
             f"[bold]{self.parsed}[/bold] valid rows"
             + (f", [bold]{self.imported}[/bold] imported" if imported else "")

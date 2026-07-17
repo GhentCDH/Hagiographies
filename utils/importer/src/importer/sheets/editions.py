@@ -86,7 +86,7 @@ log = logging.getLogger(__name__)
 SHEET = "EDITIONS"
 
 SPECS: dict[str, FieldSpec] = {
-    "text_uid": FieldSpec("Unique identifier", strict_str, required=True),
+    "text_uid": FieldSpec("Unique identifier", strict_str),
     "identifier_per_text": FieldSpec(
         "Edition unique identifier per individual text", strict_str, required=True
     ),
@@ -144,8 +144,8 @@ class EditionRow:
     """
 
     excel_row: int
-    text_identifier: str
-    identifier_per_text: str  # prefixed, e.g. BHL_29-A
+    text_identifier: str | None  # None: reference resolves to no text
+    identifier_per_text: str  # prefixed, e.g. BHL_29-A (raw when no text)
     publication_year: int | None
     reference: str | None
     page_numbers: str | None
@@ -199,10 +199,12 @@ def parse_sheet(
 
     # First pass: cell-level validation of the row's own fields.
     prelim: list[tuple[int, dict[str, Any], tuple[Any, ...]]] = []
+    data_row_count = 0
     for excel_row, values in data_rows(ws):
         if is_empty(values):
             report.skipped_empty.append(excel_row)
             continue
+        data_row_count += 1
 
         parsed: dict[str, Any] = {}
         row_ok = True
@@ -211,11 +213,13 @@ def parse_sheet(
             try:
                 parsed[name] = spec.parser(raw)
             except CellError as error:
+                # Relaxed validation (user decision, July 2026): a bad cell
+                # empties the field, it never rejects the row.
+                parsed[name] = None
                 report.errors.append(
-                    RowError(SHEET, excel_row, spec.column, raw, str(error))
+                    RowError(SHEET, excel_row, spec.column, raw,
+                             f"{error}; field left empty", severity="warning")
                 )
-                row_ok = False
-                continue
             if spec.required and parsed[name] is None:
                 report.errors.append(
                     RowError(SHEET, excel_row, spec.column, raw, "required value is missing")
@@ -224,6 +228,8 @@ def parse_sheet(
         if not row_ok:
             continue
 
+        # An unresolvable (or missing) text reference keeps the edition:
+        # text_id stays NULL and the raw reference goes to general_notes.
         if parsed["text_uid"] not in text_by_uid:
             report.errors.append(
                 RowError(
@@ -231,10 +237,17 @@ def parse_sheet(
                     excel_row,
                     "Unique identifier",
                     parsed["text_uid"],
-                    "no text with this unique identifier (or its TEXTS row was rejected)",
+                    "no text with this unique identifier (or its TEXTS row "
+                    "was rejected); edition imported without text link",
+                    severity="warning",
                 )
             )
-            continue
+            parsed["unresolved_note"] = (
+                f"unresolved text reference: {parsed['text_uid']!r}"
+            )
+            parsed["text_uid"] = None
+        else:
+            parsed["unresolved_note"] = None
         if parsed["reprint_of"] == NO_LINK:
             parsed["reprint_of"] = None
 
@@ -407,9 +420,11 @@ def parse_sheet(
         rows.append(
             EditionRow(
                 excel_row=excel_row,
-                text_identifier=text_by_uid[text_uid],
+                text_identifier=text_by_uid[text_uid] if text_uid else None,
                 identifier_per_text=(
                     f"{prefix_by_uid[text_uid]}_{parsed['identifier_per_text']}"
+                    if text_uid
+                    else parsed["identifier_per_text"]
                 ),
                 publication_year=parsed["publication_year"],
                 reference=parsed["reference"],
@@ -421,13 +436,19 @@ def parse_sheet(
                 collation_done=parsed["collation_done"],
                 link_type_label=parsed["link_type_label"],
                 link_url=parsed["link_url"],
-                general_notes=parsed["general_notes"],
+                general_notes="; ".join(
+                    note
+                    for note in (parsed["unresolved_note"], parsed["general_notes"])
+                    if note
+                )
+                or None,
                 manuscript_links=tuple(manuscript_links),
                 consulted_indices=tuple(consulted),
             )
         )
 
     report.parsed += len(rows)
+    report.sheet_counts[SHEET] = (data_row_count, len(rows))
     return rows
 
 
@@ -449,7 +470,9 @@ def import_rows(session: Session, rows: list[EditionRow]) -> int:
 
     editions = [
         Edition(
-            text_id=text_ids[row.text_identifier],
+            text_id=(
+                text_ids.get(row.text_identifier) if row.text_identifier else None
+            ),
             identifier_per_text=row.identifier_per_text,
             publication_year=row.publication_year,
             reference=row.reference,

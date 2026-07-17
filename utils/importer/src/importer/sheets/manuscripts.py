@@ -220,7 +220,7 @@ SPECS: dict[str, FieldSpec] = {
     "copy_id": FieldSpec(
         "Manuscript copy unique identifier per text", strict_str, required=True
     ),
-    "text_uid": FieldSpec("Unique text identifier", strict_str, required=True),
+    "text_uid": FieldSpec("Unique text identifier", strict_str),
     "codex_number": FieldSpec("Codex number in database", _null_na(strict_int)),
     "codex": FieldSpec("Codex unique identifier", strict_str),
     "codex_multiple_copies": FieldSpec(
@@ -543,10 +543,12 @@ def parse_sheet(
 
     # First pass: per-row validation (everything except relations).
     prelim: list[dict[str, Any]] = []
+    data_row_count = 0
     for excel_row, values in data_rows(ws):
         if is_empty(values):
             report.skipped_empty.append(excel_row)
             continue
+        data_row_count += 1
 
         parsed: dict[str, Any] = {}
         row_ok = True
@@ -555,11 +557,13 @@ def parse_sheet(
             try:
                 parsed[name] = spec.parser(raw)
             except CellError as error:
+                # Relaxed validation (user decision, July 2026): a bad cell
+                # empties the field, it never rejects the row.
+                parsed[name] = None
                 report.errors.append(
-                    RowError(SHEET, excel_row, spec.column, raw, str(error))
+                    RowError(SHEET, excel_row, spec.column, raw,
+                             f"{error}; field left empty", severity="warning")
                 )
-                row_ok = False
-                continue
             if spec.required and parsed[name] is None:
                 report.errors.append(
                     RowError(SHEET, excel_row, spec.column, raw, "required value is missing")
@@ -570,28 +574,41 @@ def parse_sheet(
         try:
             parsed["provenance_early"] = strict_str(values[early_owner_index])
         except CellError as error:
+            parsed["provenance_early"] = None
             report.errors.append(
                 RowError(SHEET, excel_row, PROVENANCE_EARLY_OWNER_COLUMN,
-                         values[early_owner_index], str(error))
+                         values[early_owner_index],
+                         f"{error}; field left empty", severity="warning")
             )
-            row_ok = False
         try:
             parsed["provenance_early_confidence"] = _strict_confidence(
                 values[early_confidence_index]
             )
         except CellError as error:
+            parsed["provenance_early_confidence"] = None
             report.errors.append(
                 RowError(SHEET, excel_row, PROVENANCE_EARLY_CONFIDENCE_COLUMN,
-                         values[early_confidence_index], str(error))
+                         values[early_confidence_index],
+                         f"{error}; field left empty", severity="warning")
             )
-            row_ok = False
         if not row_ok:
             continue
 
         prefix = parsed["bhl_prefix"].replace(" ", "_")
-        text_identifier: str | None = f"{prefix}_{parsed['text_uid']}"
+        text_identifier: str | None = (
+            f"{prefix}_{parsed['text_uid']}" if parsed["text_uid"] else None
+        )
         unresolved_note = None
-        if text_identifier not in text_identifiers:
+        if text_identifier is None:
+            report.errors.append(
+                RowError(
+                    SHEET, excel_row, "Unique text identifier", None,
+                    "missing text reference; manuscript imported without "
+                    "text link", severity="warning",
+                )
+            )
+            unresolved_note = "missing text reference"
+        elif text_identifier not in text_identifiers:
             report.errors.append(
                 RowError(
                     SHEET,
@@ -615,11 +632,14 @@ def parse_sheet(
                     excel_row,
                     "'BHL or NO BHL' + 'Manuscript copy unique identifier per text'",
                     identifier,
-                    f"duplicate identifier (first seen at Excel row {first_seen[identifier]})",
+                    f"duplicate identifier (first seen at Excel row "
+                    f"{first_seen[identifier]}); imported anyway — references "
+                    "resolve to the first occurrence",
+                    severity="warning",
                 )
             )
-            continue
-        first_seen[identifier] = excel_row
+        else:
+            first_seen[identifier] = excel_row
 
         institution = parsed["institution"]
         if institution == NOT_APPLICABLE:
@@ -877,6 +897,7 @@ def parse_sheet(
         rows.append(ManuscriptRow(relations=tuple(relations), **row))
 
     report.parsed += len(rows)
+    report.sheet_counts[SHEET] = (data_row_count, len(rows))
     return rows
 
 
