@@ -54,6 +54,21 @@ def _engine():
     return engine
 
 
+def _announce_database(engine) -> None:
+    """Print the resolved DB target; .env can silently retarget a remote server."""
+    url = engine.url
+    if url.host == "postgres":  # the compose service name (dev.env default)
+        console.print(
+            f"database: {url.render_as_string(hide_password=True)} "
+            "[green](local Docker)[/green]"
+        )
+    else:
+        console.print(
+            f"database: {url.render_as_string(hide_password=True)} "
+            "[bold red](REMOTE)[/bold red]"
+        )
+
+
 def _parse_workbook(report: ImportReport) -> dict[str, list]:
     """Phase 1 for every registered sheet. Fatal workbook problems exit 2."""
     try:
@@ -73,11 +88,16 @@ def _parse_workbook(report: ImportReport) -> dict[str, list]:
 
 
 def _finish(report: ImportReport, report_file: Path, *, imported: bool) -> None:
-    """Render the report, write the CSV if needed, set the exit code."""
+    """Render the report, write the CSV/HTML if needed, set the exit code."""
     report.render(console, imported=imported)
     if report.errors:
         report.write_csv(report_file)
-        console.print(f"rejected-rows report written to [bold]{report_file}[/bold]")
+        html_file = report_file.with_suffix(".html")
+        report.write_html(html_file)
+        console.print(
+            f"rejected-rows report written to [bold]{report_file}[/bold] "
+            f"and [bold]{html_file}[/bold]"
+        )
         raise typer.Exit(code=1)
 
 
@@ -94,7 +114,9 @@ def validate(
 @app.command("create-schema")
 def create_schema_command() -> None:
     """Create the metadata schema (tables, constraints, comments); no data."""
-    create_schema(_engine())
+    engine = _engine()
+    _announce_database(engine)
+    create_schema(engine)
     console.print("schema created")
 
 
@@ -104,6 +126,7 @@ def drop_schema_command(
 ) -> None:
     """Drop and recreate the public schema of the research database."""
     engine = _engine()
+    _announce_database(engine)
     url = engine.url
     if not yes:
         typer.confirm(
@@ -126,10 +149,12 @@ def import_data(
     report_file: Path = typer.Option(DEFAULT_REPORT, help="CSV report of rejected rows."),
 ) -> None:
     """Validate the workbook and import all valid rows."""
+    engine = _engine()
+    _announce_database(engine)
+
     report = ImportReport()
     parsed = _parse_workbook(report)
 
-    engine = _engine()
     if with_schema:
         create_schema(engine)
     with Session(engine) as session:

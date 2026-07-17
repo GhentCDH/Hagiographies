@@ -15,10 +15,24 @@ by utilities.model.excel_field):
                              →  edition.reprint_identical (N/A → NULL)
     'If reprint, of what?'   →  edition.reprint_of (raw, N/A → NULL)
                                 + edition.reprint_of_edition_id (resolved)
+    'Images of edition?' + 'Edition images link'
+                             →  an edition_link row: the link cell's
+                                hyperlink URL, typed by the 'Images of
+                                edition?' value (SCAN → 'Images Scan',
+                                Transcription → 'Transcription'; NO/N/A →
+                                no link). A SCAN/Transcription row whose link
+                                cell has no hyperlink, or whose hyperlink is
+                                not an http(s) URL, keeps the edition and
+                                only warns.
+    'Collation done?'        →  edition.collation_done (tri-state boolean;
+                                a non-tristate value — 'Trace edition',
+                                'Exception', 'to be verified' — warns and
+                                leaves NULL, the row is kept)
     'Manuscript used 1'–'16' + 'Likely use of a copy of Manuscript 1'–'16?'
                              →  edition__manuscripts link rows
     'Edition used or consulted 1'–'5'
                              →  edition__edition link rows
+    'Notes'                  →  edition.general_notes
 
 Reference resolution (this sheet links by several vocabularies):
   - text link: 'Unique identifier' must equal a TEXTS 'Unique identifier'
@@ -41,15 +55,25 @@ import logging
 from dataclasses import dataclass
 from typing import Any
 
+from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.worksheet import Worksheet
 from sqlmodel import Session, select
 
-from utilities.model import Edition, EditionEdition, EditionManuscript, Manuscript, Text
+from utilities.model import (
+    Edition,
+    EditionEdition,
+    EditionLink,
+    EditionLinkType,
+    EditionManuscript,
+    Manuscript,
+    Text,
+)
 
-from ..excel import data_rows, header_map, is_empty
+from ..excel import cell_hyperlinks, data_rows, header_map, is_empty
 from ..fields import (
     CellError,
     FieldSpec,
+    strict_canonical,
     strict_int,
     strict_str,
     strict_tristate,
@@ -72,10 +96,30 @@ SPECS: dict[str, FieldSpec] = {
     "reprint": FieldSpec("Reprint ?", strict_yesno),
     "reprint_identical": FieldSpec("If reprint, identically typeset?", strict_yesno),
     "reprint_of": FieldSpec("If reprint, of what?", strict_str),
+    # Routes the 'Edition images link' hyperlink to scan_link or
+    # transcription_link; the label itself is not stored.
+    "images_of_edition": FieldSpec(
+        "Images of edition?", strict_canonical("SCAN", "Transcription", "NO", "N/A")
+    ),
     # Resolution key only (not stored): identifies this edition's containing
     # volume, the vocabulary other rows use to reference it.
     "volume": FieldSpec("Edition unique identifier (inc. volume)", strict_str),
+    "general_notes": FieldSpec("Notes", strict_str),
 }
+
+# Tri-state, but parsed outside SPECS: a non-tristate value ('Trace
+# edition', 'Exception', …) warns and leaves NULL instead of rejecting
+# the row.
+COLLATION_COLUMN = "Collation done?"
+
+# The URL lives in this cell's hyperlink, not its display value ('Link').
+IMAGES_LINK_COLUMN = "Edition images link"
+
+# 'Images of edition?' value → edition_link_type label.
+IMAGES_TYPE_BY_VALUE = {"SCAN": "Images Scan", "Transcription": "Transcription"}
+
+# All edition_link_type rows, seeded even when unused.
+LINK_TYPE_LABELS: list[str] = ["Images Scan", "Transcription"]
 
 MANUSCRIPT_COLUMNS = [(f"Manuscript used {k}", f"Likely use of a copy of Manuscript {k}?") for k in range(1, 17)]
 CONSULTED_COLUMNS = [f"Edition used or consulted {k}" for k in range(1, 6)]
@@ -109,6 +153,10 @@ class EditionRow:
     reprint_identical: bool | None
     reprint_of: str | None
     reprint_of_index: int | None
+    collation_done: bool | None
+    link_type_label: str | None
+    link_url: str | None
+    general_notes: str | None
     manuscript_links: tuple[ManuscriptLink, ...]
     consulted_indices: tuple[int, ...]
 
@@ -141,9 +189,13 @@ def parse_sheet(
     columns = header_map(
         ws,
         [spec.column for spec in SPECS.values()]
+        + [COLLATION_COLUMN, IMAGES_LINK_COLUMN]
         + [c for pair in MANUSCRIPT_COLUMNS for c in pair]
         + CONSULTED_COLUMNS,
     )
+    report.register_columns(SHEET, columns)
+    hyperlinks = cell_hyperlinks(ws)
+    images_link_letter = get_column_letter(columns[IMAGES_LINK_COLUMN] + 1)
 
     # First pass: cell-level validation of the row's own fields.
     prelim: list[tuple[int, dict[str, Any], tuple[Any, ...]]] = []
@@ -185,6 +237,57 @@ def parse_sheet(
             continue
         if parsed["reprint_of"] == NO_LINK:
             parsed["reprint_of"] = None
+
+        # Tri-state, downgraded: a stray value ('Trace edition', 'Exception')
+        # warns and leaves collation_done NULL — the row is kept.
+        raw_collation = values[columns[COLLATION_COLUMN]]
+        parsed["collation_done"] = None
+        try:
+            parsed["collation_done"] = strict_tristate(raw_collation)
+        except CellError as error:
+            report.errors.append(
+                RowError(
+                    SHEET,
+                    excel_row,
+                    COLLATION_COLUMN,
+                    raw_collation,
+                    str(error),
+                    severity="warning",
+                )
+            )
+
+        # Type the 'Edition images link' hyperlink; the cell's display value
+        # is just 'Link'. NO/N/A/empty mean no link is expected.
+        parsed["link_type_label"] = parsed["link_url"] = None
+        images = parsed["images_of_edition"]
+        if images in IMAGES_TYPE_BY_VALUE:
+            url = hyperlinks.get(f"{images_link_letter}{excel_row}")
+            if url is None:
+                report.errors.append(
+                    RowError(
+                        SHEET,
+                        excel_row,
+                        IMAGES_LINK_COLUMN,
+                        values[columns[IMAGES_LINK_COLUMN]],
+                        f"'Images of edition?' is {images} but the link cell "
+                        "has no hyperlink",
+                        severity="warning",
+                    )
+                )
+            elif not url.startswith(("http://", "https://")):
+                report.errors.append(
+                    RowError(
+                        SHEET,
+                        excel_row,
+                        IMAGES_LINK_COLUMN,
+                        url,
+                        "hyperlink is not an http(s) URL",
+                        severity="warning",
+                    )
+                )
+            else:
+                parsed["link_type_label"] = IMAGES_TYPE_BY_VALUE[images]
+                parsed["link_url"] = url
         prelim.append((excel_row, parsed, values))
 
     # Reference vocabularies, built from surviving rows only.
@@ -315,6 +418,10 @@ def parse_sheet(
                 reprint_identical=parsed["reprint_identical"],
                 reprint_of=parsed["reprint_of"],
                 reprint_of_index=reprint_of_index,
+                collation_done=parsed["collation_done"],
+                link_type_label=parsed["link_type_label"],
+                link_url=parsed["link_url"],
+                general_notes=parsed["general_notes"],
                 manuscript_links=tuple(manuscript_links),
                 consulted_indices=tuple(consulted),
             )
@@ -325,11 +432,14 @@ def parse_sheet(
 
 
 def import_rows(session: Session, rows: list[EditionRow]) -> int:
-    """Phase 2 — insert editions, then their link rows. Caller commits."""
+    """Phase 2 — insert lookups, editions, then their link rows. Caller commits."""
+    from .texts import _lookup_ids
+
     text_ids = {
         identifier: pk
         for identifier, pk in session.exec(select(Text.identifier, Text.text_id)).all()
     }
+    link_types = _lookup_ids(session, EditionLinkType, set(LINK_TYPE_LABELS))
     manuscript_ids = {
         identifier: pk
         for identifier, pk in session.exec(
@@ -347,16 +457,27 @@ def import_rows(session: Session, rows: list[EditionRow]) -> int:
             reprint=row.reprint,
             reprint_identical=row.reprint_identical,
             reprint_of=row.reprint_of,
+            collation_done=row.collation_done,
+            general_notes=row.general_notes,
         )
         for row in rows
     ]
     session.add_all(editions)
     session.flush()  # assign edition_ids so self-links can point at them
 
-    manuscript_link_count = consulted_count = 0
+    url_link_count = manuscript_link_count = consulted_count = 0
     for row, edition in zip(rows, editions):
         if row.reprint_of_index is not None:
             edition.reprint_of_edition_id = editions[row.reprint_of_index].edition_id
+        if row.link_url is not None:
+            session.add(
+                EditionLink(
+                    edition_id=edition.edition_id,
+                    edition_link_type_id=link_types[row.link_type_label],
+                    url=row.link_url,
+                )
+            )
+            url_link_count += 1
         for link in row.manuscript_links:
             session.add(
                 EditionManuscript(
@@ -376,7 +497,8 @@ def import_rows(session: Session, rows: list[EditionRow]) -> int:
             consulted_count += 1
 
     log.info(
-        "staged %d edition rows, %d manuscript links, %d consulted-edition links",
-        len(rows), manuscript_link_count, consulted_count,
+        "staged %d edition rows, %d URL links, %d manuscript links, "
+        "%d consulted-edition links",
+        len(rows), url_link_count, manuscript_link_count, consulted_count,
     )
     return len(rows)

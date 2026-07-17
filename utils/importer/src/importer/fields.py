@@ -39,7 +39,9 @@ def strict_str(value: Any) -> str | None:
 
 
 def strict_int(value: Any) -> int | None:
-    """An integer cell: int, or a float with no fractional part.
+    """An integer cell: int, a float with no fractional part, or a
+    digit-only string ('775' stored as text — reading past Excel's
+    presentation, mirroring strict_str's number→text rule).
 
     Anything else — including strings such as '>7000' or '5000, 1200' —
     is a validation failure.
@@ -52,6 +54,8 @@ def strict_int(value: Any) -> int | None:
         return value
     if isinstance(value, float) and value.is_integer():
         return int(value)
+    if isinstance(value, str) and value.strip().isdigit():
+        return int(value.strip())
     raise CellError(f"expected an integer, got {value!r}")
 
 
@@ -108,7 +112,7 @@ def strict_yesno(value: Any) -> bool | None:
 
 
 def strict_tristate(value: Any) -> bool | None:
-    """A tri-state cell: YES → True, NO → False, unknown → None.
+    """A tri-state cell: YES/Y → True, NO/N → False, unknown → None.
 
     'N/A', '?', 'Unknown' and empty all mean unknown; anything else
     ('to be verified', stray values) is a validation failure.
@@ -117,9 +121,9 @@ def strict_tristate(value: Any) -> bool | None:
     if text is None:
         return None
     fold = text.casefold()
-    if fold == "yes":
+    if fold in {"yes", "y"}:
         return True
-    if fold == "no":
+    if fold in {"no", "n"}:
         return False
     if fold in {"n/a", "?", "unknown"}:
         return None

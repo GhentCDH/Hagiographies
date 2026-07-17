@@ -151,6 +151,7 @@ digraph {
                          <TD BGCOLOR="#BBDEFB">VARCHAR ()</TD>
                          </TR></TABLE>> URL="http://DatingConfidence_details.html"]
 	DatingConfidence -> Text [label=texts color="#1E88E5" style=dashed tooltip="Relation between DatingConfidence and Text"]
+	DatingConfidence -> Manuscript [label=manuscripts color="#1E88E5" style=dashed tooltip="Relation between DatingConfidence and Manuscript"]
 	Author [label=<
         <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0">
         <TR><TD COLSPAN="2" BGCOLOR="#3F51B5"><FONT COLOR="white">Author</FONT></TD></TR>
@@ -208,6 +209,7 @@ digraph {
 	Location -> Archdiocese [label=archdioceses color="#1E88E5" style=dashed tooltip="Relation between Location and Archdiocese"]
 	Location -> Diocese [label=dioceses color="#1E88E5" style=dashed tooltip="Relation between Location and Diocese"]
 	Location -> Institution [label=institutions color="#1E88E5" style=dashed tooltip="Relation between Location and Institution"]
+	Location -> Manuscript [label=manuscripts color="#1E88E5" style=dashed tooltip="Relation between Location and Manuscript"]
 	Archdiocese [label=<
         <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0">
         <TR><TD COLSPAN="2" BGCOLOR="#3F51B5"><FONT COLOR="white">Archdiocese</FONT></TD></TR>
@@ -225,6 +227,7 @@ digraph {
                          <TD BGCOLOR="#BBDEFB">VARCHAR ()</TD>
                          </TR></TABLE>> URL="http://Archdiocese_details.html"]
 	Archdiocese -> Location [label=location color="#1E88E5" style=dashed tooltip="Relation between Archdiocese and Location"]
+	Archdiocese -> Manuscript [label=origin_manuscripts color="#1E88E5" style=dashed tooltip="Relation between Archdiocese and Manuscript"]
 	Diocese [label=<
         <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0">
         <TR><TD COLSPAN="2" BGCOLOR="#3F51B5"><FONT COLOR="white">Diocese</FONT></TD></TR>
@@ -242,6 +245,7 @@ digraph {
                          <TD BGCOLOR="#BBDEFB">VARCHAR ()</TD>
                          </TR></TABLE>> URL="http://Diocese_details.html"]
 	Diocese -> Location [label=location color="#1E88E5" style=dashed tooltip="Relation between Diocese and Location"]
+	Diocese -> Manuscript [label=origin_manuscripts color="#1E88E5" style=dashed tooltip="Relation between Diocese and Manuscript"]
 	Institution [label=<
         <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0">
         <TR><TD COLSPAN="2" BGCOLOR="#3F51B5"><FONT COLOR="white">Institution</FONT></TD></TR>
@@ -259,6 +263,9 @@ digraph {
                          <TD BGCOLOR="#BBDEFB">VARCHAR ()</TD>
                          </TR></TABLE>> URL="http://Institution_details.html"]
 	Institution -> Location [label=location color="#1E88E5" style=dashed tooltip="Relation between Institution and Location"]
+	Institution -> Manuscript [label=origin_manuscripts color="#1E88E5" style=dashed tooltip="Relation between Institution and Manuscript"]
+	Institution -> Manuscript [label=provenance_early_manuscripts color="#1E88E5" style=dashed tooltip="Relation between Institution and Manuscript"]
+	Institution -> Manuscript [label=provenance_later_manuscripts color="#1E88E5" style=dashed tooltip="Relation between Institution and Manuscript"]
 	Manuscript [label=<
         <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0">
         <TR><TD COLSPAN="2" BGCOLOR="#3F51B5"><FONT COLOR="white">Manuscript</FONT></TD></TR>
@@ -272,15 +279,124 @@ digraph {
                          <TD BGCOLOR="#BBDEFB">text_id</TD>
                          <TD BGCOLOR="#BBDEFB">INTEGER (Index)</TD>
                          </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">codex_number</TD>
+                         <TD BGCOLOR="#BBDEFB">INTEGER ()</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">codex_identifier</TD>
+                         <TD BGCOLOR="#BBDEFB">VARCHAR (Index)</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">codex_multiple_copies</TD>
+                         <TD BGCOLOR="#BBDEFB">BOOLEAN ()</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">codex_copy_amount</TD>
+                         <TD BGCOLOR="#BBDEFB">INTEGER ()</TD>
+                         </TR><TR>
                          <TD BGCOLOR="#BBDEFB">manuscript_preservation_status_id</TD>
+                         <TD BGCOLOR="#BBDEFB">INTEGER ()</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">location_id</TD>
                          <TD BGCOLOR="#BBDEFB">INTEGER ()</TD>
                          </TR><TR>
                          <TD BGCOLOR="#BBDEFB">manuscript_holding_institution_id</TD>
                          <TD BGCOLOR="#BBDEFB">INTEGER ()</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">height</TD>
+                         <TD BGCOLOR="#BBDEFB">VARCHAR ()</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">width</TD>
+                         <TD BGCOLOR="#BBDEFB">VARCHAR ()</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">dating_century</TD>
+                         <TD BGCOLOR="#BBDEFB">INTEGER ()</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">dating_range_start</TD>
+                         <TD BGCOLOR="#BBDEFB">INTEGER ()</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">dating_range_end</TD>
+                         <TD BGCOLOR="#BBDEFB">INTEGER ()</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">dating_reference</TD>
+                         <TD BGCOLOR="#BBDEFB">VARCHAR ()</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">dating_confidence_id</TD>
+                         <TD BGCOLOR="#BBDEFB">INTEGER ()</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">dating_note</TD>
+                         <TD BGCOLOR="#BBDEFB">VARCHAR ()</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">codex_legendiers_usable</TD>
+                         <TD BGCOLOR="#BBDEFB">BOOLEAN ()</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">codex_composite</TD>
+                         <TD BGCOLOR="#BBDEFB">BOOLEAN ()</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">codex_legendiers_entry_code</TD>
+                         <TD BGCOLOR="#BBDEFB">VARCHAR ()</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">codex_notes</TD>
+                         <TD BGCOLOR="#BBDEFB">VARCHAR ()</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">vernacular_region_id</TD>
+                         <TD BGCOLOR="#BBDEFB">INTEGER ()</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">origin_archdiocese_id</TD>
+                         <TD BGCOLOR="#BBDEFB">INTEGER ()</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">origin_diocese_id</TD>
+                         <TD BGCOLOR="#BBDEFB">INTEGER ()</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">origin_diocese_confidence_rating_id</TD>
+                         <TD BGCOLOR="#BBDEFB">INTEGER ()</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">origin_institution_id</TD>
+                         <TD BGCOLOR="#BBDEFB">INTEGER ()</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">origin_institution_confidence_rating_id</TD>
+                         <TD BGCOLOR="#BBDEFB">INTEGER ()</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">provenance_early_institute_id</TD>
+                         <TD BGCOLOR="#BBDEFB">INTEGER ()</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">provenance_early_confidence_id</TD>
+                         <TD BGCOLOR="#BBDEFB">INTEGER ()</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">provenance_later_institute_id</TD>
+                         <TD BGCOLOR="#BBDEFB">INTEGER ()</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">provenance_later_confidence_id</TD>
+                         <TD BGCOLOR="#BBDEFB">INTEGER ()</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">origin_or_provenance_secondary_reference</TD>
+                         <TD BGCOLOR="#BBDEFB">VARCHAR ()</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">manuscript_type_id</TD>
+                         <TD BGCOLOR="#BBDEFB">INTEGER ()</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">manuscript_type_note</TD>
+                         <TD BGCOLOR="#BBDEFB">VARCHAR ()</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">general_notes</TD>
+                         <TD BGCOLOR="#BBDEFB">VARCHAR ()</TD>
                          </TR></TABLE>> URL="http://Manuscript_details.html"]
 	Manuscript -> Text [label=text color="#1E88E5" style=dashed tooltip="Relation between Manuscript and Text"]
 	Manuscript -> ManuscriptPreservationStatus [label=preservation_status color="#1E88E5" style=dashed tooltip="Relation between Manuscript and ManuscriptPreservationStatus"]
+	Manuscript -> Location [label=location color="#1E88E5" style=dashed tooltip="Relation between Manuscript and Location"]
 	Manuscript -> ManuscriptHoldingInstitution [label=holding_institution color="#1E88E5" style=dashed tooltip="Relation between Manuscript and ManuscriptHoldingInstitution"]
+	Manuscript -> DatingConfidence [label=dating_confidence color="#1E88E5" style=dashed tooltip="Relation between Manuscript and DatingConfidence"]
+	Manuscript -> VernacularRegion [label=vernacular_region color="#1E88E5" style=dashed tooltip="Relation between Manuscript and VernacularRegion"]
+	Manuscript -> Archdiocese [label=origin_archdiocese color="#1E88E5" style=dashed tooltip="Relation between Manuscript and Archdiocese"]
+	Manuscript -> Diocese [label=origin_diocese color="#1E88E5" style=dashed tooltip="Relation between Manuscript and Diocese"]
+	Manuscript -> OriginConfidence [label=origin_diocese_confidence color="#1E88E5" style=dashed tooltip="Relation between Manuscript and OriginConfidence"]
+	Manuscript -> Institution [label=origin_institution color="#1E88E5" style=dashed tooltip="Relation between Manuscript and Institution"]
+	Manuscript -> OriginConfidence [label=origin_institution_confidence color="#1E88E5" style=dashed tooltip="Relation between Manuscript and OriginConfidence"]
+	Manuscript -> Institution [label=provenance_early_institute color="#1E88E5" style=dashed tooltip="Relation between Manuscript and Institution"]
+	Manuscript -> ProvenanceConfidence [label=provenance_early_confidence color="#1E88E5" style=dashed tooltip="Relation between Manuscript and ProvenanceConfidence"]
+	Manuscript -> Institution [label=provenance_later_institute color="#1E88E5" style=dashed tooltip="Relation between Manuscript and Institution"]
+	Manuscript -> ProvenanceConfidence [label=provenance_later_confidence color="#1E88E5" style=dashed tooltip="Relation between Manuscript and ProvenanceConfidence"]
+	Manuscript -> ManuscriptType [label=manuscript_type color="#1E88E5" style=dashed tooltip="Relation between Manuscript and ManuscriptType"]
+	Manuscript -> ManuscriptLink [label=links color="#1E88E5" style=dashed tooltip="Relation between Manuscript and ManuscriptLink"]
+	Manuscript -> ManuscriptRelation [label=relations color="#1E88E5" style=dashed tooltip="Relation between Manuscript and ManuscriptRelation"]
+	Manuscript -> ManuscriptRelation [label=related_by color="#1E88E5" style=dashed tooltip="Relation between Manuscript and ManuscriptRelation"]
 	Manuscript -> EditionManuscript [label=edition_links color="#1E88E5" style=dashed tooltip="Relation between Manuscript and EditionManuscript"]
 	ManuscriptPreservationStatus [label=<
         <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0">
@@ -337,10 +453,17 @@ digraph {
                          </TR><TR>
                          <TD BGCOLOR="#BBDEFB">reprint_of</TD>
                          <TD BGCOLOR="#BBDEFB">VARCHAR ()</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">collation_done</TD>
+                         <TD BGCOLOR="#BBDEFB">BOOLEAN ()</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">general_notes</TD>
+                         <TD BGCOLOR="#BBDEFB">VARCHAR ()</TD>
                          </TR></TABLE>> URL="http://Edition_details.html"]
 	Edition -> Text [label=text color="#1E88E5" style=dashed tooltip="Relation between Edition and Text"]
 	Edition -> Edition [label=reprint_of_edition color="#1E88E5" style=dashed tooltip="Relation between Edition and Edition"]
 	Edition -> Edition [label=reprints color="#1E88E5" style=dashed tooltip="Relation between Edition and Edition"]
+	Edition -> EditionLink [label=links color="#1E88E5" style=dashed tooltip="Relation between Edition and EditionLink"]
 	Edition -> EditionManuscript [label=manuscript_links color="#1E88E5" style=dashed tooltip="Relation between Edition and EditionManuscript"]
 	Edition -> EditionEdition [label=consulted_edition_links color="#1E88E5" style=dashed tooltip="Relation between Edition and EditionEdition"]
 	Edition -> EditionEdition [label=consulted_by_links color="#1E88E5" style=dashed tooltip="Relation between Edition and EditionEdition"]

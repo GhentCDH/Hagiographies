@@ -130,13 +130,17 @@ def _null_token(value: str | None) -> str | None:
     return value
 
 
-def _parse_gps(raw_lat: Any, raw_lon: Any) -> tuple[float, float] | None:
-    """Unscale a swapped GPS pair; CellError when junk or outside W-Europe."""
+def _parse_gps(raw_lat: Any, raw_lon: Any, scale: float = 1e6) -> tuple[float, float] | None:
+    """Unscale a swapped GPS pair; CellError when junk or outside W-Europe.
+
+    TEXTS stores degrees ×10⁶ (default scale); MANUSCRIPTS stores plain
+    degrees (scale=1).
+    """
     if raw_lat is None and raw_lon is None:
         return None
     if not isinstance(raw_lat, (int, float)) or not isinstance(raw_lon, (int, float)):
         raise CellError(f"expected a numeric GPS pair, got {raw_lat!r} / {raw_lon!r}")
-    lat, lon = float(raw_lat) / 1e6, float(raw_lon) / 1e6
+    lat, lon = float(raw_lat) / scale, float(raw_lon) / scale
     if not (LAT_RANGE[0] <= lat <= LAT_RANGE[1] and LON_RANGE[0] <= lon <= LON_RANGE[1]):
         raise CellError(
             f"GPS ({lat:.4f}, {lon:.4f}) outside Western Europe "
@@ -191,6 +195,7 @@ def parse_sheet(
         + list(CREATION_GPS)
         + list(DESTINATARY_GPS),
     )
+    report.register_columns(SHEET, columns)
 
     prelim: list[dict[str, Any]] = []
     first_seen: dict[str, int] = {}
