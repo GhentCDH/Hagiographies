@@ -44,6 +44,8 @@ services:
       dockerfile: utils/Dockerfile
     volumes:
       - ./utils:/app/
+      # db/ is deliberately NOT mounted: the just db_* recipes run it on the
+      # host, and sharing db/.venv between host and container breaks both.
       - ./data:/data
     env_file:
       - dev.env

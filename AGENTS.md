@@ -23,10 +23,54 @@ just pg_reimport              # full refresh: pg_schema_drop + pg_import
 just pg_export_sqlite         # dump PostgreSQL → data/hagiographies_full_export.sqlite via Dataflow (see dataflow/config.json)
 just pg_export_sqlite_dry_run # validate the Dataflow config, write nothing
 just db_diagram               # generate SVG schema diagram from SQLModel
+just db_migrate_status        # which schema migrations are applied / pending
+just db_migrate               # apply pending migrations from db/migrations/
+just db_backfill              # backfill shelfmark/folio/codex/publication (report: data/backfill_report.csv + .html)
+just db_report / db_report_local / db_report_prd  # regenerate the report read-only, no data changes
+just db_clone_qas             # copy the remote DB into the local Docker Postgres (destructive, local only)
+just db_local_migrate / db_local_backfill  # same, forced at the local Docker Postgres
 just reinit                   # full reset: rebuild + pg_import + Mathesar bootstrap + summaries (local Docker only)
 just container_up / container_down  # start/stop containers without rebuilding
 just iiif_check / iiif_fix    # LEGACY — target the parked old schema; do not run against the current DB
 ```
+
+## Schema Changes: `db/migrations/` Is the Source of Truth
+
+From July 2026 the schema evolves through numbered SQL migrations in
+`db/migrations/`, applied by `just db_migrate`. `000_init.sql` is a frozen
+baseline (the schema as it stood on 2026-07-29); on a database that already
+carries it the runner records it as applied without executing it, so an empty
+database can still be built from the directory alone. A migration is immutable
+once applied — the runner stores a checksum and refuses to continue if a file
+changed; add a new migration instead.
+
+Mathesar edits the schema too — setting a column's type in its UI is DDL,
+usually to a domain in its own `mathesar_types` schema. The runner tracks files,
+not schema state, so it cannot detect that; reproduce such a change as a new
+migration (see `004_manuscript_link_url_uri.sql`), guarded both against being
+already applied and against `mathesar_types` not existing.
+
+Consequences:
+
+- `utils/utilities/src/utilities/model.py` is **no longer kept in sync** with
+  the database. It still describes the July 2026 import, but not the columns
+  and tables added since. Do not treat it as the schema.
+- **Never run `pg_schema_create`, `pg_schema_drop`, `pg_reimport` or `reinit`
+  against a migrated database** — they rebuild the schema from the stale
+  SQLModel model and would drop the migrated tables.
+- `db/` is a standalone package (`psycopg` + `openpyxl`, no SQLModel). Unlike
+  every other recipe it runs on the **host** (`uv run --project db`), not in the
+  `utils` container: the container's DNS cannot reliably reach the UGent servers
+  or PyPI, and bind-mounting `db/` made host and container fight over
+  `db/.venv`. `PG_DATABASE_URL` comes from `.env` via direnv. See
+  `db/README.md`.
+
+`just db_backfill` is the 2026-07 one-off that filled in `manuscript.shelfmark`,
+`manuscript.folio_or_page_range`, the `codex` table and the `publication` table
+from the workbook. It matches rows only on the exact identifier the importer
+built and reports everything it cannot match to
+`data/backfill_report.{csv,html}`, together with the workbook's internal
+codex/publication conflicts for the researchers.
 
 ## Import Policy: Strict Validation, Never Fix Data
 
@@ -77,6 +121,25 @@ The canonical data model lives in `utils/utilities/src/utilities/model.py` and t
 - Two documented exceptions to the no-normalization rule: manuscript preservation-status labels are matched case-insensitively to `Lost`/`Preserved`, and holding-institution names differing only in case/whitespace are merged (most frequent spelling wins); an institution of `N/A` becomes a NULL FK.
 
 Current entities (schema restart, July 2026 — grown incrementally from here): **Text** (identification, dating incl. `dating_confidence` FK, réécriture incl. self-FK `reecriture_text_id`, author FK, creation/destinatary geography FKs, reference, general_note) with lookups **TextForm**, **TextSourceType**, **TextSourceSubtype**, **DatingConfidence**; **Author** (deduped by name; anonymous authors are one row per text named `Anonymous <text.identifier>` with the raw cell in `note`) with lookup **AuthorMilieu**; geography **Location** (lat/long, deduped by coordinates), **Archdiocese**, **Diocese**, **Institution** (each `name` + optional `location_id` + `note`); **Manuscript** (FK to text; codex fields incl. tri-states `codex_multiple_copies`/`codex_composite`/`codex_legendiers_usable`; `location_id` FK resolved by place name — new locations get NULL lat/long; height/width as text; dating fields incl. shared `dating_confidence` FK, `dating_range_start`/`_end` set to 0 when non-integer with the raw values kept in `dating_note`, and `dating_reference` storing the cell's hyperlink URL when present) with lookups **ManuscriptPreservationStatus** and **ManuscriptHoldingInstitution**; **ManuscriptLink** (`manuscript_link`: typed URLs from the Légendiers/catalogue/images link columns — always the cell hyperlink target, never the display text 'Link'; images typed by 'Type of online images', unrecognized types warn and skip) with lookup **ManuscriptLinkType** (9 seeded labels); origin/provenance FKs (`origin_archdiocese_id`/`origin_diocese_id`/`origin_institution_id` into the shared geography lookups, confidence ratings via **OriginConfidence** and **ProvenanceConfidence**; the workbook's provenance early-owner headers appear twice — the importer reads the SECOND occurrences, the first hold stray GPS; `provenance_later_confidence_id` has no source column yet and stays NULL; the MANUSCRIPTS GPS pairs — diocese, early owner, later owner — are read with swapped headers like TEXTS but as plain degrees, W-Europe validated with warnings, and become coordinate-deduplicated **Location** rows linked via `location_id` on Archdiocese/Diocese/Institution — GPS-less names get a name-keyed NULL-coordinate location; an entity's existing `location_id` is never overwritten), **VernacularRegion** FK (G/R/F; Unknown/N/A → NULL), **ManuscriptType** FK (whitespace-normalized label, raw cell kept in `manuscript_type_note`), and **ManuscriptRelation** (`manuscript_relation`) manuscript↔manuscript links typed via **ManuscriptRelationshipType** ('Based on exemplar', 'Exemplar of', comma-split; refs resolve like EDITIONS manuscript refs); **Edition** (FK to text, prefixed per-text identifier, publication metadata, reprint flags + self-FK `reprint_of_edition_id`, tri-state `collation_done` — a non-tristate 'Collation done?' value warns and stays NULL — and `general_notes` from 'Notes') with **EditionLink** (`edition_link`: the 'Edition images link' cell's hyperlink URL, typed by the strict 'Images of edition?' value SCAN/Transcription/NO/N/A; a missing or non-http(s) hyperlink only warns) and lookup **EditionLinkType** (2 seeded labels); link tables **EditionManuscript** (`edition__manuscripts`, tri-state `likely_use_of_a_copy`) and **EditionEdition** (`edition__edition`); **Repertory** and **RepertoryLink** — hand-curated, not populated by the importer.
+
+Added after the restart by `db/migrations/` and therefore **absent from
+`model.py`**: `manuscript.shelfmark` and `manuscript.folio_or_page_range`
+(migration 001); table `codex` (`codex_id`, `name`) with `manuscript.codex_id`
+(002); table `publication` (`publication_id`, `name`) with
+`edition.publication_id` (003). `codex.name` deduplicates the **database** column
+`manuscript.codex_identifier` (whitespace-collapsed, `N/A` → no codex) — pure
+SQL, the workbook plays no part, so codices the researchers renamed in Mathesar
+keep their name and the rows absent from the workbook are linked too.
+`publication.name` deduplicates EDITIONS 'Edition unique identifier (inc.
+volume)', which has no database column and can therefore only come from the
+workbook. Both tables are id+name only on purpose: the
+codex-level columns still on `manuscript` (holding institution, shelfmark,
+height/width, dating, type, origin) and the publication-level columns still on
+`edition` (publication year, reference) contradict themselves in the workbook
+for 7–16% of the multi-row groups, so they move only once the researchers have
+resolved the conflicts listed in `data/backfill_report.html`.
+`manuscript.codex_identifier` and `manuscript.codex_number` are deliberately
+left in place alongside `codex_id`.
 
 TEXTS-sheet geography quirks: the GPS column headers are **swapped** in the workbook — the '… GPS Longitude' column holds latitude ×10⁶ and '… GPS Latitude' holds longitude ×10⁶; the importer reads them swapped/unscaled and requires Western-Europe coordinates (lat 44–56, lon −2–10), warning otherwise. `'Unknown'` and `'N/A'` in institution/destinatary/milieu columns mean NULL. The 'Precise institutional origin?'/'Precise destinatary?' flags are not stored (institution presence implies precision).
 

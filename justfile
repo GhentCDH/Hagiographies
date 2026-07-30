@@ -25,6 +25,95 @@ container_down:
 db_diagram:
     docker compose run  -w /app/documenter --rm utils  uv run document
 
+# ── Database (migrations & backfills) ──────────────────────────────────────
+
+# db/migrations/ is the source of truth for the schema; the SQLModel model in
+# utils/utilities is no longer kept in sync.
+#
+# These run on the HOST, not in the utils container, unlike the pg_* recipes.
+# Two reasons: the container's DNS cannot reliably resolve the UGent servers
+# (or even PyPI), and ./db is bind-mounted, so a container run and a host run
+# would keep tearing down each other's db/.venv. The host already needs
+# PG_DATABASE_URL for db_clone_qas, so nothing new is required — it comes from
+# .env via direnv.
+
+LOCAL_DB := "postgresql://" + env('POSTGRES_USER', 'hagiographies') + ":" + env('POSTGRES_PASSWORD', 'changeme') + "@localhost:" + env('POSTGRES_PORT', '5432') + "/" + env('POSTGRES_DB', 'hagiographies')
+# DATA_ROOT makes the workbook and report resolve to ./data instead of the
+# container's /data.
+DB := "DATA_ROOT=data uv run --project db"
+REPORT := "--report data/backfill_report"
+
+# Show which migrations are applied and which are pending
+db_migrate_status:
+    {{DB}} migrate --status
+
+# Report what migrating would do, without changing anything
+db_migrate_dry_run:
+    {{DB}} migrate --dry-run
+
+# Apply pending schema migrations
+db_migrate:
+    {{DB}} migrate
+
+# Backfill shelfmark/folio/codex/publication from the workbook, rolling back at the end
+db_backfill_dry_run:
+    {{DB}} backfill --dry-run {{REPORT}}
+
+# Backfill shelfmark/folio/codex/publication (report: data/backfill_report.csv + .html)
+db_backfill:
+    {{DB}} backfill {{REPORT}}
+
+# Read-only: writes data/backfill_report.{csv,html} and changes nothing. The
+# connection is opened read-only, so PostgreSQL rejects any write. Conflicts
+# come from the codex/publication links already in the database, so they are
+# empty until db_backfill has run there.
+
+# Report on QAS — read-only, no changes
+db_report:
+    {{DB}} report {{REPORT}}
+
+# Report on the local Docker Postgres — read-only, no changes
+db_report_local:
+    {{DB}} report --database-url "{{LOCAL_DB}}" {{REPORT}}
+
+# Report on PRD — read-only, no changes
+db_report_prd:
+    {{DB}} report --database-url "$PG_DATABASE_URL_PRD" {{REPORT}}
+
+# Apply pending migrations to the local Docker Postgres
+db_local_migrate:
+    {{DB}} migrate --database-url "{{LOCAL_DB}}"
+
+# Backfill the local Docker Postgres, rolling back at the end
+db_local_backfill_dry_run:
+    {{DB}} backfill --database-url "{{LOCAL_DB}}" --dry-run {{REPORT}}
+
+# Backfill the local Docker Postgres
+db_local_backfill:
+    {{DB}} backfill --database-url "{{LOCAL_DB}}" {{REPORT}}
+
+# Apply pending migrations to PRD
+db_migrate_prd:
+    {{DB}} migrate --database-url "$PG_DATABASE_URL_PRD"
+
+# Backfill PRD (report: data/backfill_report.csv + .html)
+db_backfill_prd:
+    {{DB}} backfill --database-url "$PG_DATABASE_URL_PRD" {{REPORT}}
+
+# Overwrites the local research DB with a copy of whatever PG_DATABASE_URL
+# points at (QAS), so migrations and backfills can be rehearsed locally.
+# Requires PG_DATABASE_URL in the host environment (.env / direnv).
+# Clone the remote DB into the local Docker Postgres (destructive, LOCAL only)
+db_clone_qas:
+    # public only: Mathesar's own __msar/msar/mathesar_types schemas already
+    # exist locally and would make pg_restore fail on every object.
+    pg_dump --no-owner --no-privileges --schema=public -Fc "$PG_DATABASE_URL" -f data/qas_clone.dump
+    # the dump recreates the schema itself, so only drop it here
+    psql -q "{{LOCAL_DB}}" -c 'drop schema if exists public cascade;'
+    pg_restore --no-owner --no-privileges -d "{{LOCAL_DB}}" data/qas_clone.dump
+    psql -qtA "{{LOCAL_DB}}" -c "select 'manuscript='||count(*) from manuscript" \
+        -c "select 'edition='||count(*) from edition" -c "select 'text='||count(*) from text"
+
 # ── IIIF ─────────────────────────────────────────────────────────────────────
 # LEGACY — check-iiif targets the parked old schema (image/codex tables in
 # utilities.legacy_model) and cannot run against the current database.

@@ -1,0 +1,21 @@
+[project]
+name = "hagio-db"
+version = "0.1.0"
+description = "Raw-SQL schema migrations and one-off backfills for the hagiographies database"
+readme = "README.md"
+requires-python = "~=3.13.0"
+dependencies = [
+    "psycopg[binary]>=3.2",
+    "openpyxl>=3.1.0",
+    "rich>=13.0.0",
+    "typer>=0.15",
+]
+
+[build-system]
+requires = ["uv_build>=0.11.0,<0.12.0"]
+build-backend = "uv_build"
+
+[project.scripts]
+migrate = "hagio_db.migrate:entrypoint"
+backfill = "hagio_db.backfill:entrypoint"
+report = "hagio_db.backfill:report_entrypoint"
