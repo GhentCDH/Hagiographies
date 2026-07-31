@@ -58,6 +58,9 @@ db_migrate:
 db_local_migrate:
     {{DB}} migrate --database-url "{{LOCAL_DB}}"
 
+db_local_migrate_status:
+    {{DB}} migrate --database-url "{{LOCAL_DB}}" --status
+
 # Apply pending migrations to PRD
 db_migrate_prd:
     {{DB}} migrate --database-url "$PG_DATABASE_URL_PRD"
@@ -65,6 +68,36 @@ db_migrate_prd:
 # Overwrites the local research DB with a copy of whatever PG_DATABASE_URL
 # points at (QAS), so migrations and backfills can be rehearsed locally.
 # Requires PG_DATABASE_URL in the host environment (.env / direnv).
+# A throwaway copy of the local database with ALL migrations applied, including
+# the ones still pending sign-off. For trying out a migration, or running the
+# file explorer, without touching the local DB Mathesar is pointed at.
+#
+# The whole database is copied, not just public. hagio_admin holds the migration
+# history, and without it the runner would baseline 000 and then try to re-apply
+# 001 onwards to a schema that already has them. Mathesar's mathesar_types holds
+# the uri domain that the link tables' url columns are declared as, so without it
+# those tables cannot even be created.
+
+# Built from parts rather than by substituting into LOCAL_DB: the user and the
+# database are both called "hagiographies", so a replace would rename both.
+SCRATCH_DB := "postgresql://" + env('POSTGRES_USER', 'hagiographies') + ":" + env('POSTGRES_PASSWORD', 'changeme') + "@localhost:" + env('POSTGRES_PORT', '5432') + "/hagiographies_scratch"
+
+# Rebuild hagiographies_scratch from the local DB and migrate it (LOCAL only)
+db_scratch:
+    pg_dump --no-owner --no-privileges -Fc "{{LOCAL_DB}}" -f data/local_clone.dump
+    psql -q "{{LOCAL_DB}}" -c 'drop database if exists hagiographies_scratch;'
+    psql -q "{{LOCAL_DB}}" -c 'create database hagiographies_scratch;'
+    pg_restore --no-owner --no-privileges -d "{{SCRATCH_DB}}" data/local_clone.dump
+    {{DB}} migrate --database-url "{{SCRATCH_DB}}"
+
+# What the scratch database's migration state is
+db_scratch_status:
+    {{DB}} migrate --status --database-url "{{SCRATCH_DB}}"
+
+# Drop the scratch database
+db_scratch_drop:
+    psql -q "{{LOCAL_DB}}" -c 'drop database if exists hagiographies_scratch;'
+
 # Clone the remote DB into the local Docker Postgres (destructive, LOCAL only)
 db_clone_qas:
     # public only: Mathesar's own __msar/msar/mathesar_types schemas already
@@ -184,3 +217,43 @@ reinit: pg_reset container_rebuild pg_import mathesar_bootstrap mathesar_summari
 # Open the gateway (Mathesar admin) in browser
 util_open:
   open "{{GATEWAY_URL}}"
+
+# ── File explorer ────────────────────────────────────────────────────────────
+
+# The managed file explorer over the network share (file-explorer/). Runs on the
+# HOST for dev, like the db_ recipes: it needs cargo and bun, and the share is a
+# host path. Reads db/migrations/ 013 tables, so migrate before first run.
+
+FILES := "FILES_DATABASE__URL=\"" + LOCAL_DB + "\""
+
+# Run the file explorer backend on :3000 (builds the frontend first)
+files_run:
+    cd file-explorer && {{FILES}} cargo run
+
+# Run the Vite dev server, proxying /api and /f to the backend on :3000
+files_dev:
+    cd file-explorer/frontend && bun run dev
+
+# Run the file explorer tests
+files_test:
+    cd file-explorer && cargo test
+
+# Typecheck the frontend
+files_check:
+    cd file-explorer/frontend && bun run check
+
+# Build the file explorer Docker image
+files_build:
+    docker compose build file-explorer
+
+# Start the file explorer container on :9161
+files_up:
+    docker compose up -d file-explorer
+
+# Follow the file explorer container logs
+files_logs:
+    docker compose logs -f file-explorer
+
+# Re-scan the whole share and update the file table
+files_rescan:
+    curl -fsS -X POST http://localhost:9161/api/rescan

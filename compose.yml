@@ -55,6 +55,30 @@ services:
       postgres:
         condition: service_healthy
 
+  # ── Managed file explorer ──────────────────────────────────────────────────
+  # Deliberately not behind the gateway: that Caddyfile is one :80 site proxying
+  # everything to Mathesar, and in production this is its own hostname
+  # (files.m-patch.ugent.be) with its own auth in front.
+  file-explorer:
+    build:
+      context: ./file-explorer
+    environment:
+      # In the container the app reaches postgres by service name, so it cannot
+      # use the localhost URL the host-side just recipes use.
+      FILES_DATABASE__URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      FILES_PUBLIC_BASE_URL: http://localhost:9161
+      FILES_LINK_HOSTS: '["localhost"]'
+    volumes:
+      - ./file-explorer/config.toml:/app/config.toml:ro
+      # Locally a scratch directory; in production the mounted network share.
+      - ./data/share:/srv/share
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "9161:3000"
+    restart: unless-stopped
+
   # ── Gateway & Data Publishing (Caddy) ──────────────────────────────────────
   gateway:
     image: caddy:2-alpine

@@ -1,0 +1,28 @@
+# Local development. The deployed instance mounts its own copy of this file,
+# see the README. Every key can be overridden with an env var: FILES_SHARE_ROOT,
+# FILES_LINK_HOSTS, and so on. Nested keys use two underscores, so the database
+# url is FILES_DATABASE__URL.
+#
+# database.url is deliberately not here. It holds a password, so it always comes
+# from the environment.
+
+# Relative paths resolve against the working directory, which for `just files_run`
+# is file-explorer/.
+share_root = "../data/share"
+
+# Used to build the links students copy. Port 3000 so the links work when the
+# app runs on the host with `just files_run`. The compose service overrides this
+# to :9161, which is where it publishes the container port.
+public_base_url = "http://localhost:3000"
+
+# Hosts whose /f/<uuid> links count as ours. Copied into
+# hagio_admin.file_link_host at startup, where the database trigger reads them.
+# In production this is ["files.m-patch.ugent.be"].
+link_hosts = ["localhost"]
+
+# Top level folders hidden from the interface. Never listed, never tracked.
+excluded_dirs = ["_admin"]
+
+bind_addr = "0.0.0.0:3000"
+max_upload_bytes = 2147483648
+scan_on_startup = true
