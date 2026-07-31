@@ -41,7 +41,6 @@ LOCAL_DB := "postgresql://" + env('POSTGRES_USER', 'hagiographies') + ":" + env(
 # DATA_ROOT makes the workbook and report resolve to ./data instead of the
 # container's /data.
 DB := "DATA_ROOT=data uv run --project db"
-REPORT := "--report data/backfill_report"
 
 # Show which migrations are applied and which are pending
 db_migrate_status:
@@ -55,50 +54,13 @@ db_migrate_dry_run:
 db_migrate:
     {{DB}} migrate
 
-# Backfill shelfmark/folio/codex/publication from the workbook, rolling back at the end
-db_backfill_dry_run:
-    {{DB}} backfill --dry-run {{REPORT}}
-
-# Backfill shelfmark/folio/codex/publication (report: data/backfill_report.csv + .html)
-db_backfill:
-    {{DB}} backfill {{REPORT}}
-
-# Read-only: writes data/backfill_report.{csv,html} and changes nothing. The
-# connection is opened read-only, so PostgreSQL rejects any write. Conflicts
-# come from the codex/publication links already in the database, so they are
-# empty until db_backfill has run there.
-
-# Report on QAS — read-only, no changes
-db_report:
-    {{DB}} report {{REPORT}}
-
-# Report on the local Docker Postgres — read-only, no changes
-db_report_local:
-    {{DB}} report --database-url "{{LOCAL_DB}}" {{REPORT}}
-
-# Report on PRD — read-only, no changes
-db_report_prd:
-    {{DB}} report --database-url "$PG_DATABASE_URL_PRD" {{REPORT}}
-
 # Apply pending migrations to the local Docker Postgres
 db_local_migrate:
     {{DB}} migrate --database-url "{{LOCAL_DB}}"
 
-# Backfill the local Docker Postgres, rolling back at the end
-db_local_backfill_dry_run:
-    {{DB}} backfill --database-url "{{LOCAL_DB}}" --dry-run {{REPORT}}
-
-# Backfill the local Docker Postgres
-db_local_backfill:
-    {{DB}} backfill --database-url "{{LOCAL_DB}}" {{REPORT}}
-
 # Apply pending migrations to PRD
 db_migrate_prd:
     {{DB}} migrate --database-url "$PG_DATABASE_URL_PRD"
-
-# Backfill PRD (report: data/backfill_report.csv + .html)
-db_backfill_prd:
-    {{DB}} backfill --database-url "$PG_DATABASE_URL_PRD" {{REPORT}}
 
 # Overwrites the local research DB with a copy of whatever PG_DATABASE_URL
 # points at (QAS), so migrations and backfills can be rehearsed locally.

@@ -22,14 +22,42 @@ from .conn import MIGRATIONS, announce, connect, console, resolve_url
 
 BASELINE = "000"
 
-SCHEMA_MIGRATION_DDL = """
-create table if not exists schema_migration (
+# The bookkeeping lives outside public: public holds research data and nothing
+# else, so Mathesar shows the researchers their tables and not ours. Editors
+# are never granted USAGE here, which makes the schema invisible to them rather
+# than merely unreadable.
+ADMIN_SCHEMA = "hagio_admin"
+TABLE = f"{ADMIN_SCHEMA}.schema_migration"
+
+ADMIN_SCHEMA_DDL = f"""
+create schema if not exists {ADMIN_SCHEMA};
+revoke all on schema {ADMIN_SCHEMA} from public;
+"""
+
+SCHEMA_MIGRATION_DDL = f"""
+create table if not exists {TABLE} (
     version    text primary key,
     name       text not null,
     checksum   text not null,
     applied_at timestamptz not null default now(),
     baselined  boolean not null default false
 )
+"""
+
+# Databases migrated before 2026-07-30 keep the table in public. Relocate it
+# rather than starting a fresh one, which would look like an empty database and
+# re-run every migration. This cannot be a migration itself: the runner reads
+# the table before it applies anything.
+RELOCATE = f"""
+do $$
+begin
+    if to_regclass('public.schema_migration') is not null
+       and to_regclass('{TABLE}') is null then
+        alter table public.schema_migration set schema {ADMIN_SCHEMA};
+        raise notice 'moved schema_migration from public to {ADMIN_SCHEMA}';
+    end if;
+end
+$$;
 """
 
 app = typer.Typer(add_completion=False, help=__doc__)
@@ -54,13 +82,13 @@ def _migrations() -> list[tuple[str, str, Path]]:
 def _public_has_tables(cur) -> bool:
     cur.execute(
         "select exists (select 1 from information_schema.tables "
-        "where table_schema = 'public' and table_name <> 'schema_migration')"
+        "where table_schema = 'public')"
     )
     return bool(cur.fetchone()[0])
 
 
 def _applied(cur) -> dict[str, str]:
-    cur.execute("select version, checksum from schema_migration")
+    cur.execute(f"select version, checksum from {TABLE}")
     return dict(cur.fetchall())
 
 
@@ -83,6 +111,11 @@ def main(
 
     with connect(url) as conn:
         with conn.cursor() as cur:
+            # Order matters: the schema must exist before anything can be
+            # moved into it, and the create-if-missing must come last so it
+            # does not pre-empt the relocation with an empty table.
+            cur.execute(ADMIN_SCHEMA_DDL)
+            cur.execute(RELOCATE)
             cur.execute(SCHEMA_MIGRATION_DDL)
             applied = _applied(cur)
             preexisting = _public_has_tables(cur)
@@ -143,7 +176,7 @@ def main(
                 if not record_only:
                     cur.execute(body)
                 cur.execute(
-                    "insert into schema_migration (version, name, checksum, baselined) "
+                    f"insert into {TABLE} (version, name, checksum, baselined) "
                     "values (%s, %s, %s, %s)",
                     (version, name, checksum, record_only),
                 )

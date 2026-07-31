@@ -10,9 +10,9 @@ migrations/            numbered .sql, applied in filename order, each in its own
   000_init.sql         baseline: the schema as it stood on 2026-07-29 (frozen)
 src/hagio_db/
   migrate.py           the migration runner
-  backfill.py          the 2026-07 backfill: shelfmark, folio, codex, publication
-  workbook.py          openpyxl access to the corpus workbook
-  report.py            csv + html report
+  backfill.py          RETIRED: the 2026-07 backfill, kept as a record
+  workbook.py          RETIRED: openpyxl access to the corpus workbook
+  report.py            RETIRED: csv + html report
 ```
 
 ## Running
@@ -27,16 +27,12 @@ same way `db_clone_qas` already gets it.
 just db_migrate_status        # what is applied, what is pending
 just db_migrate_dry_run
 just db_migrate
-just db_backfill_dry_run
-just db_backfill
 ```
 
 PRD, once the researchers have signed off:
 
 ```sh
-just db_report_prd            # read-only, safe any time
 just db_migrate_prd
-just db_backfill_prd
 ```
 
 Against the local Docker Postgres instead of whatever `PG_DATABASE_URL` points
@@ -45,45 +41,10 @@ at:
 ```sh
 just db_clone_qas             # copy QAS into the local container (destructive, local only)
 just db_local_migrate
-just db_local_backfill
 ```
 
 All commands take `--database-url` to target something else explicitly, which
 is how PRD gets run once the researchers have signed off.
-
-## Read-only reporting
-
-`report` writes `data/backfill_report.{csv,html}` and changes nothing. It opens
-the connection read-only, so PostgreSQL rejects any write rather than the script
-merely rolling one back:
-
-```sh
-just db_report_local          # the local Docker Postgres
-just db_report                # whatever PG_DATABASE_URL points at (QAS)
-just db_report_prd            # PG_DATABASE_URL_PRD
-```
-
-or directly:
-
-```sh
-DATA_ROOT=data uv run --project db report --report data/backfill_report
-```
-
-The conflict sections read the codex and publication links that are already in
-the database, so on a database where `db_backfill` has not run they are empty
-(and the summary shows `codex rows in table: 0`). The unmatched-rows sections
-work regardless.
-
-`db_backfill --dry-run` is a different thing: it performs the writes and rolls
-them back, so it reports the counts an actual run would produce.
-
-## The baseline
-
-`000_init.sql` is the schema as it already exists everywhere. The runner detects
-that: if `public` already holds tables when `schema_migration` is first created,
-000 is recorded as applied **without being executed**, and 001+ apply on top. On
-an empty database 000 runs normally, so the whole schema can be built from this
-directory alone. It is frozen — later changes are new numbered migrations.
 
 ## Mathesar changes the schema too
 
@@ -132,17 +93,31 @@ so a from-scratch database has no domains available until then.
   `manuscript_link.url` was already `mathesar_types.uri`. If that ever needs
   repeating, assert the end state first — a checksum bump on a database that
   has *not* reached it silently marks work as done.
-- The backfill never invents a match. Rows are matched on the exact identifier
-  the importer built; anything ambiguous or missing goes into
-  `data/backfill_report.{csv,html}` instead.
-- Only three things come from the workbook: `manuscript.shelfmark`,
-  `manuscript.folio_or_page_range` and `edition.publication_id`. The codex link
-  is pure SQL — `codex.name` is the distinct values of the existing
-  `manuscript.codex_identifier` column — so a codex the researchers renamed in
-  Mathesar keeps their name, and the rows with no workbook counterpart are
-  linked too.
-- The workbook wins on the columns it feeds. On a first run that is moot (they
-  are created empty), but re-running after someone edits `shelfmark` or
-  `folio_or_page_range` in Mathesar overwrites their edit. The codex link is
-  unaffected, and no pre-existing column is ever written.
-- `--dry-run` rolls back and still writes the report.
+  `007` was edited the same way on 2026-07-31, when the bookkeeping table moved
+  out of `public` and its unqualified `REVOKE … ON schema_migration` would
+  otherwise have failed on a from-scratch build. Precondition asserted before
+  re-recording: the editor role already could not write the table.
+- The bookkeeping lives in the **`hagio_admin`** schema, not `public`, so
+  `public` holds research data only and Mathesar shows the researchers their
+  tables rather than ours. The runner creates that schema and relocates the
+  table automatically on databases that predate the change; it cannot be a
+  migration, because the runner reads the table before applying anything.
+- Editors are never granted `USAGE` on `hagio_admin`, which makes it invisible
+  to them rather than merely unreadable.
+
+## The 2026-07 backfill (historical)
+
+`backfill.py`, `report.py` and `workbook.py` record how `manuscript.shelfmark`,
+`manuscript.folio_or_page_range`, `codex` and `publication` were first
+populated from the corpus workbook. It ran once against QAS and PRD, the
+researchers verified the result, and it has no console script or recipe any
+more — migrations `011` and `012` dropped the columns it reads and writes, so
+it cannot run and must not be resurrected. It is kept because it is the only
+description of how the data got where it is.
+
+How it worked, in short: rows were matched only on the exact identifier the
+importer had built, never guessed, and everything unmatched went to
+`data/backfill_report.{csv,html}`. Only `shelfmark`, `folio_or_page_range` and
+`edition.publication_id` came from the workbook; the codex link was pure SQL
+over `manuscript.codex_identifier`, so codices the researchers had renamed in
+Mathesar kept their names and rows absent from the workbook were linked too.

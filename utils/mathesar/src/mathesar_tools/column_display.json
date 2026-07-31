@@ -1,9 +1,15 @@
 {
-    "edition": {
-        "publication_year": {"num_grouping": "never"}
-    },
     "text": {
-        "dating_range_start": {"num_grouping": "never"},
-        "dating_range_stop": {"num_grouping": "never"}
+        "dating_range_start": {
+            "num_grouping": "never"
+        },
+        "dating_range_stop": {
+            "num_grouping": "never"
+        }
+    },
+    "publication": {
+        "publication_year": {
+            "num_grouping": "never"
+        }
     }
 }

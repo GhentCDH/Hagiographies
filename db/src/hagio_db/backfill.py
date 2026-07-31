@@ -1,4 +1,17 @@
-"""Backfill the three workbook columns that never reached the database.
+"""RETIRED — kept as the record of how the 2026-07 backfill was done.
+
+This ran once against QAS and PRD, the researchers verified the result, and it
+is now unrunnable by design: migrations 011 and 012 dropped the columns it
+reads and writes. `manuscript.shelfmark` lives on `codex`, and
+`manuscript.codex_identifier` — the column `codex.name` was derived from — is
+gone, so the codex link can no longer be rebuilt from the database at all.
+There is deliberately no console script and no just recipe; `report.py` and
+`workbook.py` are kept for the same reason.
+
+Read it to understand how the data got where it is. Do not try to run it.
+
+--------------------------------------------------------------------------
+Backfill the three workbook columns that never reached the database.
 
   MANUSCRIPTS!Q 'Manuscript shelfmark'              -> manuscript.shelfmark
   MANUSCRIPTS!R 'Folio or page range'               -> manuscript.folio_or_page_range

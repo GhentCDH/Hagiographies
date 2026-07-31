@@ -25,10 +25,9 @@ just pg_export_sqlite_dry_run # validate the Dataflow config, write nothing
 just db_diagram               # generate SVG schema diagram from SQLModel
 just db_migrate_status        # which schema migrations are applied / pending
 just db_migrate               # apply pending migrations from db/migrations/
-just db_backfill              # backfill shelfmark/folio/codex/publication (report: data/backfill_report.csv + .html)
-just db_report / db_report_local / db_report_prd  # regenerate the report read-only, no data changes
+just db_migrate_prd           # apply pending migrations to PRD
 just db_clone_qas             # copy the remote DB into the local Docker Postgres (destructive, local only)
-just db_local_migrate / db_local_backfill  # same, forced at the local Docker Postgres
+just db_local_migrate         # same, forced at the local Docker Postgres
 just reinit                   # full reset: rebuild + pg_import + Mathesar bootstrap + summaries (local Docker only)
 just container_up / container_down  # start/stop containers without rebuilding
 just iiif_check / iiif_fix    # LEGACY — target the parked old schema; do not run against the current DB
@@ -65,12 +64,17 @@ Consequences:
   `db/.venv`. `PG_DATABASE_URL` comes from `.env` via direnv. See
   `db/README.md`.
 
-`just db_backfill` is the 2026-07 one-off that filled in `manuscript.shelfmark`,
-`manuscript.folio_or_page_range`, the `codex` table and the `publication` table
-from the workbook. It matches rows only on the exact identifier the importer
-built and reports everything it cannot match to
-`data/backfill_report.{csv,html}`, together with the workbook's internal
-codex/publication conflicts for the researchers.
+The migration bookkeeping table lives in the **`hagio_admin`** schema, not
+`public`, so `public` holds research data only and Mathesar shows researchers
+their tables rather than ours. The runner creates the schema and relocates the
+table automatically; editors are never granted `USAGE` on it.
+
+The 2026-07 backfill that first populated `manuscript.shelfmark`,
+`manuscript.folio_or_page_range`, `codex` and `publication` from the workbook is
+**retired**: it ran once, the researchers verified it, and migrations 011/012
+dropped the columns it reads and writes. `db/src/hagio_db/{backfill,report,workbook}.py`
+are kept as the record of how the data got where it is, with no console script
+and no recipe. Do not resurrect them.
 
 ## Import Policy: Strict Validation, Never Fix Data
 
@@ -132,14 +136,31 @@ SQL, the workbook plays no part, so codices the researchers renamed in Mathesar
 keep their name and the rows absent from the workbook are linked too.
 `publication.name` deduplicates EDITIONS 'Edition unique identifier (inc.
 volume)', which has no database column and can therefore only come from the
-workbook. Both tables are id+name only on purpose: the
-codex-level columns still on `manuscript` (holding institution, shelfmark,
-height/width, dating, type, origin) and the publication-level columns still on
-`edition` (publication year, reference) contradict themselves in the workbook
-for 7–16% of the multi-row groups, so they move only once the researchers have
-resolved the conflicts listed in `data/backfill_report.html`.
-`manuscript.codex_identifier` and `manuscript.codex_number` are deliberately
-left in place alongside `codex_id`.
+workbook. Both tables started as id+name only, because the codex- and
+publication-level columns contradicted themselves for 7–16% of the multi-row
+groups; once the researchers had resolved those conflicts, migrations 009 and
+010 hoisted them:
+
+- **009** moves 30 codex-level columns from `manuscript` onto `codex`
+  (shelfmark, holding institution, location, height/width, all `dating_*`,
+  preservation status, manuscript type, all `origin_*`/`provenance_*`,
+  vernacular region, the `codex_*` flags and notes, `general_notes`).
+- **010** moves `publication_year` and `reference` from `edition` onto
+  `publication`. Nothing else on `edition` qualifies — `page_numbers`,
+  `reprint*`, `collation_done` and `general_notes` are per edition, and the
+  data says so loudly (144 publications disagree on `page_numbers` alone).
+- Both are **additive**: the columns still exist on `manuscript`/`edition`.
+  `db/migrations/pending/011_drop_hoisted_columns.sql` removes them and is
+  parked outside the runner's glob until the researchers sign off; move it into
+  `db/migrations/` to activate. It is the only destructive migration.
+- Both **abort rather than guess** if any group still disagrees, naming the
+  offending columns.
+- `codex_number`, `codex_copy_amount` and `codex_multiple_copies` are not
+  hoisted at all — `codex_id` replaces the first and the other two are
+  `count(*)` and `count(*) > 1` over the codex's manuscripts. 011 drops them.
+- `manuscript.codex_identifier` stays: it duplicates `codex.name` but is what
+  `codex.name` was derived from, so it is the only way to rebuild the link.
+  `manuscript.folio_or_page_range` stays for good — it is per text copy.
 
 TEXTS-sheet geography quirks: the GPS column headers are **swapped** in the workbook — the '… GPS Longitude' column holds latitude ×10⁶ and '… GPS Latitude' holds longitude ×10⁶; the importer reads them swapped/unscaled and requires Western-Europe coordinates (lat 44–56, lon −2–10), warning otherwise. `'Unknown'` and `'N/A'` in institution/destinatary/milieu columns mean NULL. The 'Precise institutional origin?'/'Precise destinatary?' flags are not stored (institution presence implies precision).
 

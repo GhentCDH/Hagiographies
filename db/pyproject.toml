@@ -17,5 +17,7 @@ build-backend = "uv_build"
 
 [project.scripts]
 migrate = "hagio_db.migrate:entrypoint"
-backfill = "hagio_db.backfill:entrypoint"
-report = "hagio_db.backfill:report_entrypoint"
+# backfill.py / report.py / workbook.py are kept as the record of how the
+# 2026-07 backfill was done, but are deliberately no longer runnable: the
+# schema they target no longer exists (011 and 012 dropped the columns they
+# read and write). See the header of backfill.py.

@@ -56,7 +56,12 @@ BEGIN
 
     -- Migration bookkeeping is readable but not editable: an editor who could
     -- rewrite schema_migration could make the runner skip or re-run work.
-    EXECUTE format('REVOKE INSERT, UPDATE, DELETE ON schema_migration FROM %I', editor);
+    -- Only relevant while the table still lives in public — since 2026-07-31
+    -- the runner keeps it in the hagio_admin schema, which editors are never
+    -- granted USAGE on, so there is nothing to revoke on a fresh database.
+    IF to_regclass('public.schema_migration') IS NOT NULL THEN
+        EXECUTE format('REVOKE INSERT, UPDATE, DELETE ON public.schema_migration FROM %I', editor);
+    END IF;
 
     -- Mathesar's own schemas. USAGE on mathesar_types is needed to work with
     -- the uri columns from 004-006; msar is what the Mathesar UI calls. Both
