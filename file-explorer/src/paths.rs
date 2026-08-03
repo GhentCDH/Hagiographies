@@ -53,7 +53,7 @@ pub enum PathError {
 /// A path relative to the share root, `/`-separated, no leading or trailing
 /// slash, checked so it cannot address anything outside the share. The empty
 /// string is the root.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct RelPath(String);
 
 impl RelPath {

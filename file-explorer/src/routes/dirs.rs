@@ -1,19 +1,31 @@
 use axum::{Json, extract::State};
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
 use crate::error::{AppError, AppResult};
 use crate::fs_ops;
 use crate::paths::{self, RelPath};
-use crate::scan;
 use crate::state::AppState;
+use crate::tree;
 use crate::undo::{Step, Who};
 
 #[derive(Debug, Serialize)]
 pub struct DirResponse {
+    directory_id: Uuid,
     path: String,
     name: String,
-    /// How many tracked files had their recorded path rewritten.
-    files_updated: u64,
+    link: String,
+}
+
+impl DirResponse {
+    fn new(state: &AppState, directory_id: Uuid, path: &RelPath) -> Self {
+        DirResponse {
+            directory_id,
+            path: path.as_str().to_string(),
+            name: path.file_name().unwrap_or_default().to_string(),
+            link: state.config.dir_link_for(directory_id),
+        }
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -40,23 +52,19 @@ pub async fn create(
 
     let target = parent.join_new(body.name.trim(), &config.excluded_dirs)?;
     fs_ops::create_dir(&paths::resolve_new(&config.share_root, &target)?)?;
+    let directory_id = tree::ensure_dir(&state.pool, &target).await?;
 
-    tracing::info!(path = %target, "directory created");
+    tracing::info!(path = %target, directory_id = %directory_id, "directory created");
     state
         .undo
         .push(
             &who,
             format!("creating the folder '{target}'"),
-            Step::DirCreated {
-                path: target.clone(),
-            },
+            Step::DirCreated { directory_id },
         )
         .await;
-    Ok(Json(DirResponse {
-        path: target.as_str().to_string(),
-        name: target.file_name().unwrap_or_default().to_string(),
-        files_updated: 0,
-    }))
+
+    Ok(Json(DirResponse::new(&state, directory_id, &target)))
 }
 
 #[derive(Debug, Deserialize)]
@@ -65,10 +73,10 @@ pub struct RenameBody {
     pub name: String,
 }
 
-/// Rename a directory at any level, including the top one.
+/// Rename a folder at any level, including the top one.
 ///
-/// No file_id changes, so nothing already pasted into Mathesar breaks. That is
-/// the reason links carry a UUID instead of a path.
+/// One row changes. Nothing below it moves, and no id changes, so nothing already
+/// pasted into Mathesar breaks: that is the whole reason links carry a UUID.
 pub async fn rename(
     State(state): State<AppState>,
     who: Who,
@@ -84,7 +92,24 @@ pub async fn rename(
     }
 
     let target = current.with_file_name(body.name.trim(), excluded)?;
-    relocate(&state, &who, &current, &target, "renamed").await
+    let old_name = current.file_name().unwrap_or_default().to_string();
+
+    let directory_id = relocate(&state, &current, &target, "renamed").await?;
+    if target != current {
+        state
+            .undo
+            .push(
+                &who,
+                format!("renaming the folder '{current}' to '{target}'"),
+                Step::DirRenamed {
+                    directory_id,
+                    old_name,
+                },
+            )
+            .await;
+    }
+
+    Ok(Json(DirResponse::new(&state, directory_id, &target)))
 }
 
 #[derive(Debug, Deserialize)]
@@ -93,7 +118,7 @@ pub struct MoveBody {
     pub dest_dir: String,
 }
 
-/// Move a directory into another one, with everything inside it.
+/// Move a folder into another one, with everything under it.
 pub async fn move_to(
     State(state): State<AppState>,
     who: Who,
@@ -108,8 +133,8 @@ pub async fn move_to(
             "the share root itself cannot be moved".to_string(),
         ));
     }
-    // The top level layout of the share is fixed. Moving a top level folder into
-    // a subfolder would remove one, which is the same thing creating one is not
+    // The top level layout of the share is fixed. Moving a top level folder into a
+    // subfolder would remove one, which is the same thing creating one is not
     // allowed to do. Renaming it is still fine.
     if current.depth() == 1 {
         return Err(AppError::BadRequest(format!(
@@ -141,51 +166,52 @@ pub async fn move_to(
         .ok_or_else(|| AppError::BadRequest("that folder has no name to move".to_string()))?;
     let target = dest_dir.join(name, excluded)?;
 
-    relocate(&state, &who, &current, &target, "moved").await
+    let old_parent_id = match current.parent() {
+        Some(parent) => tree::ensure_dir(&state.pool, &parent).await?,
+        None => tree::root_id(&state.pool).await?,
+    };
+
+    let directory_id = relocate(&state, &current, &target, "moved").await?;
+    if target != current {
+        state
+            .undo
+            .push(
+                &who,
+                format!("moving the folder '{current}' to '{dest_dir}'"),
+                Step::DirMoved {
+                    directory_id,
+                    old_parent_id,
+                },
+            )
+            .await;
+    }
+
+    Ok(Json(DirResponse::new(&state, directory_id, &target)))
 }
 
-/// Move the directory and answer with what changed.
+/// Move the folder on the share and repoint its row. Returns its id, which does
+/// not change.
 async fn relocate(
     state: &AppState,
-    who: &Who,
     current: &RelPath,
     target: &RelPath,
     verb: &'static str,
-) -> AppResult<Json<DirResponse>> {
-    let describe = |files_updated| {
-        Json(DirResponse {
-            path: target.as_str().to_string(),
-            name: target.file_name().unwrap_or_default().to_string(),
-            files_updated,
-        })
-    };
+) -> AppResult<Uuid> {
     if target == current {
-        return Ok(describe(0));
+        return tree::ensure_dir(&state.pool, current).await;
     }
-
-    let files_updated = move_dir(state, current, target, verb).await?;
-    state
-        .undo
-        .push(
-            who,
-            format!("{verb} the folder '{current}' to '{target}'"),
-            Step::DirMoved {
-                from: current.clone(),
-                to: target.clone(),
-            },
-        )
-        .await;
-    Ok(describe(files_updated))
+    move_dir(state, current, target, verb).await
 }
 
-/// Move the directory, then re-prefix the recorded path of everything under it.
-/// Returns how many rows were rewritten.
+/// Move a folder: rename it on the share, then repoint the one row that says where
+/// it is. Everything below follows for free, because paths are derived from the
+/// tree rather than stored.
 pub(crate) async fn move_dir(
     state: &AppState,
     current: &RelPath,
     target: &RelPath,
     verb: &'static str,
-) -> AppResult<u64> {
+) -> AppResult<Uuid> {
     let root = &state.config.share_root;
     let from = paths::resolve(root, current)?;
     if !from.is_dir() {
@@ -195,51 +221,41 @@ pub(crate) async fn move_dir(
     }
     let to = paths::resolve_new(root, target)?;
 
+    let directory_id = tree::ensure_dir(&state.pool, current).await?;
+    let new_parent_id = match target.parent() {
+        Some(parent) => tree::ensure_dir(&state.pool, &parent).await?,
+        None => tree::root_id(&state.pool).await?,
+    };
+
     fs_ops::rename(&from, &to)?;
 
-    match rewrite_paths(state, current, target).await {
-        Ok(files_updated) => {
-            tracing::info!(from = %current, to = %target, files_updated, "directory {verb}");
-            Ok(files_updated)
-        }
-        Err(error) => {
-            // A disagreement here would break every link under this directory.
-            if let Err(undo) = std::fs::rename(&to, &from) {
-                tracing::error!(
-                    from = %from.display(), to = %to.display(),
-                    "could not undo a directory {verb} after the database write failed: {undo}"
-                );
-            }
-            Err(error)
-        }
-    }
-}
-
-/// Re-prefix every tracked path under `current` in one statement.
-async fn rewrite_paths(state: &AppState, current: &RelPath, target: &RelPath) -> AppResult<u64> {
-    let old_prefix = format!("{current}/");
-    let new_prefix = format!("{target}/");
-
-    let updated = sqlx::query(
-        "UPDATE hagio_admin.file
-         SET relative_path = $1 || substr(relative_path, $2), updated_at = now()
-         WHERE relative_path LIKE $3 ESCAPE '\\'",
+    let written = sqlx::query(
+        "UPDATE hagio_admin.directory
+         SET parent_id = $1, name = $2, missing_since = NULL, updated_at = now()
+         WHERE directory_id = $3",
     )
-    .bind(&new_prefix)
-    .bind(old_prefix.len() as i32 + 1)
-    .bind(scan::like_prefix(&old_prefix))
+    .bind(new_parent_id)
+    .bind(target.file_name().unwrap_or_default())
+    .bind(directory_id)
     .execute(&state.pool)
-    .await
-    .map_err(|error| {
-        if error.as_database_error().and_then(|e| e.code()).as_deref() == Some("23505") {
-            AppError::Conflict(format!(
-                "some tracked paths under '{target}' already exist; rescan the share and try again"
-            ))
-        } else {
-            AppError::Db(error)
-        }
-    })?
-    .rows_affected();
+    .await;
 
-    Ok(updated)
+    if let Err(error) = written {
+        // A disagreement here would misdirect every link under this folder.
+        if let Err(undo) = std::fs::rename(&to, &from) {
+            tracing::error!(
+                from = %from.display(), to = %to.display(),
+                "could not undo a directory {verb} after the database write failed: {undo}"
+            );
+        }
+        if error.as_database_error().and_then(|e| e.code()).as_deref() == Some("23505") {
+            return Err(AppError::Conflict(format!(
+                "another tracked folder already claims '{target}'; rescan the share and try again"
+            )));
+        }
+        return Err(error.into());
+    }
+
+    tracing::info!(from = %current, to = %target, directory_id = %directory_id, "directory {verb}");
+    Ok(directory_id)
 }

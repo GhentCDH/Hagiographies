@@ -1,6 +1,6 @@
 [package]
 name = "hagio-file-explorer"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2024"
 
 [[bin]]
@@ -11,7 +11,11 @@ path = "src/main.rs"
 axum = { version = "0.8.9", features = ["macros", "multipart"] }
 tokio = { version = "1.53.1", features = ["full"] }
 tower = { version = "0.5.3", features = ["util"] }
-tower-http = { version = "0.7.0", features = ["fs", "compression-gzip", "trace"] }
+tower-http = { version = "0.7.0", features = [
+    "fs",
+    "compression-gzip",
+    "trace",
+] }
 sqlx = { version = "0.9.0", features = [
     "runtime-tokio",
     "postgres",

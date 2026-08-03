@@ -323,17 +323,28 @@
 		</thead>
 		<tbody>
 			{#if searching}
-				{#each results?.hits ?? [] as hit (hit.file_id)}
+				{#each results?.hits ?? [] as hit (hit.id)}
 					{@const target = {
-						kind: 'file' as const,
-						id: hit.file_id,
+						kind: hit.kind,
+						id: hit.kind === 'file' ? hit.id : hit.path,
 						name: hit.name,
 						dir: hit.dir
 					}}
 					<tr class="border-b border-stone-200 hover:bg-stone-50">
 						<td class="px-3 py-1.5 break-words">
-							{#if renaming && renaming.id === hit.file_id}
+							{#if renaming && renaming.id === target.id}
 								{@render renameBox()}
+							{:else if hit.kind === 'dir'}
+								<button
+									class="flex items-start gap-2 text-left text-stone-800 hover:underline"
+									onclick={() => go(hit.path)}
+								>
+									<span class="mt-0.5 shrink-0 text-stone-400"><Icon name="folder" /></span>
+									{hit.name}
+								</button>
+								{#if hit.missing}
+									<span class="ml-2 text-xs text-amber-700">missing on the share</span>
+								{/if}
 							{:else}
 								<a
 									class="text-stone-800 hover:underline"
@@ -373,7 +384,7 @@
 							</button>
 						</td>
 						<td class="px-1 py-1.5">
-							{#if !hit.missing}
+							{#if !hit.missing && (hit.kind === 'file' || hit.path.includes('/'))}
 								<button
 									class="rounded p-1 text-stone-500 hover:bg-stone-100"
 									title="Move to another folder"
@@ -383,7 +394,7 @@
 								</button>
 							{/if}
 						</td>
-						<td class="px-1 py-1.5">{@render copyButton(hit.file_id, hit.link)}</td>
+						<td class="px-1 py-1.5">{@render copyButton(hit.id, hit.link)}</td>
 					</tr>
 				{/each}
 
@@ -472,6 +483,8 @@
 						<td class="px-1 py-1.5">
 							{#if entry.kind === 'file'}
 								{@render copyButton(entry.file_id, entry.link)}
+							{:else}
+								{@render copyButton(entry.directory_id, entry.link)}
 							{/if}
 						</td>
 					</tr>
@@ -522,16 +535,16 @@
 	</form>
 {/snippet}
 
-{#snippet copyButton(fileId: string, link: string)}
+{#snippet copyButton(id: string, link: string)}
 	<!-- Same sized icon either way, so confirming does not shift the row. -->
 	<button
 		class="rounded p-1 hover:bg-stone-100"
-		class:text-stone-500={copied !== fileId}
-		class:text-green-700={copied === fileId}
-		title={copied === fileId ? 'Link copied' : 'Copy the link for Mathesar'}
-		onclick={() => copyLink(fileId, link)}
+		class:text-stone-500={copied !== id}
+		class:text-green-700={copied === id}
+		title={copied === id ? 'Link copied' : 'Copy the link for Mathesar'}
+		onclick={() => copyLink(id, link)}
 	>
-		<Icon name={copied === fileId ? 'check' : 'link'} />
+		<Icon name={copied === id ? 'check' : 'link'} />
 	</button>
 {/snippet}
 

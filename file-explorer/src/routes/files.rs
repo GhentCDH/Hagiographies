@@ -8,9 +8,9 @@ use uuid::Uuid;
 
 use crate::error::{AppError, AppResult};
 use crate::fs_ops;
-use crate::models::FileRow;
 use crate::paths::{self, RelPath};
 use crate::state::AppState;
+use crate::tree;
 use crate::undo::{Step, Who};
 
 #[derive(Debug, Serialize)]
@@ -32,10 +32,9 @@ impl FileResponse {
     }
 }
 
-async fn fetch(state: &AppState, file_id: Uuid) -> AppResult<FileRow> {
-    sqlx::query_as::<_, FileRow>("SELECT relative_path FROM hagio_admin.file WHERE file_id = $1")
-        .bind(file_id)
-        .fetch_optional(&state.pool)
+/// Where a tracked file currently sits.
+async fn fetch(state: &AppState, file_id: Uuid) -> AppResult<RelPath> {
+    tree::file_path(&state.pool, file_id)
         .await?
         .ok_or_else(|| AppError::NotFound("no file is tracked under that id".to_string()))
 }
@@ -58,12 +57,19 @@ pub(crate) async fn move_file(
 
     fs_ops::rename(&from, &to)?;
 
+    // Where it went is a folder and a name now, not a path, so the write is the
+    // same size whether this is a rename, a move, or both at once.
+    let directory_id = match to_rel.parent() {
+        Some(parent) => tree::ensure_dir(&state.pool, &parent).await?,
+        None => tree::root_id(&state.pool).await?,
+    };
     let written = sqlx::query(
         "UPDATE hagio_admin.file
-         SET relative_path = $1, missing_since = NULL, updated_at = now()
-         WHERE file_id = $2",
+         SET directory_id = $1, name = $2, missing_since = NULL, updated_at = now()
+         WHERE file_id = $3",
     )
-    .bind(to_rel.as_str())
+    .bind(directory_id)
+    .bind(to_rel.file_name().unwrap_or_default())
     .bind(file_id)
     .execute(&state.pool)
     .await;
@@ -75,8 +81,8 @@ pub(crate) async fn move_file(
                 "could not undo a move after the database write failed: {undo}"
             );
         }
-        // A stale row can still hold the destination path, from a file deleted
-        // over SMB and later recreated under the same name.
+        // A stale row can still hold the destination name in that folder, from a
+        // file deleted over SMB and later recreated under the same name.
         if error.as_database_error().and_then(|e| e.code()).as_deref() == Some("23505") {
             return Err(AppError::Conflict(format!(
                 "another tracked file already claims '{to_rel}'; rescan the share and try again"
@@ -101,21 +107,19 @@ pub async fn rename(
     Json(body): Json<RenameBody>,
 ) -> AppResult<Json<FileResponse>> {
     let excluded = &state.config.excluded_dirs;
-    let row = fetch(&state, file_id).await?;
-
-    let current = RelPath::parse(&row.relative_path, excluded)?;
+    let current = fetch(&state, file_id).await?;
     let target = current.with_file_name(body.name.trim(), excluded)?;
 
     if target != current {
+        let old_name = current.file_name().unwrap_or_default().to_string();
         move_file(&state, file_id, &current, &target, "renamed").await?;
-        let step = Step::FileMoved {
-            file_id,
-            from: current.clone(),
-            to: target.clone(),
-        };
         state
             .undo
-            .push(&who, format!("renaming '{current}' to '{target}'"), step)
+            .push(
+                &who,
+                format!("renaming '{current}' to '{target}'"),
+                Step::FileRenamed { file_id, old_name },
+            )
             .await;
     }
     Ok(Json(FileResponse::new(&state, file_id, &target)))
@@ -134,9 +138,7 @@ pub async fn move_to(
 ) -> AppResult<Json<FileResponse>> {
     let config = &state.config;
     let excluded = &config.excluded_dirs;
-    let row = fetch(&state, file_id).await?;
-
-    let current = RelPath::parse(&row.relative_path, excluded)?;
+    let current = fetch(&state, file_id).await?;
     let name = current
         .file_name()
         .ok_or_else(|| AppError::BadRequest("that file has no name to move".to_string()))?;
@@ -150,15 +152,21 @@ pub async fn move_to(
 
     let target = dest_dir.join(name, excluded)?;
     if target != current {
-        move_file(&state, file_id, &current, &target, "moved").await?;
-        let step = Step::FileMoved {
-            file_id,
-            from: current.clone(),
-            to: target.clone(),
+        let old_directory_id = match current.parent() {
+            Some(parent) => tree::ensure_dir(&state.pool, &parent).await?,
+            None => tree::root_id(&state.pool).await?,
         };
+        move_file(&state, file_id, &current, &target, "moved").await?;
         state
             .undo
-            .push(&who, format!("moving '{current}' to '{dest_dir}'"), step)
+            .push(
+                &who,
+                format!("moving '{current}' to '{dest_dir}'"),
+                Step::FileMoved {
+                    file_id,
+                    old_directory_id,
+                },
+            )
             .await;
     }
     Ok(Json(FileResponse::new(&state, file_id, &target)))
@@ -240,7 +248,7 @@ pub async fn upload(
 
                 tracing::info!(path = %target_rel, size, "uploaded");
                 let step = Step::FilesAdded {
-                    files: vec![(target_rel.clone(), size)],
+                    files: vec![(file_id, size)],
                     root: None,
                 };
                 state
@@ -279,20 +287,24 @@ async fn stream_to_file(
 }
 
 async fn insert_row(state: &AppState, rel: &RelPath, size: i64, name: &str) -> AppResult<Uuid> {
-    let content_type = fs_ops::guess_content_type(name);
+    let directory_id = match rel.parent() {
+        Some(parent) => tree::ensure_dir(&state.pool, &parent).await?,
+        None => tree::root_id(&state.pool).await?,
+    };
     let file_id = sqlx::query_scalar::<_, Uuid>(
-        "INSERT INTO hagio_admin.file (relative_path, size_bytes, content_type)
-         VALUES ($1, $2, $3)
-         ON CONFLICT (relative_path) DO UPDATE
+        "INSERT INTO hagio_admin.file (directory_id, name, size_bytes, content_type)
+         VALUES ($1, $2, $3, $4)
+         ON CONFLICT (directory_id, name) DO UPDATE
          SET size_bytes = EXCLUDED.size_bytes,
              content_type = EXCLUDED.content_type,
              missing_since = NULL,
              updated_at = now()
          RETURNING file_id",
     )
-    .bind(rel.as_str())
+    .bind(directory_id)
+    .bind(name)
     .bind(size)
-    .bind(content_type)
+    .bind(fs_ops::guess_content_type(name))
     .fetch_one(&state.pool)
     .await?;
 
@@ -357,21 +369,22 @@ pub async fn upload_folder(
                 }));
             }
 
-            if let Err(e) = insert_rows(&state, &files).await {
-                // We made this directory, so nothing else can be in it.
-                let _ = std::fs::remove_dir_all(&root_abs);
-                return Err(e);
-            }
+            let uploaded = match insert_rows(&state, &files).await {
+                Ok(uploaded) => uploaded,
+                Err(e) => {
+                    // We made this directory, so nothing else can be in it.
+                    let _ = std::fs::remove_dir_all(&root_abs);
+                    return Err(e);
+                }
+            };
+            let root_id = tree::ensure_dir(&state.pool, &root_rel).await?;
             tracing::info!(
                 path = %root_rel, files_uploaded, skipped = skipped.len(),
                 "folder uploaded"
             );
             let step = Step::FilesAdded {
-                files: files
-                    .iter()
-                    .map(|(rel, size, _)| (rel.clone(), *size))
-                    .collect(),
-                root: Some(root_rel.clone()),
+                files: uploaded,
+                root: Some(root_id),
             };
             state
                 .undo
@@ -477,28 +490,58 @@ fn inner_path(raw: &str) -> Result<RelPath, String> {
     Ok(path)
 }
 
-async fn insert_rows(state: &AppState, files: &[Uploaded]) -> AppResult<()> {
-    if files.is_empty() {
-        return Ok(());
+/// Insert a row per uploaded file, grouped by the folder each one landed in so a
+/// nested upload is one statement per folder rather than one per file.
+///
+/// Returns each id with its size, which is what undo needs to check the file is
+/// still byte for byte as uploaded. Paired up by name rather than by position:
+/// `RETURNING` makes no promise about the order it hands rows back in.
+async fn insert_rows(state: &AppState, files: &[Uploaded]) -> AppResult<Vec<(Uuid, i64)>> {
+    let mut by_dir: std::collections::HashMap<RelPath, Vec<&Uploaded>> =
+        std::collections::HashMap::new();
+    for file in files {
+        by_dir
+            .entry(file.0.parent().unwrap_or_else(RelPath::root))
+            .or_default()
+            .push(file);
     }
-    let paths: Vec<&str> = files.iter().map(|(rel, _, _)| rel.as_str()).collect();
-    let sizes: Vec<i64> = files.iter().map(|(_, size, _)| *size).collect();
-    let types: Vec<Option<String>> = files.iter().map(|(_, _, t)| t.clone()).collect();
 
-    sqlx::query(
-        "INSERT INTO hagio_admin.file (relative_path, size_bytes, content_type)
-         SELECT * FROM unnest($1::text[], $2::bigint[], $3::text[])
-         ON CONFLICT (relative_path) DO UPDATE
-         SET size_bytes = EXCLUDED.size_bytes,
-             content_type = EXCLUDED.content_type,
-             missing_since = NULL,
-             updated_at = now()",
-    )
-    .bind(&paths)
-    .bind(&sizes)
-    .bind(&types)
-    .execute(&state.pool)
-    .await?;
+    let mut uploaded = Vec::with_capacity(files.len());
+    for (dir, group) in by_dir {
+        let directory_id = tree::ensure_dir(&state.pool, &dir).await?;
+        let names: Vec<&str> = group
+            .iter()
+            .map(|(rel, _, _)| rel.file_name().unwrap_or_default())
+            .collect();
+        let sizes: Vec<i64> = group.iter().map(|(_, size, _)| *size).collect();
+        let types: Vec<Option<String>> = group.iter().map(|(_, _, t)| t.clone()).collect();
 
-    Ok(())
+        let inserted = sqlx::query_as::<_, (Uuid, String)>(
+            "INSERT INTO hagio_admin.file (directory_id, name, size_bytes, content_type)
+             SELECT $1, * FROM unnest($2::text[], $3::bigint[], $4::text[])
+             ON CONFLICT (directory_id, name) DO UPDATE
+             SET size_bytes = EXCLUDED.size_bytes,
+                 content_type = EXCLUDED.content_type,
+                 missing_since = NULL,
+                 updated_at = now()
+             RETURNING file_id, name",
+        )
+        .bind(directory_id)
+        .bind(&names)
+        .bind(&sizes)
+        .bind(&types)
+        .fetch_all(&state.pool)
+        .await?;
+
+        for (file_id, name) in inserted {
+            let size = group
+                .iter()
+                .find(|(rel, _, _)| rel.file_name() == Some(name.as_str()))
+                .map(|(_, size, _)| *size)
+                .unwrap_or_default();
+            uploaded.push((file_id, size));
+        }
+    }
+
+    Ok(uploaded)
 }

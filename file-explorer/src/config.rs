@@ -163,6 +163,12 @@ impl Config {
     pub fn link_for(&self, file_id: uuid::Uuid) -> String {
         format!("{}/f/{}", self.public_base_url, file_id)
     }
+
+    /// The link a student copies for a folder. Opening it lands them in the
+    /// explorer at that folder rather than downloading anything.
+    pub fn dir_link_for(&self, directory_id: uuid::Uuid) -> String {
+        format!("{}/d/{}", self.public_base_url, directory_id)
+    }
 }
 
 /// Host of an `http(s)://host[:port]/...` URL, lowercased, without the port.

@@ -45,6 +45,7 @@ pub fn build(state: AppState) -> Router {
         .nest("/api", api)
         // Outside /api on purpose: this is the public, pasteable URL.
         .route("/f/{file_id}", get(serve::serve))
+        .route("/d/{directory_id}", get(serve::serve_dir))
         .layer(TraceLayer::new_for_http())
         .with_state(state)
         .fallback(crate::embed::handler)
@@ -65,11 +66,11 @@ pub(crate) async fn move_file_back(
     files::move_file(state, file_id, from, to, "moved back").await
 }
 
-/// Reverse a folder move, rewriting the paths under it again.
+/// Reverse a folder move. One row again, so nothing under it is touched.
 pub(crate) async fn move_dir_back(
     state: &AppState,
     from: &crate::paths::RelPath,
     to: &crate::paths::RelPath,
-) -> crate::error::AppResult<u64> {
+) -> crate::error::AppResult<uuid::Uuid> {
     dirs::move_dir(state, from, to, "moved back").await
 }

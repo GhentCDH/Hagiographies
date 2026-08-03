@@ -1,13 +1,6 @@
 use chrono::{DateTime, Utc};
 use serde::Serialize;
-use sqlx::FromRow;
 use uuid::Uuid;
-
-/// Where a tracked file currently lives.
-#[derive(Debug, Clone, FromRow)]
-pub struct FileRow {
-    pub relative_path: String,
-}
 
 #[derive(Debug, Serialize)]
 #[serde(tag = "kind", rename_all = "lowercase")]
@@ -15,6 +8,9 @@ pub enum Entry {
     Dir {
         name: String,
         path: String,
+        /// Folders are linkable too, at /d/<directory_id>.
+        directory_id: Uuid,
+        link: String,
     },
     File {
         name: String,

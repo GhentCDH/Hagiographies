@@ -8,6 +8,7 @@ mod paths;
 mod routes;
 mod scan;
 mod state;
+mod tree;
 mod undo;
 
 use std::sync::Arc;

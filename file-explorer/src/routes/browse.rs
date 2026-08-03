@@ -33,9 +33,17 @@ pub async fn browse(
     for entry in found {
         let path = dir.join(&entry.name, &config.excluded_dirs)?;
         if entry.is_dir {
+            // reconcile_dir gave every subfolder here a row, so it has an id to
+            // link to.
+            let Some(directory_id) = reconciled.subdirs.get(&entry.name).copied() else {
+                tracing::warn!(path = %path, "folder vanished mid-listing, omitting it");
+                continue;
+            };
             entries.push(Entry::Dir {
                 name: entry.name,
                 path: path.as_str().to_string(),
+                directory_id,
+                link: config.dir_link_for(directory_id),
             });
             continue;
         }

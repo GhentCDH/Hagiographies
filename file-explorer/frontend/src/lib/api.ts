@@ -1,6 +1,13 @@
 export type Crumb = { name: string; path: string };
 
-export type DirEntry = { kind: 'dir'; name: string; path: string };
+export type DirEntry = {
+	kind: 'dir';
+	name: string;
+	path: string;
+	/// Folders are linkable too, at /d/<directory_id>.
+	directory_id: string;
+	link: string;
+};
 
 export type FileEntry = {
 	kind: 'file';
@@ -118,7 +125,9 @@ export function upload(dir: string, name: string, file: File) {
 }
 
 export type Hit = {
-	file_id: string;
+	/// A file hit opens the file; a folder hit navigates into it.
+	kind: 'file' | 'dir';
+	id: string;
 	name: string;
 	path: string;
 	dir: string;

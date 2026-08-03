@@ -6,8 +6,8 @@
 //! a subsequence test. Whatever survives that is scored and ranked here, where we
 //! can be picky about it.
 //!
-//! Folders are not searched: they have no rows of their own. The folder of each
-//! hit is returned so you can jump there.
+//! Folders are searched alongside files, since they are rows too. A folder hit
+//! navigates, a file hit opens: the `kind` field says which.
 
 use axum::{
     Json,
@@ -34,8 +34,17 @@ pub struct SearchQuery {
 }
 
 #[derive(Debug, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Kind {
+    File,
+    Dir,
+}
+
+#[derive(Debug, Serialize)]
 pub struct Hit {
-    file_id: Uuid,
+    kind: Kind,
+    /// The file_id or the directory_id, depending on `kind`.
+    id: Uuid,
     name: String,
     path: String,
     /// The folder it sits in, for the "go there" link.
@@ -55,10 +64,11 @@ pub struct SearchResults {
 
 #[derive(Debug, sqlx::FromRow)]
 struct Candidate {
-    file_id: Uuid,
+    id: Uuid,
     relative_path: String,
     size_bytes: Option<i64>,
     missing_since: Option<chrono::DateTime<chrono::Utc>>,
+    is_dir: bool,
 }
 
 pub async fn search(
@@ -77,10 +87,24 @@ pub async fn search(
         }));
     }
 
+    // The ILIKE has to run against the assembled path, not the name alone: a query
+    // like "scanskoln" is a subsequence that spans the folder/name boundary, and
+    // matching the two halves separately would lose it. The root is excluded from
+    // the folder half because its path is the empty string and it is not a result
+    // anyone means.
     let candidates = sqlx::query_as::<_, Candidate>(
-        "SELECT file_id, relative_path, size_bytes, missing_since
-         FROM hagio_admin.file
-         WHERE relative_path ILIKE $1 ESCAPE '\\'
+        "SELECT f.file_id AS id, p.relative_path, f.size_bytes, f.missing_since,
+                false AS is_dir
+         FROM hagio_admin.file f
+         JOIN hagio_admin.file_path p USING (file_id)
+         WHERE p.relative_path ILIKE $1 ESCAPE '\\'
+       UNION ALL
+         SELECT d.directory_id AS id, dp.relative_path, NULL::bigint, d.missing_since,
+                true AS is_dir
+         FROM hagio_admin.directory d
+         JOIN hagio_admin.directory_path dp USING (directory_id)
+         WHERE d.parent_id IS NOT NULL
+           AND dp.relative_path ILIKE $1 ESCAPE '\\'
          LIMIT $2",
     )
     .bind(subsequence_pattern(&needle))
@@ -102,14 +126,19 @@ pub async fn search(
         scored.push((
             score,
             Hit {
-                file_id: row.file_id,
+                kind: if row.is_dir { Kind::Dir } else { Kind::File },
+                id: row.id,
                 name: rel.file_name().unwrap_or_default().to_string(),
                 path: rel.as_str().to_string(),
                 dir: rel
                     .parent()
                     .map(|p| p.as_str().to_string())
                     .unwrap_or_default(),
-                link: config.link_for(row.file_id),
+                link: if row.is_dir {
+                    config.dir_link_for(row.id)
+                } else {
+                    config.link_for(row.id)
+                },
                 size_bytes: row.size_bytes,
                 missing: row.missing_since.is_some(),
             },

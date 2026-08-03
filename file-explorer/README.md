@@ -10,22 +10,41 @@ is embedded in the binary. One binary, one container.
 
 ## Why the link is a UUID
 
-Every file gets a row in `hagio_admin.file` with a UUIDv4 and its path relative
-to the share root. The link is `https://files.m-patch.ugent.be/f/<uuid>`, so
-renaming a file, moving it, or renaming a whole top level folder does not break
-any link already pasted into the database. Only `relative_path` changes.
+Files and folders both get a row with a UUIDv4: `hagio_admin.file` and
+`hagio_admin.directory`. A file is served at
+`https://files.m-patch.ugent.be/f/<uuid>`; a folder link,
+`https://files.m-patch.ugent.be/d/<uuid>`, redirects into the explorer showing that
+folder. Renaming or moving either does not break a link already pasted into the
+database, because the UUID never changes.
 
-## Why there is a second table
+## Where things live is a relation, not a string
 
-`hagio_admin.file_reference` records which database rows link to which file. It
-is filled in by a trigger on `manuscript_link` and `edition_link` that pulls the
-UUID out of the url, so it stays right without anybody doing anything. That gives
-you "what cites this file?" and "which files are unused?".
+`directory` is a tree: `parent_id` points at the folder above, and the single row
+with `parent_id IS NULL` is the share root. `file` says `directory_id` plus `name`.
+Nothing stores a full path.
 
-The trigger is `SECURITY DEFINER` because the researchers edit those columns as
-`hagiographies_editor`, which has no access to `hagio_admin` at all. It never
-raises: a link with an unknown UUID shows up in
-`hagio_admin.file_reference_unresolved` instead of failing their edit.
+That is what makes a rename cheap. Renaming a folder is one `UPDATE` of one `name`;
+moving it is one `UPDATE` of one `parent_id`. Nothing below it is touched, however
+deep it goes. Paths are assembled on demand by two views,
+`hagio_admin.directory_path` and `hagio_admin.file_path`, which are also what
+search and the `/f/` handler read.
+
+## Which database rows cite which file
+
+One table per source link table: `hagio_admin.manuscript_link_reference` and
+`hagio_admin.edition_link_reference`. Each has a real foreign key to its source row
+and a real foreign key to whichever of `file` or `directory` the URL named, with a
+CHECK that exactly one target is set. So "what cites this file?" and "which files
+are unused?" are ordinary joins.
+
+Both are filled in by a trigger on their link table that pulls the UUID out of the
+url, so they stay right without anybody doing anything. Deleting a link row needs
+no trigger branch at all: the foreign key cascades.
+
+The triggers are `SECURITY DEFINER` because the researchers edit those columns as
+`hagiographies_editor`, which has no access to `hagio_admin`. They never raise: a
+link with an unknown UUID shows up in `hagio_admin.link_reference_unresolved`
+instead of failing their edit.
 
 The accepted hosts live in `hagio_admin.file_link_host`, since a trigger cannot
 read `config.toml`. The app rewrites that table from its `link_hosts` setting on
@@ -33,10 +52,19 @@ every startup.
 
 ## Schema
 
-The tables come from `db/migrations/013_file.sql`, applied with `just db_migrate`
-like every other schema change. There is no migration runner in this app on
-purpose: `db/migrations/` is the only source of truth for this database. The app
-refuses to start if `hagio_admin.file` is missing and tells you what to run.
+The tables come from `db/migrations/`, applied with `just db_migrate` like every
+other schema change: 013 created `file`, 014 added `directory` and the folder
+links, 015 dropped the path column 014 replaced. There is no migration runner in
+this app on purpose: `db/migrations/` is the only source of truth for this
+database. The app refuses to start if `hagio_admin.file` is missing and tells you
+what to run.
+
+**014 and 015 are staged, and the order matters.** 014 is additive and leaves
+`file.relative_path` in place, so the previously deployed binary keeps working
+against it. Deploy the new image, then run 015, which drops the column. Doing 015
+first would break every request the old binary handles. If 015 refuses because a
+file has no `directory_id`, that is a row the old binary added in between: rescan
+the share and run it again.
 
 ## Running it locally
 
@@ -92,20 +120,23 @@ can be changed without a rebuild.
 ## Search
 
 The box next to the title searches every tracked file on the share, not just the
-folder you are in. It is fuzzy: the letters have to appear in order but not
-together, so `kln6` finds `koln-6-plate.jpg`. Spaces are ignored, case does not
+folder you are in. Folders as well as files, since both are rows. It is fuzzy: the letters have to
+appear in order but not together, so `kln6` finds `koln-6-plate.jpg`. Spaces are ignored, case does not
 matter, and a match in the file name always outranks one that only matched in the
 folder path. Each hit links straight to the file, and its folder is clickable.
 
 Postgres does the first pass with an ILIKE built from the query letters, which is
-a subsequence test; the survivors are scored and ranked in `routes/search.rs`.
-Folders themselves are not searched, since they have no rows of their own.
+a subsequence test; the survivors are scored and ranked in `routes/search.rs`. The
+ILIKE runs against the assembled path rather than the name, because a query like
+`scanskoln` is a subsequence that spans the folder/name boundary.
 
 ## Undo
 
 Every operation that cannot lose data can be undone, from the button beside the
 folder buttons. Renames and moves of files and folders are put back, keeping the
-file_id so no pasted link breaks. A folder we created is removed, and an upload is
+id so no pasted link breaks. Every entry records ids and old values, never paths,
+so undoing a file move still works after somebody has renamed the folder it has to
+go back into. A folder we created is removed, and an upload is
 taken back.
 
 Undo refuses rather than destroying anything it did not create:
@@ -158,6 +189,7 @@ and a broken link nobody can see is worse.
 src/paths.rs      path safety and naming rules, with the unit tests
 src/fs_ops.rs     the filesystem side, no database
 src/scan.rs       keeping hagio_admin.file in step with the share
+src/tree.rs       the only place a path is turned into an id, or back
 src/undo.rs       the per person undo stacks and how each step reverses
 src/routes/       browse, files, dirs, search, serve, undo
 frontend/         Svelte 5 + Vite + Tailwind, built with bun

@@ -1,7 +1,7 @@
 use axum::{
     extract::{Path, Query, Request, State},
     http::{HeaderValue, header},
-    response::Response,
+    response::{IntoResponse, Redirect, Response},
 };
 use serde::Deserialize;
 use tower::ServiceExt;
@@ -9,9 +9,9 @@ use tower_http::services::ServeFile;
 use uuid::Uuid;
 
 use crate::error::{AppError, AppResult};
-use crate::models::FileRow;
-use crate::paths::{self, RelPath};
+use crate::paths;
 use crate::state::AppState;
+use crate::tree;
 
 #[derive(Debug, Deserialize)]
 pub struct ServeQuery {
@@ -28,15 +28,12 @@ pub async fn serve(
 ) -> AppResult<Response> {
     let config = &state.config;
 
-    let row = sqlx::query_as::<_, FileRow>(
-        "SELECT relative_path FROM hagio_admin.file WHERE file_id = $1",
-    )
-    .bind(file_id)
-    .fetch_optional(&state.pool)
-    .await?
-    .ok_or_else(|| AppError::NotFound("this link does not point at a known file".to_string()))?;
+    let rel = tree::file_path(&state.pool, file_id)
+        .await?
+        .ok_or_else(|| {
+            AppError::NotFound("this link does not point at a known file".to_string())
+        })?;
 
-    let rel = RelPath::parse(&row.relative_path, &config.excluded_dirs)?;
     let abs = match paths::resolve(&config.share_root, &rel) {
         Ok(abs) => abs,
         Err(e) => {
@@ -129,9 +126,74 @@ fn percent_encode(value: &str) -> String {
     out
 }
 
+/// The public URL for a folder. Answers a redirect into the explorer rather than
+/// any content of its own: a link to a place should take you to the place, and the
+/// explorer already knows how to show one.
+pub async fn serve_dir(
+    State(state): State<AppState>,
+    Path(directory_id): Path<Uuid>,
+) -> AppResult<Response> {
+    let config = &state.config;
+
+    let rel = tree::dir_path(&state.pool, directory_id)
+        .await?
+        .ok_or_else(|| {
+            AppError::NotFound("this link does not point at a known folder".to_string())
+        })?;
+
+    // A folder that is gone gets the same treatment as a missing file: recorded,
+    // then reported.
+    if paths::resolve(&config.share_root, &rel).is_err() {
+        let result = sqlx::query(
+            "UPDATE hagio_admin.directory
+             SET missing_since = now(), updated_at = now()
+             WHERE directory_id = $1 AND missing_since IS NULL",
+        )
+        .bind(directory_id)
+        .execute(&state.pool)
+        .await;
+        if let Err(e) = result {
+            tracing::error!(directory_id = %directory_id, "could not record the folder as missing: {e}");
+        }
+        tracing::warn!(directory_id = %directory_id, path = %rel, "link points at a folder that is gone");
+        return Err(AppError::NotFound(
+            "the folder this link points at is no longer on the share".to_string(),
+        ));
+    }
+
+    // The explorer keeps the current folder in the fragment, so this is a link
+    // into the single page app rather than another route.
+    let target = if rel.is_root() {
+        format!("{}/#/", config.public_base_url)
+    } else {
+        format!("{}/#/{}", config.public_base_url, encode_path(rel.as_str()))
+    };
+
+    tracing::info!(directory_id = %directory_id, path = %rel, "folder opened");
+
+    Ok(Redirect::to(&target).into_response())
+}
+
+/// Percent-encode the parts of a path that cannot travel in a URL, leaving the
+/// separators alone so the fragment still reads as a path.
+fn encode_path(path: &str) -> String {
+    path.split('/')
+        .map(percent_encode)
+        .collect::<Vec<_>>()
+        .join("/")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_path_is_encoded_without_losing_its_separators() {
+        assert_eq!(encode_path("scans/koln 6"), "scans/koln%206");
+        assert_eq!(encode_path("Köln"), "K%C3%B6ln");
+        // The separators have to survive, or the fragment stops being a path.
+        assert_eq!(encode_path("a/b/c"), "a/b/c");
+    }
 
     #[test]
     fn quotes_and_non_ascii_names_are_safe_in_the_header() {
