@@ -65,12 +65,20 @@ ALTER TABLE ONLY hagio_admin.directory
     ADD CONSTRAINT directory_root_shape_check
     CHECK ((parent_id IS NULL) = (name IS NULL));
 
--- NULLS NOT DISTINCT is load-bearing, not a flourish: a plain UNIQUE treats
--- (NULL, NULL) as distinct from itself, so it would happily allow a second root.
--- Needs PostgreSQL 15 or newer; the servers run 17.
+-- One name per folder. Every non-root row has both columns filled in, so plain
+-- NULLS DISTINCT semantics are all this needs.
 ALTER TABLE ONLY hagio_admin.directory
-    ADD CONSTRAINT directory_parent_id_name_key
-    UNIQUE NULLS NOT DISTINCT (parent_id, name);
+    ADD CONSTRAINT directory_parent_id_name_key UNIQUE (parent_id, name);
+
+-- The root needs saying separately. A UNIQUE constraint treats (NULL, NULL) as
+-- distinct from itself, so the constraint above would happily allow a second
+-- root; a partial index over just the root rows will not.
+--
+-- PostgreSQL 15 can express this as UNIQUE NULLS NOT DISTINCT on the constraint
+-- above, which is tidier. The servers run 14, so this is the portable spelling.
+CREATE UNIQUE INDEX ux_directory_single_root
+    ON hagio_admin.directory ((parent_id IS NULL))
+    WHERE parent_id IS NULL;
 
 CREATE INDEX ix_directory_parent_id
     ON hagio_admin.directory USING btree (parent_id);

@@ -65,6 +65,9 @@ db_local_migrate_status:
 db_migrate_prd:
     {{DB}} migrate --database-url "$PG_DATABASE_URL_PRD"
 
+db_migrate_prd_status:
+    {{DB}} migrate --database-url "$PG_DATABASE_URL_PRD" --status
+
 # Overwrites the local research DB with a copy of whatever PG_DATABASE_URL
 # points at (QAS), so migrations and backfills can be rehearsed locally.
 # Requires PG_DATABASE_URL in the host environment (.env / direnv).
