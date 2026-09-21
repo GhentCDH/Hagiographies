@@ -104,6 +104,7 @@ pub async fn search(
          FROM hagio_admin.directory d
          JOIN hagio_admin.directory_path dp USING (directory_id)
          WHERE d.parent_id IS NOT NULL
+           AND d.missing_since IS NULL
            AND dp.relative_path ILIKE $1 ESCAPE '\\'
          LIMIT $2",
     )
