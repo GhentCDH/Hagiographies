@@ -171,3 +171,50 @@ pub fn guess_content_type(name: &str) -> Option<String> {
         .first()
         .map(|mime| mime.to_string())
 }
+
+/// blake3 of a file's contents, as raw bytes. Streamed through a copy so a
+/// multi-gigabyte TIFF never lands in memory whole. Blocking; call it off the
+/// async runtime (see `scan::hash_at`).
+pub fn hash_file(abs: &Path) -> std::io::Result<[u8; 32]> {
+    let mut file = fs::File::open(abs)?;
+    let mut hasher = blake3::Hasher::new();
+    std::io::copy(&mut file, &mut hasher)?;
+    Ok(*hasher.finalize().as_bytes())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::io::Write;
+
+    #[test]
+    fn hash_file_matches_one_shot_blake3() {
+        // The streamed hash of the file must equal blake3 over the same bytes,
+        // and two identical files must hash the same (the move-match relies on
+        // it) while different bytes must not.
+        let bytes = b"M-PATCH manuscript scan bytes, larger than one read\n".repeat(4096);
+
+        let dir = tempfile::tempdir().unwrap();
+        let a = dir.path().join("a.bin");
+        let b = dir.path().join("b.bin");
+        std::fs::File::create(&a)
+            .unwrap()
+            .write_all(&bytes)
+            .unwrap();
+        std::fs::File::create(&b)
+            .unwrap()
+            .write_all(&bytes)
+            .unwrap();
+
+        let ha = hash_file(&a).unwrap();
+        assert_eq!(ha, *blake3::hash(&bytes).as_bytes());
+        assert_eq!(ha, hash_file(&b).unwrap());
+
+        let other = dir.path().join("c.bin");
+        std::fs::File::create(&other)
+            .unwrap()
+            .write_all(b"different")
+            .unwrap();
+        assert_ne!(ha, hash_file(&other).unwrap());
+    }
+}

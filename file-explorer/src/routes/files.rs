@@ -224,8 +224,8 @@ pub async fn upload(
                 // Written beside the target so the final rename is atomic and
                 // nobody sees a half-uploaded file at the real path.
                 let temp = fs_ops::temp_path_beside(&target);
-                let size = match stream_to_file(&mut field, &temp).await {
-                    Ok(size) => size,
+                let (size, hash) = match stream_to_file(&mut field, &temp).await {
+                    Ok(streamed) => streamed,
                     Err(e) => {
                         let _ = std::fs::remove_file(&temp);
                         return Err(e);
@@ -236,7 +236,7 @@ pub async fn upload(
                     return Err(e);
                 }
 
-                let file_id = match insert_row(&state, &target_rel, size, &name).await {
+                let file_id = match insert_row(&state, &target_rel, size, &name, &hash).await {
                     Ok(id) => id,
                     Err(e) => {
                         // An untracked file is invisible until the next scan,
@@ -270,33 +270,44 @@ pub async fn upload(
     ))
 }
 
+/// Writes the upload out and hashes it in the same pass, so the row carries a
+/// blake3 without the file ever being read a second time.
 async fn stream_to_file(
     field: &mut axum::extract::multipart::Field<'_>,
     temp: &std::path::Path,
-) -> AppResult<i64> {
+) -> AppResult<(i64, Vec<u8>)> {
     let mut out = tokio::fs::File::create(temp).await?;
     let mut size: i64 = 0;
+    let mut hasher = blake3::Hasher::new();
 
     while let Some(chunk) = field.chunk().await.map_err(upload_failed)? {
         size += chunk.len() as i64;
+        hasher.update(&chunk);
         out.write_all(&chunk).await?;
     }
     out.flush().await?;
 
-    Ok(size)
+    Ok((size, hasher.finalize().as_bytes().to_vec()))
 }
 
-async fn insert_row(state: &AppState, rel: &RelPath, size: i64, name: &str) -> AppResult<Uuid> {
+async fn insert_row(
+    state: &AppState,
+    rel: &RelPath,
+    size: i64,
+    name: &str,
+    hash: &[u8],
+) -> AppResult<Uuid> {
     let directory_id = match rel.parent() {
         Some(parent) => tree::ensure_dir(&state.pool, &parent).await?,
         None => tree::root_id(&state.pool).await?,
     };
     let file_id = sqlx::query_scalar::<_, Uuid>(
-        "INSERT INTO hagio_admin.file (directory_id, name, size_bytes, content_type)
-         VALUES ($1, $2, $3, $4)
+        "INSERT INTO hagio_admin.file (directory_id, name, size_bytes, content_type, content_hash)
+         VALUES ($1, $2, $3, $4, $5)
          ON CONFLICT (directory_id, name) DO UPDATE
          SET size_bytes = EXCLUDED.size_bytes,
              content_type = EXCLUDED.content_type,
+             content_hash = EXCLUDED.content_hash,
              missing_since = NULL,
              updated_at = now()
          RETURNING file_id",
@@ -305,6 +316,7 @@ async fn insert_row(state: &AppState, rel: &RelPath, size: i64, name: &str) -> A
     .bind(name)
     .bind(size)
     .bind(fs_ops::guess_content_type(name))
+    .bind(hash)
     .fetch_one(&state.pool)
     .await?;
 
@@ -420,7 +432,7 @@ async fn text_field(multipart: &mut Multipart, expected: &str) -> AppResult<Stri
     field.text().await.map_err(upload_failed)
 }
 
-type Uploaded = (RelPath, i64, Option<String>);
+type Uploaded = (RelPath, i64, Option<String>, Vec<u8>);
 
 /// Write every remaining part under `root_abs`. Rows are inserted afterwards, so
 /// a failure here leaves nothing in the database to undo.
@@ -460,10 +472,10 @@ async fn receive_folder(
             }
         }
 
-        let size = stream_to_file(&mut field, &abs).await?;
+        let (size, hash) = stream_to_file(&mut field, &abs).await?;
         let rel = RelPath::parse(&format!("{root_rel}/{inner}"), &[])?;
         let content_type = inner.file_name().and_then(fs_ops::guess_content_type);
-        files.push((rel, size, content_type));
+        files.push((rel, size, content_type, hash));
     }
 
     Ok((files, skipped))
@@ -511,17 +523,19 @@ async fn insert_rows(state: &AppState, files: &[Uploaded]) -> AppResult<Vec<(Uui
         let directory_id = tree::ensure_dir(&state.pool, &dir).await?;
         let names: Vec<&str> = group
             .iter()
-            .map(|(rel, _, _)| rel.file_name().unwrap_or_default())
+            .map(|(rel, _, _, _)| rel.file_name().unwrap_or_default())
             .collect();
-        let sizes: Vec<i64> = group.iter().map(|(_, size, _)| *size).collect();
-        let types: Vec<Option<String>> = group.iter().map(|(_, _, t)| t.clone()).collect();
+        let sizes: Vec<i64> = group.iter().map(|(_, size, _, _)| *size).collect();
+        let types: Vec<Option<String>> = group.iter().map(|(_, _, t, _)| t.clone()).collect();
+        let hashes: Vec<Vec<u8>> = group.iter().map(|(_, _, _, h)| h.clone()).collect();
 
         let inserted = sqlx::query_as::<_, (Uuid, String)>(
-            "INSERT INTO hagio_admin.file (directory_id, name, size_bytes, content_type)
-             SELECT $1, * FROM unnest($2::text[], $3::bigint[], $4::text[])
+            "INSERT INTO hagio_admin.file (directory_id, name, size_bytes, content_type, content_hash)
+             SELECT $1, * FROM unnest($2::text[], $3::bigint[], $4::text[], $5::bytea[])
              ON CONFLICT (directory_id, name) DO UPDATE
              SET size_bytes = EXCLUDED.size_bytes,
                  content_type = EXCLUDED.content_type,
+                 content_hash = EXCLUDED.content_hash,
                  missing_since = NULL,
                  updated_at = now()
              RETURNING file_id, name",
@@ -530,14 +544,15 @@ async fn insert_rows(state: &AppState, files: &[Uploaded]) -> AppResult<Vec<(Uui
         .bind(&names)
         .bind(&sizes)
         .bind(&types)
+        .bind(&hashes)
         .fetch_all(&state.pool)
         .await?;
 
         for (file_id, name) in inserted {
             let size = group
                 .iter()
-                .find(|(rel, _, _)| rel.file_name() == Some(name.as_str()))
-                .map(|(_, size, _)| *size)
+                .find(|(rel, _, _, _)| rel.file_name() == Some(name.as_str()))
+                .map(|(_, size, _, _)| *size)
                 .unwrap_or_default();
             uploaded.push((file_id, size));
         }

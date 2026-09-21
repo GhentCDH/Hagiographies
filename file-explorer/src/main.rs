@@ -84,6 +84,7 @@ fn spawn_startup_scan(state: AppState) {
                 directories = summary.directories,
                 files = summary.files,
                 newly_missing = summary.missing,
+                relocated = summary.relocated,
                 "scan complete"
             ),
             Err(e) => tracing::error!("scan failed: {e}"),

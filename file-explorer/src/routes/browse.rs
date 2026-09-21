@@ -26,8 +26,15 @@ pub async fn browse(
     let found = fs_ops::list_dir(&config.share_root, &dir, &config.excluded_dirs)?;
 
     // Listing also adopts files that arrived over SMB, so nobody has to
-    // remember to rescan.
-    let reconciled = scan::reconcile_dir(&state.pool, &dir, &found).await?;
+    // remember to rescan. A file that was moved here directly on the share is
+    // relocated onto its existing row by hash, so it keeps its id and link.
+    let reconciled = scan::reconcile_dir(&state.pool, &config.share_root, &dir, &found).await?;
+    let resolved = scan::resolve_candidates(&state.pool, &reconciled.candidates).await?;
+
+    let mut ids = reconciled.ids;
+    for (name, file_id) in resolved.ids {
+        ids.insert(name, file_id);
+    }
 
     let mut entries = Vec::with_capacity(found.len() + reconciled.missing.len());
     for entry in found {
@@ -49,7 +56,7 @@ pub async fn browse(
         }
 
         // Every file in the listing was just reconciled, so it has an id.
-        let Some(file_id) = reconciled.ids.get(&entry.name).copied() else {
+        let Some(file_id) = ids.get(&entry.name).copied() else {
             tracing::warn!(path = %path, "file vanished mid-listing, omitting it");
             continue;
         };
@@ -118,6 +125,7 @@ pub struct RescanReport {
     directories: usize,
     files: usize,
     newly_missing: u64,
+    relocated: u64,
 }
 
 pub async fn rescan(State(state): State<AppState>) -> AppResult<Json<RescanReport>> {
@@ -136,11 +144,13 @@ pub async fn rescan(State(state): State<AppState>) -> AppResult<Json<RescanRepor
         directories = summary.directories,
         files = summary.files,
         newly_missing = summary.missing,
+        relocated = summary.relocated,
         "rescan complete"
     );
     Ok(Json(RescanReport {
         directories: summary.directories,
         files: summary.files,
         newly_missing: summary.missing,
+        relocated: summary.relocated,
     }))
 }
