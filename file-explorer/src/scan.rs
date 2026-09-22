@@ -143,8 +143,6 @@ pub async fn reconcile_dir(
         result.subdirs.insert(entry.name.clone(), id);
     }
 
-    let files: Vec<&DirEntryInfo> = entries.iter().filter(|e| !e.is_dir).collect();
-
     // Changed rows that keep their (directory_id, name) are updated in a single
     // upsert per folder; new names become candidates. Unchanged rows are left
     // untouched so browsing does not bump updated_at, and are not rehashed once
@@ -154,7 +152,7 @@ pub async fn reconcile_dir(
     let mut types = Vec::new();
     let mut hashes: Vec<Vec<u8>> = Vec::new();
 
-    for entry in &files {
+    for entry in entries.iter().filter(|e| !e.is_dir) {
         let size = entry.size_bytes as i64;
         let content_type = fs_ops::guess_content_type(&entry.name);
 
@@ -224,7 +222,11 @@ pub async fn reconcile_dir(
     }
 
     // Anything tracked here that is no longer on the share.
-    let present: Vec<&str> = files.iter().map(|e| e.name.as_str()).collect();
+    let present: Vec<&str> = entries
+        .iter()
+        .filter(|e| !e.is_dir)
+        .map(|e| e.name.as_str())
+        .collect();
     for row in &tracked {
         if !present.contains(&row.name.as_str()) {
             result.missing.push((row.name.clone(), row.file_id));

@@ -17,6 +17,10 @@ use crate::config::Config;
 use crate::db::StartupError;
 use crate::state::AppState;
 
+/// The crate version, as a link-ready label like `v0.5.0`. Served at
+/// `/api/version` and shown in the footer, so a page says which build is live.
+pub const VERSION: &str = concat!("v", env!("CARGO_PKG_VERSION"));
+
 #[tokio::main]
 async fn main() {
     tracing_subscriber::fmt()

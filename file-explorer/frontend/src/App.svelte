@@ -11,6 +11,7 @@
 		undoAvailable,
 		upload,
 		uploadFolder,
+		version,
 		type Listing,
 		type SearchResults
 	} from './lib/api';
@@ -45,6 +46,8 @@
 	let searches = 0;
 
 	let undoLabel = $state<string | null>(null);
+	/// The running backend's version, fetched once and shown in the footer.
+	let appVersion = $state<string | null>(null);
 
 	/// Which row shows the tick, and the message that floats over the page. The
 	/// message is positioned fixed so confirming a copy never moves the table.
@@ -173,6 +176,15 @@
 		};
 		window.addEventListener('hashchange', onhash);
 		return () => window.removeEventListener('hashchange', onhash);
+	});
+
+	// Once, not per navigation: the version cannot change while the server runs.
+	$effect(() => {
+		version()
+			.then((r) => (appVersion = r.version))
+			.catch(() => {
+				// A footer is not worth an error banner.
+			});
 	});
 
 	// Reloads whenever the path changes, including the first render.
@@ -498,6 +510,12 @@
 			{/if}
 		</tbody>
 	</table>
+
+	{#if appVersion}
+		<footer class="mt-6 text-center text-xs text-stone-400">
+			Hagiographies Files <span class="font-mono">{appVersion}</span>
+		</footer>
+	{/if}
 </main>
 
 {#snippet renameBox()}

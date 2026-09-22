@@ -59,6 +59,11 @@ export function browse(path: string): Promise<Listing> {
 	return request<Listing>(`/api/browse?path=${encodeURIComponent(path)}`);
 }
 
+/// The running backend's version, like `v0.5.0`, shown in the footer.
+export function version(): Promise<{ version: string }> {
+	return request<{ version: string }>('/api/version');
+}
+
 export function folders(): Promise<Folder[]> {
 	return request<{ folders: Folder[] }>('/api/folders').then((r) => r.folders);
 }

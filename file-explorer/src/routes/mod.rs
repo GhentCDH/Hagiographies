@@ -20,6 +20,7 @@ pub fn build(state: AppState) -> Router {
 
     let api = Router::new()
         .route("/health", get(health))
+        .route("/version", get(version))
         .route("/browse", get(browse::browse))
         .route("/folders", get(browse::folders))
         .route("/search", get(search::search))
@@ -53,6 +54,12 @@ pub fn build(state: AppState) -> Router {
 
 async fn health() -> Json<serde_json::Value> {
     Json(json!({ "status": "ok" }))
+}
+
+/// The running binary's version, for the footer. Lets anyone tell at a glance
+/// whether the page they are looking at came from the build they expect.
+async fn version() -> Json<serde_json::Value> {
+    Json(json!({ "version": crate::VERSION }))
 }
 
 /// Reverse a file move. Same code path as the move itself, so the row and the
