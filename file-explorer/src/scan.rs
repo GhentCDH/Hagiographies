@@ -11,7 +11,10 @@
 //! A file edited directly on the share (moved or renamed over SMB) is not a new
 //! file: it has the same bytes. [`reconcile_dir`] hashes every new or changed
 //! file (blake3), and [`resolve_candidates`] looks a new file up by its hash
-//! among the rows that are currently missing. A lone match is relocated in
+//! among the rows whose file is no longer where the row says it is. That covers
+//! both a row already flagged missing by a scan and one still marked present
+//! whose recorded path has gone: a browse of the destination must relocate
+//! before the source folder has ever been visited. A lone match is relocated in
 //! place, keeping its `file_id`, so a `/f/<uuid>` link already pasted into
 //! Mathesar keeps working. Only an exact, unambiguous (single) hash match
 //! relocates; anything else is a genuinely new row.
@@ -70,6 +73,27 @@ struct TrackedChild {
     content_type: Option<String>,
     missing_since: Option<chrono::DateTime<chrono::Utc>>,
     content_hash: Option<Vec<u8>>,
+}
+
+/// A row that shares a candidate's bytes, with the path its row still claims.
+/// Whether it counts as a match depends on whether that path is still there.
+#[derive(Debug, sqlx::FromRow)]
+struct HashMatch {
+    file_id: Uuid,
+    relative_path: String,
+    missing_since: Option<chrono::DateTime<chrono::Utc>>,
+}
+
+/// Whether a row's file is still at the path the row records.
+///
+/// A move over SMB leaves the row pointing at the old path until a sweep flags
+/// it missing, so the path is simply gone in the meantime. Treating that as a
+/// match lets a browse of the destination adopt the row before the source
+/// folder has been scanned. A path that will not parse or resolve is gone too.
+fn still_present(root: &Path, relative_path: &str) -> bool {
+    RelPath::parse(relative_path, &[])
+        .and_then(|rel| paths::resolve(root, &rel))
+        .is_ok()
 }
 
 /// blake3 of the file at `dir`/`name` under `root`, off the async runtime.
@@ -223,27 +247,44 @@ pub async fn reconcile_dir(
     Ok(result)
 }
 
-/// Give every candidate a `file_id`: relocate the one missing row with matching
-/// bytes, or insert a new row when there is no unambiguous match.
+/// Give every candidate a `file_id`: relocate the one row whose bytes match and
+/// whose file is no longer where that row says it is, or insert a new row when
+/// there is no unambiguous match.
 ///
-/// Run this only once the missing set is settled (after the sweep in
-/// [`full_scan`], or live in a browse listing where the source is already
-/// missing from an earlier scan). The match pool is exactly the rows with
-/// `missing_since` set, so a still-present duplicate is never mistaken for the
-/// original.
-pub async fn resolve_candidates(pool: &PgPool, candidates: &[Candidate]) -> AppResult<Resolved> {
+/// Run this once the missing set is settled (after the sweep in [`full_scan`]),
+/// or live in a browse listing. A browse cannot wait for the sweep, so it also
+/// treats a still-present row whose recorded path has gone as a match: that is
+/// a file moved over SMB whose source folder has not been scanned yet. The match
+/// pool is exactly those rows, so a still-present duplicate is never mistaken
+/// for the original.
+pub async fn resolve_candidates(
+    pool: &PgPool,
+    root: &Path,
+    candidates: &[Candidate],
+) -> AppResult<Resolved> {
     let mut out = Resolved::default();
 
     for cand in candidates {
-        // Two is enough to tell "exactly one" from "ambiguous" without counting.
-        let matches: Vec<Uuid> = sqlx::query_scalar(
-            "SELECT file_id FROM hagio_admin.file
-             WHERE content_hash = $1 AND missing_since IS NOT NULL
-             LIMIT 2",
+        let rows = sqlx::query_as::<_, HashMatch>(
+            "SELECT f.file_id, p.relative_path, f.missing_since
+             FROM hagio_admin.file f
+             JOIN hagio_admin.file_path p USING (file_id)
+             WHERE f.content_hash = $1",
         )
         .bind(&cand.hash)
         .fetch_all(pool)
         .await?;
+
+        // Two is enough to tell "exactly one" from "ambiguous" without counting.
+        let mut matches: Vec<Uuid> = Vec::new();
+        for row in rows {
+            if row.missing_since.is_some() || !still_present(root, &row.relative_path) {
+                matches.push(row.file_id);
+                if matches.len() > 1 {
+                    break;
+                }
+            }
+        }
 
         if let [file_id] = matches.as_slice() {
             // A moved or renamed file: repoint its row, same shape as an in-app
@@ -358,7 +399,7 @@ pub async fn full_scan(pool: &PgPool, root: &Path, excluded: &[String]) -> AppRe
 
     // Relocate the moved/renamed files, insert the rest. A relocation clears the
     // missing_since the sweep just set, so `missing` is the net still-gone count.
-    let resolved = resolve_candidates(pool, &candidates).await?;
+    let resolved = resolve_candidates(pool, root, &candidates).await?;
     summary.relocated = resolved.relocated;
     summary.missing = swept.saturating_sub(resolved.relocated);
     summary.files += resolved.ids.len();

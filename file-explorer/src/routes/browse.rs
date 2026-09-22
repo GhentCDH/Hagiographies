@@ -27,9 +27,11 @@ pub async fn browse(
 
     // Listing also adopts files that arrived over SMB, so nobody has to
     // remember to rescan. A file that was moved here directly on the share is
-    // relocated onto its existing row by hash, so it keeps its id and link.
+    // relocated onto its existing row by hash, whether or not the folder it
+    // came from has been scanned yet, so it keeps its id and link.
     let reconciled = scan::reconcile_dir(&state.pool, &config.share_root, &dir, &found).await?;
-    let resolved = scan::resolve_candidates(&state.pool, &reconciled.candidates).await?;
+    let resolved =
+        scan::resolve_candidates(&state.pool, &config.share_root, &reconciled.candidates).await?;
 
     let mut ids = reconciled.ids;
     for (name, file_id) in resolved.ids {
