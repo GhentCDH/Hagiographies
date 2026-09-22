@@ -247,9 +247,9 @@ files_check:
 
 # Build the file explorer tagged Docker image and save as a .tar.gz
 files_build tag:
-    podman build -t hagio-file-explorer:{{tag}}
+    cd file-explorer && podman build -t hagio-file-explorer:{{tag}} .
     podman tag localhost/hagio-file-explorer:{{tag}} localhost/hagio-file-explorer:latest
-    podman save localhost/hagio-file-explorer:{{tag}} | gzip > hagio-file-explorer:{{tag}}.tar.gz
+    podman save localhost/hagio-file-explorer:{{tag}} | gzip > hagio-file-explorer-{{tag}}.tar.gz
 
 # Start the file explorer container on :9161
 files_up:
