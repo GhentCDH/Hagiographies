@@ -91,10 +91,25 @@ struct HashMatch {
 /// it missing, so the path is simply gone in the meantime. Treating that as a
 /// match lets a browse of the destination adopt the row before the source
 /// folder has been scanned. A path that will not parse or resolve is gone too.
+///
+/// We can't stat the path directly: on a CIFS share the client caches a
+/// positive dentry for a file moved away out-of-band, so `resolve` (canonicalize
+/// + exists) keeps reporting it present long after it is gone. Reading the parent
+/// directory bypasses that cache, which is why a plain listing of the old folder
+/// shows it missing. So confirm the name actually appears in the parent listing.
 fn still_present(root: &Path, relative_path: &str) -> bool {
-    RelPath::parse(relative_path, &[])
-        .and_then(|rel| paths::resolve(root, &rel))
-        .is_ok()
+    let Ok(rel) = RelPath::parse(relative_path, &[]) else {
+        return false;
+    };
+    let (Some(parent), Some(name)) = (rel.parent(), rel.file_name()) else {
+        return false;
+    };
+    let Ok(parent_abs) = paths::resolve(root, &parent) else {
+        return false;
+    };
+    std::fs::read_dir(parent_abs)
+        .map(|mut entries| entries.any(|e| e.is_ok_and(|e| e.file_name() == name)))
+        .unwrap_or(false)
 }
 
 /// blake3 of the file at `dir`/`name` under `root`, off the async runtime.
