@@ -23,6 +23,7 @@ use std::collections::HashMap;
 use std::path::Path;
 
 use sqlx::PgPool;
+use tracing::info;
 use uuid::Uuid;
 
 use crate::error::{AppError, AppResult};
@@ -116,6 +117,7 @@ pub async fn reconcile_dir(
     dir: &RelPath,
     entries: &[DirEntryInfo],
 ) -> AppResult<Reconciled> {
+    info!(dir = %dir, "reconciling directory");
     let directory_id = tree::ensure_dir(pool, dir).await?;
 
     let tracked = sqlx::query_as::<_, TrackedChild>(
@@ -162,6 +164,12 @@ pub async fn reconcile_dir(
             && row.missing_since.is_none()
             && row.content_hash.is_some()
         {
+            tracing::debug!(
+                dir = %dir,
+                name = %entry.name,
+                file_id = %row.file_id,
+                "unchanged, reusing existing row"
+            );
             result.ids.insert(entry.name.clone(), row.file_id);
             continue;
         }
@@ -180,12 +188,24 @@ pub async fn reconcile_dir(
             }
         };
 
-        if by_name.contains_key(entry.name.as_str()) {
+        if let Some(row) = by_name.get(entry.name.as_str()) {
+            tracing::debug!(
+                dir = %dir,
+                name = %entry.name,
+                file_id = %row.file_id,
+                "same name, content changed, updating existing row"
+            );
             names.push(entry.name.clone());
             sizes.push(size);
             types.push(content_type);
             hashes.push(hash);
         } else {
+            info!(
+                dir = %dir,
+                name = %entry.name,
+                size,
+                "no row for this name yet, adding candidate"
+            );
             result.candidates.push(Candidate {
                 directory_id,
                 name: entry.name.clone(),
@@ -236,6 +256,17 @@ pub async fn reconcile_dir(
 
     if !result.missing.is_empty() {
         let ids: Vec<Uuid> = result.missing.iter().map(|(_, id)| *id).collect();
+        let names: Vec<&str> = result
+            .missing
+            .iter()
+            .map(|(name, _)| name.as_str())
+            .collect();
+        info!(
+            dir = %dir,
+            missing = names.len(),
+            ?names,
+            "marking tracked files as missing"
+        );
         sqlx::query(
             "UPDATE hagio_admin.file
              SET missing_since = now(), updated_at = now()
@@ -245,6 +276,15 @@ pub async fn reconcile_dir(
         .execute(pool)
         .await?;
     }
+
+    info!(
+        dir = %dir,
+        tracked = result.ids.len(),
+        candidates = result.candidates.len(),
+        missing = result.missing.len(),
+        subdirs = result.subdirs.len(),
+        "reconciled directory"
+    );
 
     Ok(result)
 }
@@ -279,46 +319,84 @@ pub async fn resolve_candidates(
 
         // Two is enough to tell "exactly one" from "ambiguous" without counting.
         let mut matches: Vec<Uuid> = Vec::new();
-        for row in rows {
-            if row.missing_since.is_some() || !still_present(root, &row.relative_path) {
-                matches.push(row.file_id);
-                if matches.len() > 1 {
-                    break;
-                }
+        let mut matched_path: Option<&str> = None;
+        for row in &rows {
+            // Absent means the row's file is not where the row says it is: already
+            // flagged missing, or its recorded path is gone (a move over SMB whose
+            // source folder has not been swept yet).
+            let absent = row.missing_since.is_some() || !still_present(root, &row.relative_path);
+            tracing::debug!(
+                name = %cand.name,
+                file_id = %row.file_id,
+                path = %row.relative_path,
+                absent,
+                "hash-matched row"
+            );
+            if !absent {
+                continue;
+            }
+            if matches.is_empty() {
+                matched_path = Some(row.relative_path.as_str());
+            }
+            matches.push(row.file_id);
+            if matches.len() > 1 {
+                break;
             }
         }
 
-        if let [file_id] = matches.as_slice() {
-            // A moved or renamed file: repoint its row, same shape as an in-app
-            // move, so the file_id and every link through it survive.
-            let relocated = sqlx::query(
-                "UPDATE hagio_admin.file
-                 SET directory_id = $1, name = $2, size_bytes = $3, content_type = $4,
-                     content_hash = $5, missing_since = NULL, updated_at = now()
-                 WHERE file_id = $6",
-            )
-            .bind(cand.directory_id)
-            .bind(&cand.name)
-            .bind(cand.size_bytes)
-            .bind(&cand.content_type)
-            .bind(&cand.hash)
-            .bind(file_id)
-            .execute(pool)
-            .await;
+        match matches.as_slice() {
+            [file_id] => {
+                // A moved or renamed file: repoint its row, same shape as an in-app
+                // move, so the file_id and every link through it survive.
+                info!(
+                    name = %cand.name,
+                    file_id = %file_id,
+                    from = matched_path.unwrap_or("?"),
+                    "relocating file onto its existing row"
+                );
+                let relocated = sqlx::query(
+                    "UPDATE hagio_admin.file
+                     SET directory_id = $1, name = $2, size_bytes = $3, content_type = $4,
+                         content_hash = $5, missing_since = NULL, updated_at = now()
+                     WHERE file_id = $6",
+                )
+                .bind(cand.directory_id)
+                .bind(&cand.name)
+                .bind(cand.size_bytes)
+                .bind(&cand.content_type)
+                .bind(&cand.hash)
+                .bind(file_id)
+                .execute(pool)
+                .await;
 
-            match relocated {
-                Ok(_) => {
-                    out.ids.push((cand.name.clone(), *file_id));
-                    out.relocated += 1;
-                    continue;
+                match relocated {
+                    Ok(_) => {
+                        out.ids.push((cand.name.clone(), *file_id));
+                        out.relocated += 1;
+                        continue;
+                    }
+                    // A row already sits at this (directory_id, name); fall through and
+                    // insert, which upserts onto it.
+                    Err(e) => {
+                        if e.as_database_error().and_then(|e| e.code()).as_deref() != Some("23505")
+                        {
+                            return Err(AppError::Db(e));
+                        }
+                        info!(
+                            name = %cand.name,
+                            "relocation blocked by an existing row, upserting instead"
+                        );
+                    }
                 }
-                // A row already sits at this (directory_id, name); fall through and
-                // insert, which upserts onto it.
-                Err(e)
-                    if e.as_database_error().and_then(|e| e.code()).as_deref() == Some("23505") => {
-                }
-                Err(e) => return Err(AppError::Db(e)),
             }
+            [] => info!(
+                name = %cand.name,
+                "no absent row matches this hash, inserting new row"
+            ),
+            _ => info!(
+                name = %cand.name,
+                "several absent rows share this hash, inserting new row"
+            ),
         }
 
         let file_id = sqlx::query_scalar::<_, Uuid>(
@@ -340,7 +418,17 @@ pub async fn resolve_candidates(
         .fetch_one(pool)
         .await?;
 
+        tracing::debug!(name = %cand.name, file_id = %file_id, "inserted row");
         out.ids.push((cand.name.clone(), file_id));
+    }
+
+    if !candidates.is_empty() {
+        info!(
+            candidates = candidates.len(),
+            relocated = out.relocated,
+            inserted = out.ids.len() as u64 - out.relocated,
+            "resolved candidates"
+        );
     }
 
     Ok(out)

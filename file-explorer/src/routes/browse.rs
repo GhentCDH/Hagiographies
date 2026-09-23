@@ -3,6 +3,7 @@ use axum::{
     extract::{Query, State},
 };
 use serde::{Deserialize, Serialize};
+use tracing::info;
 
 use crate::error::{AppError, AppResult};
 use crate::fs_ops;
@@ -21,6 +22,7 @@ pub async fn browse(
     State(state): State<AppState>,
     Query(query): Query<PathQuery>,
 ) -> AppResult<Json<Listing>> {
+    info!(path = %query.path, "browsing");
     let config = &state.config;
     let dir = RelPath::parse(&query.path, &config.excluded_dirs)?;
     let found = fs_ops::list_dir(&config.share_root, &dir, &config.excluded_dirs)?;
