@@ -1,8 +1,8 @@
 # utilities/legacy_model.py
 # ---------------------------------------------------------------------------
 # PARKED — reference only. Superseded by utilities/model.py (schema restart,
-# July 2026). Kept importable for the parked legacy importer
-# (importer/legacy/); do not build new code against these models.
+# July 2026). Nothing imports it any more; do not build new code against
+# these models.
 # ---------------------------------------------------------------------------
 # SQLModel models for the Hagiographies project.
 #

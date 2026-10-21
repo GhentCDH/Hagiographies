@@ -4,20 +4,26 @@ This document describes the PostgreSQL-primary architecture of the Hagiographies
 
 ## 1. Current Status: PostgreSQL-Primary
 
-- **PostgreSQL** is the single "Source of Truth": the importer and SQLModel data model target it.
+- **PostgreSQL** is the single "Source of Truth", curated by researchers in Mathesar.
+  `utils/utilities/src/utilities/model.py` describes the July 2026 schema; the live DB has
+  since been modified and takes precedence.
 - **Mathesar** is the admin UI, editing PostgreSQL directly (no separate admin database adapter to configure).
+- The Excel import was a one-off initial load (July 2026) and is **obsolete**; its
+  recipes have been removed. Schema changes go through `db/migrations/`
+  (`just db_migrate`; see `db/README.md`).
+- Production: `gcdhpsqlprd1.ugent.be` (VPN). The Docker `postgres` service is a local copy.
 
 ---
 
 ## 2. Lifecycle Commands
 
-- **Import**: `just pg_import` loads the Excel workbook into PostgreSQL.
 - **SQLite export**: `just pg_export_sqlite` dumps PostgreSQL to `data/hagiographies_full_export.sqlite` via Dataflow.
-- **Full reset**: `just reinit` runs pg_reset → container_rebuild → pg_import → Mathesar bootstrap → summaries (local Docker only).
+  The source DSN is set in `dataflow/config.json` (currently the local Docker `postgres`), so point it at the up-to-date DB first.
 
 ### Local vs remote database
 
-The Python recipes (`pg_import`, `iiif_check`, `iiif_fix`) connect to whatever
+The Python recipes (`db_diagram`, `mathesar_summaries`/`mathesar_display`) connect
+to whatever
 `PG_DATABASE_URL` resolves to inside the `utils` container:
 
 - **Local Docker Postgres** (default): `dev.env` defines
@@ -28,10 +34,8 @@ The Python recipes (`pg_import`, `iiif_check`, `iiif_fix`) connect to whatever
   value. `utils/utilities/src/utilities/config.py` reads `DATABASE_URL` or
   `PG_DATABASE_URL`, so no explicit `-e` flag is needed.
 
-`pg_reset` and `reinit` recreate the `postgres-data` volume and `exec` `psql`
-inside the local `postgres` container, so they only apply to the **local Docker**
-database. When pointing at a remote DB, run `pg_import`/`iiif_*` directly and do
-not use `pg_reset`/`reinit`.
+`pg_export_sqlite` does not follow `.env`: `dataflow/config.json` hard-codes the
+local `postgres:5432` DSN.
 
 ---
 
@@ -39,10 +43,9 @@ not use `pg_reset`/`reinit`.
 
 ```mermaid
 graph TD
-    Excel([hagiographies.xlsx]) --> Importer[importer]
-    Importer -->|DATABASE_URL| PG[(PostgreSQL)]
+    PG[(PostgreSQL)]
     PG -->|Dataflow| SQLite[(data/hagiographies_full_export.sqlite)]
-    PG --> Mathesar[Mathesar Admin]
+    Mathesar[Mathesar Admin] -->|curation| PG
 ```
 
 ---

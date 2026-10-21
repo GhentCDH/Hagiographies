@@ -75,8 +75,8 @@ class MathesarClient:
     # ── typed helpers ────────────────────────────────────────────────────────
     def schema_oid(self, database_id: int, schema_name: str) -> int:
         # Resolved by name on every run: DROP SCHEMA public CASCADE + CREATE
-        # SCHEMA public (importer drop-schema) assigns a new oid, so a stored
-        # oid goes stale after every reimport.
+        # SCHEMA public assigns a new oid, so a stored oid goes stale after a
+        # schema recreation.
         schemas = self.rpc("schemas.list", {"database_id": database_id})
         for schema in schemas:
             if schema["name"] == schema_name:

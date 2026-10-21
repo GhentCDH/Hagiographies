@@ -1,28 +1,32 @@
 # Hagiographies
 
-Excel-to-PostgreSQL import pipeline with a Mathesar admin UI for browsing hagiographic data.
+PostgreSQL database of hagiographic texts, manuscripts and editions, curated through
+a Mathesar admin UI and exported to SQLite. The PostgreSQL database is the single
+source of truth. The original Excel import was a one-off and is no longer used.
 
 ## Commands
 
 ```sh
 just container_rebuild        # build and start Docker containers
 just container_up / container_down  # start / stop containers
-just pg_import                # create tables and import Excel data into PostgreSQL
 just pg_export_sqlite         # dump PostgreSQL → data/hagiographies_full_export.sqlite (Dataflow)
 just db_diagram               # generate SVG schema diagram
-just reinit                   # full reset: rebuild + import + Mathesar bootstrap (local Docker)
+just mathesar_summaries       # apply Mathesar record summaries
+just mathesar_display         # apply Mathesar column display settings
 just util_open                # open the gateway (Mathesar admin) in browser
+
 ```
 
-Recipes are grouped by prefix (`container_`, `db_`, `iiif_`, `mathesar_`, `pg_`); run
-`just --list` to see them all.
+Recipes are grouped by prefix (`container_`, `db_`, `mathesar_`, `pg_`, `util_`);
+run `just --list` to see them all.
 
 **Local vs remote database:** by default the recipes target the local Docker
-Postgres (`dev.env`'s `PG_DATABASE_URL`, host `postgres`). To point `pg_import`
-and the `iiif_*` recipes at a remote server instead, set `PG_DATABASE_URL` to a
+Postgres (`dev.env`'s `PG_DATABASE_URL`, host `postgres`). To point the `utils`
+recipes (`mathesar_*`) at a remote server instead, set `PG_DATABASE_URL` to a
 remote URL in a local `.env` file (gitignored) — it overrides `dev.env` in the
-`utils` container. `pg_reset` and `reinit` are local-Docker-only (they recreate
-the `postgres-data` volume), so skip them when using a remote DB.
+`utils` container. The SQLite export does not follow `.env`: its source DSN is
+set in `dataflow/config.json`. The obsolete Excel-import and reset recipes have been
+removed.
 
 ## Database
 For details on the PostgreSQL architecture and operations, see [POSTGRESQL.md](POSTGRESQL.md).
@@ -31,13 +35,12 @@ For details on the PostgreSQL architecture and operations, see [POSTGRESQL.md](P
 
 ```
 ├── utils/                 # Python utilities (Docker)
-│   ├── importer/          #   Excel → PostgreSQL import
 │   ├── documenter/        #   Schema diagram generator
-│   ├── mathesar/          #   Mathesar record-summary config (JSON-RPC)
+│   ├── mathesar/          #   Mathesar config via JSON-RPC (summaries, display)
 │   └── utilities/         #   Shared model & db config
 ├── caddy/                 # Reverse proxy config (Mathesar)
 ├── dataflow/              # Dataflow config for the SQLite export
-├── data/                  # db & data files (gitignored)
+├── data/                  # db & data files (mostly gitignored)
 ├── compose.yml            # Docker Compose services
 └── justfile               # Task runner commands
 ```

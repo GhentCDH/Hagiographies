@@ -274,7 +274,7 @@ digraph {
                          <TD BGCOLOR="#BBDEFB">INTEGER (PK)</TD>
                          </TR><TR>
                          <TD BGCOLOR="#BBDEFB">identifier</TD>
-                         <TD BGCOLOR="#BBDEFB">VARCHAR (Unique,Index)</TD>
+                         <TD BGCOLOR="#BBDEFB">VARCHAR (Index)</TD>
                          </TR><TR>
                          <TD BGCOLOR="#BBDEFB">text_id</TD>
                          <TD BGCOLOR="#BBDEFB">INTEGER (Index)</TD>

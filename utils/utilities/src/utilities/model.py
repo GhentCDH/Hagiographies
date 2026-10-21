@@ -9,11 +9,9 @@
 #   - Every imported field documents its source Excel column via
 #     excel_field(), which records the mapping both as a pydantic description
 #     and as a PostgreSQL column comment (visible in `\d+` and in Mathesar).
-#   - The importer NEVER fixes source data: rows failing strict validation
-#     are skipped and reported, not repaired. Two documented, deliberate
-#     exceptions: preservation-status labels are matched case-insensitively
-#     to Lost/Preserved, and holding-institution names that differ only in
-#     case/whitespace are merged into one row (most frequent spelling wins).
+#   - The one-off Excel import (July 2026, since removed) loaded the initial
+#     data; the PostgreSQL database, curated in Mathesar, is now the source
+#     of truth. Docstrings mentioning the importer describe that initial load.
 # ---------------------------------------------------------------------------
 
 from typing import Any, List, Optional
@@ -402,7 +400,10 @@ class Manuscript(SQLModel, table=True):
 
     identifier is the given, stable copy identifier: the 'BHL or NO BHL'
     prefix (spaces → '_') joined with '_' to the 'Manuscript copy unique
-    identifier per text' value, e.g. BHL_29-4. text_id links the copy to
+    identifier per text' value, e.g. BHL_29-4. NOT unique in the database:
+    the workbook contains duplicate identifiers and those rows are imported
+    anyway (each duplicate is warned in the import report; references
+    resolve to the first occurrence). text_id links the copy to
     its text via prefix + 'Unique text identifier'; when that reference does
     not resolve to a text, the manuscript is still imported with text_id
     NULL and the raw reference kept in general_notes.
@@ -421,9 +422,9 @@ class Manuscript(SQLModel, table=True):
 
     manuscript_id: Optional[int] = Field(default=None, primary_key=True)
     identifier: str = excel_field(
-        "'BHL or NO BHL' + '_' + 'Manuscript copy unique identifier per text'",
+        "'BHL or NO BHL' + '_' + 'Manuscript copy unique identifier per text' "
+        "(workbook duplicates are imported as-is and warned)",
         sheet="MANUSCRIPTS",
-        unique=True,
         index=True,
     )
     text_id: Optional[int] = excel_field(
@@ -894,9 +895,12 @@ class Edition(SQLModel, table=True):
     """One row per EDITIONS-sheet data row.
 
     text_id links the edition to its text: the EDITIONS 'Unique identifier'
-    value is the part of text.identifier after the BHL/NO-BHL prefix.
+    value is the part of text.identifier after the BHL/NO-BHL prefix. When
+    that reference does not resolve to a text, the edition is still imported
+    with text_id NULL and the raw reference kept in general_notes.
     identifier_per_text carries that text's prefix (e.g. BHL_29-A), matching
-    the text and manuscript identifier convention.
+    the text and manuscript identifier convention (stored unprefixed when
+    the text is unresolvable).
     reprint_of_edition_id resolves 'If reprint, of what?' to another edition
     of the same text (the raw Excel value is kept in reprint_of); references
     are matched first as a per-text edition identifier (e.g. '616-B'), then
@@ -908,9 +912,11 @@ class Edition(SQLModel, table=True):
     __tablename__ = "edition"
 
     edition_id: Optional[int] = Field(default=None, primary_key=True)
-    text_id: int = excel_field(
-        "Unique identifier",
+    text_id: Optional[int] = excel_field(
+        "Unique identifier (NULL when the reference is unresolvable; "
+        "see general_notes)",
         sheet="EDITIONS",
+        default=None,
         foreign_key="text.text_id",
         index=True,
     )
