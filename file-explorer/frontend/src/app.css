@@ -1,0 +1,26 @@
+@import 'tailwindcss';
+
+@theme {
+	--font-sans:
+		ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
+		sans-serif;
+}
+
+body {
+	@apply bg-stone-50 font-sans text-stone-900;
+}
+
+/* Tailwind 4 dropped the browser default cursor on buttons. Set it once here
+   rather than on every button in the app. */
+button:not(:disabled),
+label:has(input[type='file']) {
+	@apply cursor-pointer;
+}
+
+button:disabled {
+	@apply cursor-default;
+}
+
+input[type='file']::file-selector-button {
+	@apply cursor-pointer;
+}

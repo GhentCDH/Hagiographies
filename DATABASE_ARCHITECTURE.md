@@ -4,7 +4,8 @@ This document provides a technical overview of the Hagiographies project reposit
 
 > **Status (October 2026).** The PostgreSQL database is the single source of truth
 > and is curated in Mathesar. The tables below describe the schema as created in
-> July 2026; the live DB has since been modified and takes precedence. The
+> July 2026; the live DB has since been changed through `db/migrations/` (e.g.
+> `codex` and `publication` tables) and takes precedence. The
 > one-off Excel import has been removed from the repo. The "Excel source" columns
 > record only where the initial data came from.
 > The pre-restart 20-table model is parked, reference only, in

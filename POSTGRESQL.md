@@ -9,7 +9,8 @@ This document describes the PostgreSQL-primary architecture of the Hagiographies
   since been modified and takes precedence.
 - **Mathesar** is the admin UI, editing PostgreSQL directly (no separate admin database adapter to configure).
 - The Excel import was a one-off initial load (July 2026) and is **obsolete**; its
-  recipes have been removed. Apply schema changes as migrations of the live DB.
+  recipes have been removed. Schema changes go through `db/migrations/`
+  (`just db_migrate`; see `db/README.md`).
 - Production: `gcdhpsqlprd1.ugent.be` (VPN). The Docker `postgres` service is a local copy.
 
 ---

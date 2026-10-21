@@ -25,6 +25,93 @@ container_down:
 db_diagram:
     docker compose run  -w /app/documenter --rm utils  uv run document
 
+# ── Database (migrations & backfills) ──────────────────────────────────────
+
+# db/migrations/ is the source of truth for the schema; the SQLModel model in
+# utils/utilities is no longer kept in sync.
+#
+# These run on the HOST, not in the utils container, unlike the mathesar_* recipes.
+# Two reasons: the container's DNS cannot reliably resolve the UGent servers
+# (or even PyPI), and ./db is bind-mounted, so a container run and a host run
+# would keep tearing down each other's db/.venv. The host already needs
+# PG_DATABASE_URL for db_clone_qas, so nothing new is required — it comes from
+# .env via direnv.
+
+LOCAL_DB := "postgresql://" + env('POSTGRES_USER', 'hagiographies') + ":" + env('POSTGRES_PASSWORD', 'changeme') + "@localhost:" + env('POSTGRES_PORT', '5432') + "/" + env('POSTGRES_DB', 'hagiographies')
+# DATA_ROOT makes the workbook and report resolve to ./data instead of the
+# container's /data.
+DB := "DATA_ROOT=data uv run --project db"
+
+# Show which migrations are applied and which are pending
+db_migrate_status:
+    {{DB}} migrate --status
+
+# Report what migrating would do, without changing anything
+db_migrate_dry_run:
+    {{DB}} migrate --dry-run
+
+# Apply pending schema migrations
+db_migrate:
+    {{DB}} migrate
+
+# Apply pending migrations to the local Docker Postgres
+db_local_migrate:
+    {{DB}} migrate --database-url "{{LOCAL_DB}}"
+
+db_local_migrate_status:
+    {{DB}} migrate --database-url "{{LOCAL_DB}}" --status
+
+# Apply pending migrations to PRD
+db_migrate_prd:
+    {{DB}} migrate --database-url "$PG_DATABASE_URL_PRD"
+
+db_migrate_prd_status:
+    {{DB}} migrate --database-url "$PG_DATABASE_URL_PRD" --status
+
+# Overwrites the local research DB with a copy of whatever PG_DATABASE_URL
+# points at (QAS), so migrations and backfills can be rehearsed locally.
+# Requires PG_DATABASE_URL in the host environment (.env / direnv).
+# A throwaway copy of the local database with ALL migrations applied, including
+# the ones still pending sign-off. For trying out a migration, or running the
+# file explorer, without touching the local DB Mathesar is pointed at.
+#
+# The whole database is copied, not just public. hagio_admin holds the migration
+# history, and without it the runner would baseline 000 and then try to re-apply
+# 001 onwards to a schema that already has them. Mathesar's mathesar_types holds
+# the uri domain that the link tables' url columns are declared as, so without it
+# those tables cannot even be created.
+
+# Built from parts rather than by substituting into LOCAL_DB: the user and the
+# database are both called "hagiographies", so a replace would rename both.
+SCRATCH_DB := "postgresql://" + env('POSTGRES_USER', 'hagiographies') + ":" + env('POSTGRES_PASSWORD', 'changeme') + "@localhost:" + env('POSTGRES_PORT', '5432') + "/hagiographies_scratch"
+
+# Rebuild hagiographies_scratch from the local DB and migrate it (LOCAL only)
+db_scratch:
+    pg_dump --no-owner --no-privileges -Fc "{{LOCAL_DB}}" -f data/local_clone.dump
+    psql -q "{{LOCAL_DB}}" -c 'drop database if exists hagiographies_scratch;'
+    psql -q "{{LOCAL_DB}}" -c 'create database hagiographies_scratch;'
+    pg_restore --no-owner --no-privileges -d "{{SCRATCH_DB}}" data/local_clone.dump
+    {{DB}} migrate --database-url "{{SCRATCH_DB}}"
+
+# What the scratch database's migration state is
+db_scratch_status:
+    {{DB}} migrate --status --database-url "{{SCRATCH_DB}}"
+
+# Drop the scratch database
+db_scratch_drop:
+    psql -q "{{LOCAL_DB}}" -c 'drop database if exists hagiographies_scratch;'
+
+# Clone the remote DB into the local Docker Postgres (destructive, LOCAL only)
+db_clone_qas:
+    # public only: Mathesar's own __msar/msar/mathesar_types schemas already
+    # exist locally and would make pg_restore fail on every object.
+    pg_dump --no-owner --no-privileges --schema=public -Fc "$PG_DATABASE_URL" -f data/qas_clone.dump
+    # the dump recreates the schema itself, so only drop it here
+    psql -q "{{LOCAL_DB}}" -c 'drop schema if exists public cascade;'
+    pg_restore --no-owner --no-privileges -d "{{LOCAL_DB}}" data/qas_clone.dump
+    psql -qtA "{{LOCAL_DB}}" -c "select 'manuscript='||count(*) from manuscript" \
+        -c "select 'edition='||count(*) from edition" -c "select 'text='||count(*) from text"
+
 # ── Mathesar ─────────────────────────────────────────────────────────────────
 
 # Idempotent — safe to re-run. Targets the local Docker Postgres (it exec's psql
@@ -79,3 +166,45 @@ pg_export_sqlite_dry_run:
 # Open the gateway (Mathesar admin) in browser
 util_open:
   open "{{GATEWAY_URL}}"
+
+# ── File explorer ────────────────────────────────────────────────────────────
+
+# The managed file explorer over the network share (file-explorer/). Runs on the
+# HOST for dev, like the db_ recipes: it needs cargo and bun, and the share is a
+# host path. Reads db/migrations/ 013 tables, so migrate before first run.
+
+FILES := "FILES_DATABASE__URL=\"" + LOCAL_DB + "\""
+
+# Run the file explorer backend on :3000 (builds the frontend first)
+files_run:
+    cd file-explorer && {{FILES}} cargo run
+
+# Run the Vite dev server, proxying /api and /f to the backend on :3000
+files_dev:
+    cd file-explorer/frontend && bun run dev
+
+# Run the file explorer tests
+files_test:
+    cd file-explorer && cargo test
+
+# Typecheck the frontend
+files_check:
+    cd file-explorer/frontend && bun run check
+
+# Build the file explorer tagged Docker image and save as a .tar.gz
+files_build tag:
+    cd file-explorer && podman build -t hagio-file-explorer:{{tag}} .
+    podman tag localhost/hagio-file-explorer:{{tag}} localhost/hagio-file-explorer:latest
+    podman save localhost/hagio-file-explorer:{{tag}} | gzip > hagio-file-explorer-{{tag}}.tar.gz
+
+# Start the file explorer container on :9161
+files_up:
+    docker compose up -d file-explorer
+
+# Follow the file explorer container logs
+files_logs:
+    docker compose logs -f file-explorer
+
+# Re-scan the whole share and update the file table
+files_rescan:
+    curl -fsS -X POST http://localhost:9161/api/rescan
