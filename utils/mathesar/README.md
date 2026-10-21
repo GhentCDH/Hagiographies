@@ -16,8 +16,8 @@ in foreign-key cells and record pickers) to a single column, driven by a JSON co
 ```
 
 Schema, table and column names are resolved to oids/attnums on every run, so
-the config survives a schema drop + reimport (`just pg_reimport`). Run it any
-time after `just pg_import`.
+the config survives table recreation (oids change). Re-run it whenever tables
+are added or recreated.
 
 ### Run
 

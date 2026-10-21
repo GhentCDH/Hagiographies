@@ -9,11 +9,9 @@
 #   - Every imported field documents its source Excel column via
 #     excel_field(), which records the mapping both as a pydantic description
 #     and as a PostgreSQL column comment (visible in `\d+` and in Mathesar).
-#   - The importer NEVER fixes source data: rows failing strict validation
-#     are skipped and reported, not repaired. Two documented, deliberate
-#     exceptions: preservation-status labels are matched case-insensitively
-#     to Lost/Preserved, and holding-institution names that differ only in
-#     case/whitespace are merged into one row (most frequent spelling wins).
+#   - The one-off Excel import (July 2026, since removed) loaded the initial
+#     data; the PostgreSQL database, curated in Mathesar, is now the source
+#     of truth. Docstrings mentioning the importer describe that initial load.
 # ---------------------------------------------------------------------------
 
 from typing import Any, List, Optional
