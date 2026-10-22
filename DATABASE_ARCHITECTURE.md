@@ -4,7 +4,7 @@ This document provides a technical overview of the Hagiographies project reposit
 
 > **Status (October 2026).** The PostgreSQL database is the single source of truth
 > and is curated in Mathesar. Its schema is defined by `db/migrations/`; the
-> tables below describe `public` after migrations 000–059, matching
+> tables below describe `public` after migrations 000–062, matching
 > `utils/utilities/src/utilities/model.py` and `data/hagiographies_model.svg`.
 > The `hagio_admin` schema (migration bookkeeping, file-explorer tables from
 > 013–017) is not covered here. The one-off Excel import has been removed from
@@ -53,11 +53,11 @@ Operational details (lifecycle commands, backups, connectivity) are documented i
 
 ## 3 Tables
 
-Generated from the schema (October 2026, after migrations 000–059). "Source" is
+Generated from the schema (October 2026, after migrations 000–062). "Source" is
 the column comment: the Excel column the initial data came from, or a description.
 Naming and uniqueness rules: see AGENTS.md ("Naming rules", "Uniqueness").
 "case-insensitive" = also unique on lower(value), with no leading/trailing spaces allowed.
-The url columns are the `mathesar_types.uri` domain on QAS/PRD (migrations 004–006).
+The url columns are the `mathesar_types.uri` domain where Mathesar is installed (QAS/PRD).
 
 ### Texts and authors
 
@@ -266,6 +266,26 @@ One physical codex. Excel MANUSCRIPTS → 'Codex unique identifier', deduplicate
 | `vernacular_region` | character varying, not null | unique | Excel MANUSCRIPTS → 'Vernacular region (Romance/Germanic)' |
 | `vernacular_region_note` | character varying |  |  |
 
+#### `codex_link`
+
+Links describing the whole codex (until 061 stored per text copy as manuscript_link). Unique per (codex, type, url). Tracked by the file explorer in `hagio_admin.codex_link_reference`.
+
+| Column | Type | Key | Source |
+| :--- | :--- | :--- | :--- |
+| `codex_link_id` | integer, not null | PK |  |
+| `codex_link_type_id` | integer, not null | FK → codex_link_type (part of a unique key) | Excel MANUSCRIPTS → 'link column → type' |
+| `codex_link_url` | character varying, not null | (part of a unique key) | Excel MANUSCRIPTS → 'link cell hyperlink target' |
+| `codex_link_note` | character varying |  |  |
+| `codex_id` | integer, not null | FK → codex (part of a unique key) | The codex this link describes (moved from manuscript level in migration 061) |
+
+#### `codex_link_type`
+
+| Column | Type | Key | Source |
+| :--- | :--- | :--- | :--- |
+| `codex_link_type_id` | integer, not null | PK |  |
+| `codex_link_type` | character varying, not null | unique |  |
+| `codex_link_type_note` | character varying |  |  |
+
 #### `manuscript`
 
 | Column | Type | Key | Source |
@@ -278,12 +298,14 @@ One physical codex. Excel MANUSCRIPTS → 'Codex unique identifier', deduplicate
 
 #### `manuscript_link`
 
+Copy-level links (new in 062, empty at creation). Not tracked by the file explorer.
+
 | Column | Type | Key | Source |
 | :--- | :--- | :--- | :--- |
 | `manuscript_link_id` | integer, not null | PK |  |
-| `manuscript_id` | integer, not null | FK → manuscript | Excel MANUSCRIPTS → 'link columns (row)' |
-| `manuscript_link_type_id` | integer, not null | FK → manuscript_link_type | Excel MANUSCRIPTS → 'link column → type' |
-| `manuscript_link_url` | character varying, not null |  | Excel MANUSCRIPTS → 'link cell hyperlink target' |
+| `manuscript_id` | integer, not null | FK → manuscript |  |
+| `manuscript_link_type_id` | integer, not null | FK → manuscript_link_type |  |
+| `manuscript_link_url` | character varying, not null |  |  |
 | `manuscript_link_note` | character varying |  |  |
 
 #### `manuscript_link_type`

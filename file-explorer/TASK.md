@@ -29,7 +29,8 @@ But i'm not sure how this would work, since students will just be:
 - using the file explorer to find / create files
 - clicking the link button to copy a working link to this file at files.m-patch.ugent.be to their clipboard
 - going to mathesar and filling in this link at the correct location in the database
-  - these locations are manuscript_link.url and edition_link.url
+  - these locations are codex_link.codex_link_url and edition_link.edition_link_url
+    (manuscript_link held these until migration 061 moved the links to codex level)
 
 So the 'linking' happens on a logical level... i'm not sure how to solve for that.
 

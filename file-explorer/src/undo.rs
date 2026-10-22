@@ -305,7 +305,7 @@ async fn refuse_if_referenced(
     let referenced: Vec<String> = sqlx::query_scalar(
         "SELECT DISTINCT coalesce(p.relative_path, dp.relative_path)
          FROM (
-             SELECT file_id, directory_id FROM hagio_admin.manuscript_link_reference
+             SELECT file_id, directory_id FROM hagio_admin.codex_link_reference
            UNION ALL
              SELECT file_id, directory_id FROM hagio_admin.edition_link_reference
          ) r

@@ -61,7 +61,7 @@ The schema evolves through numbered SQL migrations in `db/migrations/`, applied 
 - Use Mathesar's `msar.cast_to_<type>()`.
 
 Consequences:
-- `utils/utilities/src/utilities/model.py` (SQLModel) **mirrors the `public` schema after migrations 000–059**: tables, columns, types, nullability, FKs, unique constraints, indexes, comments, and constraint/index/sequence *names* were verified identical in October 2026. The one exception is the url columns (`manuscript_link_url`, `edition_link_url`, `text__repertory_url`): they are the `mathesar_types.uri` domain on QAS/PRD, but text in the model. **Every new migration that touches `public` must update `model.py` in the same change and re-run `just db_diagram`.** To check them, build one throwaway DB from the migrations and one from `SQLModel.metadata.create_all`, then diff their `information_schema`. Never use the model to create or alter a real database.
+- `utils/utilities/src/utilities/model.py` (SQLModel) **mirrors the `public` schema after migrations 000–062**: tables, columns, types, nullability, FKs, unique constraints, indexes, comments, and constraint/index/sequence *names* were verified identical in October 2026. The one exception is the url columns (`manuscript_link_url`, `edition_link_url`, `text__repertory_url`): they are the `mathesar_types.uri` domain on QAS/PRD, but text in the model. **Every new migration that touches `public` must update `model.py` in the same change and re-run `just db_diagram`.** To check them, build one throwaway DB from the migrations and one from `SQLModel.metadata.create_all`, then diff their `information_schema`. Never use the model to create or alter a real database.
 - `db/` is a standalone package (`psycopg`, no SQLModel). It runs on the **host** (`uv run --project db`), because the `utils` container's DNS cannot reliably reach the UGent servers or PyPI.
 - A one-off 2026-07 backfill populated `shelfmark`, `folio_or_page_range`, `codex` and `publication` from the workbook. Its code was removed in October 2026 (git history); do not resurrect it.
 
@@ -78,7 +78,7 @@ Consequences:
 ### Code layout
 
 - **`db/`** — migration runner (`hagio_db.migrate`) and `migrations/*.sql`; runs on the host.
-- **`file-explorer/`** — web app for finding, renaming, moving and uploading the scanned manuscript/edition images on the UGent share. It also copies working links into `manuscript_link.manuscript_link_url`/`edition_link.edition_link_url`. The hagio_admin trigger functions read those columns by name, so a rename of either must replace the functions in the same migration (see 050). Its tables (`file`, `directory`, `*_link_reference`, …) live in `hagio_admin` (migrations 013–017). See `file-explorer/README.md`.
+- **`file-explorer/`** — web app for finding, renaming, moving and uploading the scanned manuscript/edition images on the UGent share. It also copies working links into `codex_link.codex_link_url`/`edition_link.edition_link_url`, and tracks them in `hagio_admin.codex_link_reference`/`edition_link_reference`. The Rust app reads those tables (`src/undo.rs`), and the trigger functions read the url columns by name. A rename of either must replace the functions in the same migration (see 050, 061) and update the Rust app, which is deployed together with the migration. Its tables (`file`, `directory`, `*_link_reference`, …) live in `hagio_admin` (migrations 013–017). See `file-explorer/README.md`.
 - **`utils/`** — three standalone Python sub-packages run in the `utils` container (`docker compose run -w /app/<pkg>`):
   - **`utilities/`** — SQLModel model (`model.py`, mirrors the migrated `public` schema), engine config (`db.py`), env config (`config.py`).
   - **`mathesar/`** (`mathesar_tools`) — Mathesar JSON-RPC scripts: `mathesar-connect-db`, `mathesar-record-summaries` (`record_summaries.json`) and `mathesar-column-display` (`column_display.json`).
@@ -131,7 +131,8 @@ Entities:
   - Lookups: **CodexHoldingInstitution**, **CodexPreservationStatus**, **CodexType**, OriginConfidence, ProvenanceConfidence, VernacularRegion.
   - Copy count and "multiple copies" are derived: `count(*)` over its manuscripts.
 - **Manuscript** — one text copy in a codex: `codex_id`, `text_id`, `manuscript_unique_identifier`, `manuscript_folio_or_page_range`.
-- **ManuscriptLink** — typed URLs (ManuscriptLinkType).
+- **CodexLink** (`codex_link`) — typed URLs describing the whole codex: catalogue descriptions, Légendiers entries, IIIF manifests, scans. Lookup: CodexLinkType. Unique per (codex, type, url). Until migration 061 these lived on the manuscript, repeated once per text copy.
+- **ManuscriptLink** (`manuscript_link`) — copy-level URLs, typed by ManuscriptLinkType. Created empty in 062; the researchers define the types.
 - **ManuscriptManuscript** (`manuscript__manuscript`) — manuscript↔manuscript relations, typed by **ManuscriptManuscriptType** ('Based on exemplar' / 'Exemplar of').
 - **Publication** (003, hoisted in 010) — `publication_unique_identifier`, `publication_year`, `publication_full_reference`.
 - **Edition** — `publication_id`, page numbers, reprint (self-FK `reprint_of_edition_id`), collation, notes. Related tables:
@@ -149,7 +150,7 @@ Mathesar (`mathesar/mathesar:0.12.0`) is the curation interface; it edits Postgr
 
 ```
 Mathesar Admin ──(curation)──▶ PostgreSQL (source of truth; schema via db/migrations/) ──[Dataflow]──▶ data/hagiographies_full_export.sqlite
-file-explorer ──(links into manuscript_link / edition_link; hagio_admin.file*)──▶ PostgreSQL
+file-explorer ──(links into codex_link / edition_link; hagio_admin.file*)──▶ PostgreSQL
 ```
 
 ## Key Details
