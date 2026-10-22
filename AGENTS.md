@@ -54,13 +54,14 @@ The schema evolves through numbered SQL migrations in `db/migrations/`, applied 
 - **`000_init.sql`** is a frozen baseline: the `public` schema as it stood on 2026-07-29. On a database that already has it, the runner records it as applied without executing it.
 - **Immutability:** a migration cannot change once applied. The runner stores a checksum and refuses to continue if a file changed; add a new migration instead.
 - **Bookkeeping** lives in the **`hagio_admin`** schema, not `public`, so that `public` holds research data only. Editors are never granted `USAGE` on it. See `db/README.md`.
+- **Admin helpers live in `hagio_admin` as well,** even when they act on `public`: the guarded rename functions (`hagio_admin.rename_table/_column/_constraint/_index/_sequence`, migration 018) and the file-explorer trigger functions. Anything in `public` shows up in Mathesar for the researchers. New rename migrations should reuse these helpers.
 
 **Mathesar edits the schema too.** Setting a column's type in its UI is DDL, usually to a domain in its own `mathesar_types` schema. The runner tracks files, not schema state, so it cannot detect such changes. Reproduce each one as a new migration (see `004_manuscript_link_url_uri.sql`):
 - Guard it both against already being applied and against `mathesar_types` not existing.
 - Use Mathesar's `msar.cast_to_<type>()`.
 
 Consequences:
-- `utils/utilities/src/utilities/model.py` (SQLModel) **mirrors the `public` schema after migrations 000–017**: tables, columns, types, nullability, FKs, unique constraints, indexes and comments were verified identical in October 2026. The one exception is the `url` columns of `manuscript_link`, `edition_link` and `repertory_link`: they are the `mathesar_types.uri` domain on QAS/PRD, but text in the model. **Every new migration that touches `public` must update `model.py` in the same change and re-run `just db_diagram`.** To check them, build one throwaway DB from the migrations and one from `SQLModel.metadata.create_all`, then diff their `information_schema`. Never use the model to create or alter a real database.
+- `utils/utilities/src/utilities/model.py` (SQLModel) **mirrors the `public` schema after migrations 000–059**: tables, columns, types, nullability, FKs, unique constraints, indexes, comments, and constraint/index/sequence *names* were verified identical in October 2026. The one exception is the url columns (`manuscript_link_url`, `edition_link_url`, `text__repertory_url`): they are the `mathesar_types.uri` domain on QAS/PRD, but text in the model. **Every new migration that touches `public` must update `model.py` in the same change and re-run `just db_diagram`.** To check them, build one throwaway DB from the migrations and one from `SQLModel.metadata.create_all`, then diff their `information_schema`. Never use the model to create or alter a real database.
 - `db/` is a standalone package (`psycopg`, no SQLModel). It runs on the **host** (`uv run --project db`), because the `utils` container's DNS cannot reliably reach the UGent servers or PyPI.
 - A one-off 2026-07 backfill populated `shelfmark`, `folio_or_page_range`, `codex` and `publication` from the workbook. Its code was removed in October 2026 (git history); do not resurrect it.
 
@@ -77,7 +78,7 @@ Consequences:
 ### Code layout
 
 - **`db/`** — migration runner (`hagio_db.migrate`) and `migrations/*.sql`; runs on the host.
-- **`file-explorer/`** — web app for finding, renaming, moving and uploading the scanned manuscript/edition images on the UGent share. It also copies working links into `manuscript_link.url`/`edition_link.url`. Its tables (`file`, `directory`, `*_link_reference`, …) live in `hagio_admin` (migrations 013–017). See `file-explorer/README.md`.
+- **`file-explorer/`** — web app for finding, renaming, moving and uploading the scanned manuscript/edition images on the UGent share. It also copies working links into `manuscript_link.manuscript_link_url`/`edition_link.edition_link_url`. The hagio_admin trigger functions read those columns by name, so a rename of either must replace the functions in the same migration (see 050). Its tables (`file`, `directory`, `*_link_reference`, …) live in `hagio_admin` (migrations 013–017). See `file-explorer/README.md`.
 - **`utils/`** — three standalone Python sub-packages run in the `utils` container (`docker compose run -w /app/<pkg>`):
   - **`utilities/`** — SQLModel model (`model.py`, mirrors the migrated `public` schema), engine config (`db.py`), env config (`config.py`).
   - **`mathesar/`** (`mathesar_tools`) — Mathesar JSON-RPC scripts: `mathesar-connect-db`, `mathesar-record-summaries` (`record_summaries.json`) and `mathesar-column-display` (`column_display.json`).
@@ -89,32 +90,54 @@ Consequences:
 
 `model.py` and the diagram describe `public` after all migrations. Mathesar can still change a live database's schema outside the migrations (see above), so check the live DB when it matters.
 
-Conventions:
-- Primary keys are `<table>_id` (autoincrement), never plain `id`.
-- Foreign keys are real constraints.
-- Columns loaded from the workbook carry a PostgreSQL column comment naming their original Excel column (provenance only).
-- Identifiers: `text.identifier` = `BHL`/`NO_BHL` prefix + `_` + uid (e.g. `BHL_29`, `NO_BHL_ALPER`); `manuscript.identifier` = prefix + `_` + copy id (e.g. `BHL_29-4`; **not unique**); `edition.identifier_per_text` (e.g. `BHL_29-A`).
-- `manuscript` and `edition` have no `title`. The title lives on `text` via `text_id`, which is nullable on both.
-- Naming inconsistencies exist in the live schema. Don't rename them silently, because that breaks the Mathesar config and the export: `text.dating_range_stop` vs `dating_range_end`; `dating_confidence.notes` vs `note` elsewhere; `destinary_*` columns vs "destinatary".
+Naming rules (relabelling, migrations 018–051, October 2026). Follow them for every new table or column:
+- **Characters:** lowercase snake_case only. No hyphens, no capitals, so nothing ever needs quoting.
+- **Tables:** singular. **Many-to-many junction tables are `<a>__<b>`**: `edition__edition`, `edition__manuscript`, `manuscript__manuscript`, `text__repertory`. A lookup that types a junction is `<junction>_type` (`manuscript__manuscript_type`). `__` is used nowhere else.
+- **Primary key:** `<table>_id`. **Foreign key:** `<referenced_table>_id`, or `<role>_<referenced>_id` when a table has several FKs to the same target (`origin_diocese_id`, `consulted_edition_id`, `related_manuscript_id`, `reecriture_of_text_id`). FKs are never table-prefixed. They store the integer id; Mathesar shows the linked row's label through record summaries.
+- **Content columns:** prefixed with their table (`codex_height`, `text_title`, `edition__manuscript_note`).
+- **Lookup value column:** named after its table (`text_form.text_form`); the lookup's note column is `<table>_note`.
+- **Entity name columns:** `<table>_unique_identifier` for row codes (text, manuscript, codex, edition, publication) and `<table>_name` for human names.
 
-Entities (July 2026 baseline plus migrations 001–012):
-- **Text** — dating, réécriture self-FK, author FK, creation/destinary geography FKs. Lookups: TextForm, TextSourceType, TextSourceSubtype, DatingConfidence.
+Uniqueness (migrations 051–059; the same rules are in `model.py`):
+- **`*_unique_identifier` columns** (text, manuscript, codex, publication) are unique regardless of case and surrounding spaces. Each has three objects:
+  - a `UNIQUE` constraint `<table>_<col>_key`;
+  - `CHECK (col = btrim(col))`;
+  - a unique index on `lower(col)` (`<table>_<col>_lower_key`).
+
+  `model.py` builds them via `unique_identifier_rules()`. **`edition`** gets the same rules once the duplicate `BHL_8426-K` is fixed.
+- **Many-to-many junctions** allow each pair only once:
+  - `edition__manuscript` (edition, manuscript);
+  - `edition__edition` (edition, consulted edition);
+  - `manuscript__manuscript` (manuscript, related, type), which also may not reference itself;
+  - `text__repertory` (text, repertory, url).
+
+  `edition__edition` gets the same no-self-reference rule once row 711 (`BHL_7963-B` consults itself) is fixed.
+- **Parked migrations** live in `db/migrations/pending/`. The runner ignores that folder. Each file is blocked by production data and names the blocking rows; see its README to activate one.
+- **Constraint migrations are data-gated:** they list the offending rows and refuse instead of guessing. The only data they change themselves is lossless cleanup: whitespace trims, an empty duplicate codex, and junction rows fully covered by a twin.
+- **Notes** are singular (`…_note`, `…_general_note`). **One concept, one word:** `institution`, `destinatary`, `_end`, `confidence`.
+
+Other conventions:
+- Columns loaded from the workbook carry a PostgreSQL column comment naming their original Excel column (provenance only).
+- Identifier formats: `text.text_unique_identifier` = `BHL`/`NO_BHL` prefix + `_` + uid (e.g. `BHL_29`, `NO_BHL_ALPER`); `manuscript.manuscript_unique_identifier` = prefix + `_` + copy id (e.g. `BHL_29-4`); `edition.edition_unique_identifier` (e.g. `BHL_29-A`).
+- `manuscript` and `edition` have no title. It lives on `text` (`text_title`) via `text_id`, which is nullable on both.
+- Renaming anything in `public` breaks name-based consumers: `record_summaries.json`, `column_display.json`, the SQLite export, and the trigger functions mentioned above. Update them in the same change.
+
+Entities:
+- **Text** — dating, réécriture (`reecriture_of_text_id` self-FK), author FK, creation/destinatary geography FKs. Lookups: TextForm, TextSourceType, TextSourceSubtype, DatingConfidence.
 - **Author** — lookup AuthorMilieu.
 - Geography — **Location**, **Archdiocese**, **Diocese**, **Institution** (each with an optional `location_id`).
-- **Codex** (002, columns hoisted in 009) — the physical codex.
-  - Fields: shelfmark, holding institution, location, height/width, dating, preservation status, manuscript type, origin/provenance FKs with OriginConfidence/ProvenanceConfidence, vernacular region, legendiers/composite flags, notes.
+- **Codex** — the physical codex (table since 002; columns hoisted from manuscript in 009).
+  - Fields: shelfmark, holding institution, location, height/width, dating, preservation status, type, origin/provenance FKs, vernacular region, Légendiers/composite flags, notes.
+  - Lookups: **CodexHoldingInstitution**, **CodexPreservationStatus**, **CodexType**, OriginConfidence, ProvenanceConfidence, VernacularRegion.
   - Copy count and "multiple copies" are derived: `count(*)` over its manuscripts.
-- **Manuscript** — one text copy in a codex: `codex_id`, `text_id`, `identifier`, `folio_or_page_range`.
-  - Migration 011 dropped its codex-level columns.
-  - Migration 012 dropped `codex_identifier`.
-- **ManuscriptLink** — typed URLs (ManuscriptLinkType); `url` is `mathesar_types.uri`.
-- **ManuscriptRelation** — manuscript↔manuscript links (ManuscriptRelationshipType).
-- **Publication** (003, hoisted in 010) — `name`, `publication_year`, `reference`.
-- **Edition** — per-edition fields (`publication_id`, `page_numbers`, reprint self-FK, `collation_done`, notes). Related tables:
-  - **EditionLink** (EditionLinkType; `url` is `uri`).
-  - Link tables `edition__manuscripts` and `edition__edition`.
-- **Repertory** and **RepertoryLink** — hand-curated.
-
+- **Manuscript** — one text copy in a codex: `codex_id`, `text_id`, `manuscript_unique_identifier`, `manuscript_folio_or_page_range`.
+- **ManuscriptLink** — typed URLs (ManuscriptLinkType).
+- **ManuscriptManuscript** (`manuscript__manuscript`) — manuscript↔manuscript relations, typed by **ManuscriptManuscriptType** ('Based on exemplar' / 'Exemplar of').
+- **Publication** (003, hoisted in 010) — `publication_unique_identifier`, `publication_year`, `publication_full_reference`.
+- **Edition** — `publication_id`, page numbers, reprint (self-FK `reprint_of_edition_id`), collation, notes. Related tables:
+  - **EditionLink** (EditionLinkType).
+  - Junctions **EditionManuscript** (`edition__manuscript`) and **EditionEdition** (`edition__edition`).
+- **Repertory** and **TextRepertory** (`text__repertory`, unique on text + repertory + url) — hand-curated.
 
 ### Mathesar Admin
 

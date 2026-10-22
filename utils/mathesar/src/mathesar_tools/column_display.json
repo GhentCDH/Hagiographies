@@ -1,9 +1,9 @@
 {
     "text": {
-        "dating_range_start": {
+        "text_dating_range_start": {
             "num_grouping": "never"
         },
-        "dating_range_stop": {
+        "text_dating_range_end": {
             "num_grouping": "never"
         }
     },
