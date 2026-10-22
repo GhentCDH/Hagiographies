@@ -25,10 +25,10 @@ container_down:
 db_diagram:
     docker compose run  -w /app/documenter --rm utils  uv run document
 
-# ── Database (migrations & backfills) ──────────────────────────────────────
+# ── Database (migrations) ──────────────────────────────────────────────────
 
 # db/migrations/ is the source of truth for the schema; the SQLModel model in
-# utils/utilities is no longer kept in sync.
+# utils/utilities mirrors it and must be updated with every migration.
 #
 # These run on the HOST, not in the utils container, unlike the mathesar_* recipes.
 # Two reasons: the container's DNS cannot reliably resolve the UGent servers
@@ -38,9 +38,7 @@ db_diagram:
 # .env via direnv.
 
 LOCAL_DB := "postgresql://" + env('POSTGRES_USER', 'hagiographies') + ":" + env('POSTGRES_PASSWORD', 'changeme') + "@localhost:" + env('POSTGRES_PORT', '5432') + "/" + env('POSTGRES_DB', 'hagiographies')
-# DATA_ROOT makes the workbook and report resolve to ./data instead of the
-# container's /data.
-DB := "DATA_ROOT=data uv run --project db"
+DB := "uv run --project db"
 
 # Show which migrations are applied and which are pending
 db_migrate_status:
@@ -69,7 +67,7 @@ db_migrate_prd_status:
     {{DB}} migrate --database-url "$PG_DATABASE_URL_PRD" --status
 
 # Overwrites the local research DB with a copy of whatever PG_DATABASE_URL
-# points at (QAS), so migrations and backfills can be rehearsed locally.
+# points at (QAS), so migrations can be rehearsed locally.
 # Requires PG_DATABASE_URL in the host environment (.env / direnv).
 # A throwaway copy of the local database with ALL migrations applied, including
 # the ones still pending sign-off. For trying out a migration, or running the

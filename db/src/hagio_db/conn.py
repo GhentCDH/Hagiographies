@@ -1,4 +1,4 @@
-"""Database connection and paths.
+"""Database connection and migration paths.
 
 Deliberately independent of utils/utilities: no SQLModel, no ORM, just a
 psycopg connection and the same environment variables the rest of the project
@@ -16,8 +16,6 @@ from rich.console import Console
 
 PACKAGE_ROOT = Path(__file__).resolve().parents[2]  # the db/ directory
 MIGRATIONS = PACKAGE_ROOT / "migrations"
-DATA_ROOT = Path(os.getenv("DATA_ROOT", "/data"))
-EXCEL = DATA_ROOT / os.getenv("EXCEL_FILE", "corpus_dedup.xlsx")
 
 console = Console()
 

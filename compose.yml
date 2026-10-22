@@ -20,7 +20,7 @@ services:
     restart: always
 
   mathesar:
-    image: mathesar/mathesar:0.11.0
+    image: mathesar/mathesar:0.12.0
     env_file:
       - dev.env
     environment:

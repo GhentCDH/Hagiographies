@@ -1,1 +1,1 @@
-"""Raw-SQL schema migrations and one-off backfills for the hagiographies database."""
+"""Raw-SQL schema migrations for the hagiographies database."""

@@ -23,5 +23,7 @@
     "institution": "name",
     "author": "name",
     "author_milieu": "label",
-    "dating_confidence": "label"
+    "dating_confidence": "label",
+    "codex": "name",
+    "publication": "name"
 }
