@@ -25,7 +25,7 @@ just db_migrate_prd           # apply pending migrations to PRD (PG_DATABASE_URL
 just db_local_migrate         # apply pending migrations to the local Docker Postgres
 just db_clone_qas             # copy the remote DB's public schema into the local Docker Postgres (destructive, local only)
 just db_scratch               # throwaway hagiographies_scratch copy of the local DB with all migrations applied
-just db_diagram               # SVG diagram from the SQLModel classes (stale model, see below)
+just db_diagram               # data/hagiographies_model.svg from the SQLModel classes (all tables)
 
 just pg_export_sqlite         # dump PostgreSQL → data/hagiographies_full_export.sqlite via Dataflow (dataflow/config.json)
 just pg_export_sqlite_dry_run # validate the Dataflow config, write nothing
@@ -60,9 +60,9 @@ The schema evolves through numbered SQL migrations in `db/migrations/`, applied 
 - Use Mathesar's `msar.cast_to_<type>()`.
 
 Consequences:
-- `utils/utilities/src/utilities/model.py` (SQLModel) is **no longer kept in sync**. It describes the July 2026 import, not the current schema, so do not treat it as the schema. `db_diagram` therefore draws an outdated picture.
-- `db/` is a standalone package (`psycopg` + `openpyxl`, no SQLModel). It runs on the **host** (`uv run --project db`), because the `utils` container's DNS cannot reliably reach the UGent servers or PyPI.
-- `db/src/hagio_db/{backfill,report,workbook}.py` are the **retired** 2026-07 backfill. It populated `shelfmark`, `folio_or_page_range`, `codex` and `publication` from the workbook. It is kept as a record only, with no console script and no recipe. Do not resurrect it.
+- `utils/utilities/src/utilities/model.py` (SQLModel) **mirrors the `public` schema after migrations 000–017**: tables, columns, types, nullability, FKs, unique constraints, indexes and comments were verified identical in October 2026. The one exception is the `url` columns of `manuscript_link`, `edition_link` and `repertory_link`: they are the `mathesar_types.uri` domain on QAS/PRD, but text in the model. **Every new migration that touches `public` must update `model.py` in the same change and re-run `just db_diagram`.** To check them, build one throwaway DB from the migrations and one from `SQLModel.metadata.create_all`, then diff their `information_schema`. Never use the model to create or alter a real database.
+- `db/` is a standalone package (`psycopg`, no SQLModel). It runs on the **host** (`uv run --project db`), because the `utils` container's DNS cannot reliably reach the UGent servers or PyPI.
+- A one-off 2026-07 backfill populated `shelfmark`, `folio_or_page_range`, `codex` and `publication` from the workbook. Its code was removed in October 2026 (git history); do not resurrect it.
 
 ## Architecture
 
@@ -79,7 +79,7 @@ Consequences:
 - **`db/`** — migration runner (`hagio_db.migrate`) and `migrations/*.sql`; runs on the host.
 - **`file-explorer/`** — web app for finding, renaming, moving and uploading the scanned manuscript/edition images on the UGent share. It also copies working links into `manuscript_link.url`/`edition_link.url`. Its tables (`file`, `directory`, `*_link_reference`, …) live in `hagio_admin` (migrations 013–017). See `file-explorer/README.md`.
 - **`utils/`** — three standalone Python sub-packages run in the `utils` container (`docker compose run -w /app/<pkg>`):
-  - **`utilities/`** — SQLModel model (`model.py`, stale), engine config (`db.py`), env config (`config.py`).
+  - **`utilities/`** — SQLModel model (`model.py`, mirrors the migrated `public` schema), engine config (`db.py`), env config (`config.py`).
   - **`mathesar/`** (`mathesar_tools`) — Mathesar JSON-RPC scripts: `mathesar-connect-db`, `mathesar-record-summaries` (`record_summaries.json`) and `mathesar-column-display` (`column_display.json`).
   - **`documenter/`** — SVG entity diagram from the SQLModel classes.
 - **`dataflow/`** — Dataflow config for the SQLite export.
@@ -87,7 +87,7 @@ Consequences:
 
 ### Data model
 
-Inspect the live database (`\d+`, `information_schema`) and `db/migrations/` before relying on any description here.
+`model.py` and the diagram describe `public` after all migrations. Mathesar can still change a live database's schema outside the migrations (see above), so check the live DB when it matters.
 
 Conventions:
 - Primary keys are `<table>_id` (autoincrement), never plain `id`.
@@ -115,11 +115,10 @@ Entities (July 2026 baseline plus migrations 001–012):
   - Link tables `edition__manuscripts` and `edition__edition`.
 - **Repertory** and **RepertoryLink** — hand-curated.
 
-The pre-restart 20-table model (`utils/utilities/src/utilities/legacy_model.py`) is parked, reference only. Nothing imports it, so do not build on it.
 
 ### Mathesar Admin
 
-Mathesar (`mathesar/mathesar:0.11.0`) is the curation interface; it edits PostgreSQL directly. It keeps its own Django metadata DB (`mathesar_django`), separate from the research database.
+Mathesar (`mathesar/mathesar:0.12.0`) is the curation interface; it edits PostgreSQL directly. It keeps its own Django metadata DB (`mathesar_django`), separate from the research database.
 - Editors use the `hagiographies_editor` role: they can edit data but not change the schema (migrations 007/008).
 - Record summaries and column display options are configured via JSON-RPC by `utils/mathesar/` (`just mathesar_summaries`, `just mathesar_display`). Re-run both if table OIDs change.
 

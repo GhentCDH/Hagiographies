@@ -3,6 +3,584 @@ digraph {
 	graph [bgcolor="#EEEEEE" rankdir=TB splines=spline]
 	node [fontname=Roboto fontsize=12 shape=none]
 	edge [fontname=Roboto fontsize=10]
+	Archdiocese [label=<
+        <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0">
+        <TR><TD COLSPAN="2" BGCOLOR="#3F51B5"><FONT COLOR="white">Archdiocese</FONT></TD></TR>
+        <TR>
+                         <TD BGCOLOR="#BBDEFB">archdiocese_id</TD>
+                         <TD BGCOLOR="#BBDEFB">INTEGER (PK)</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">name</TD>
+                         <TD BGCOLOR="#BBDEFB">VARCHAR (Unique)</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">location_id</TD>
+                         <TD BGCOLOR="#BBDEFB">INTEGER ()</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">note</TD>
+                         <TD BGCOLOR="#BBDEFB">VARCHAR ()</TD>
+                         </TR></TABLE>> URL="http://Archdiocese_details.html"]
+	Archdiocese -> Location [label=location color="#1E88E5" style=dashed tooltip="Relation between Archdiocese and Location"]
+	Archdiocese -> Codex [label=origin_codices color="#1E88E5" style=dashed tooltip="Relation between Archdiocese and Codex"]
+	Author [label=<
+        <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0">
+        <TR><TD COLSPAN="2" BGCOLOR="#3F51B5"><FONT COLOR="white">Author</FONT></TD></TR>
+        <TR>
+                         <TD BGCOLOR="#BBDEFB">author_id</TD>
+                         <TD BGCOLOR="#BBDEFB">INTEGER (PK)</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">name</TD>
+                         <TD BGCOLOR="#BBDEFB">VARCHAR (Unique)</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">institutional_training_ground</TD>
+                         <TD BGCOLOR="#BBDEFB">VARCHAR ()</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">regional_antecedents</TD>
+                         <TD BGCOLOR="#BBDEFB">VARCHAR ()</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">author_milieu_id</TD>
+                         <TD BGCOLOR="#BBDEFB">INTEGER ()</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">note</TD>
+                         <TD BGCOLOR="#BBDEFB">VARCHAR ()</TD>
+                         </TR></TABLE>> URL="http://Author_details.html"]
+	Author -> AuthorMilieu [label=milieu color="#1E88E5" style=dashed tooltip="Relation between Author and AuthorMilieu"]
+	Author -> Text [label=texts color="#1E88E5" style=dashed tooltip="Relation between Author and Text"]
+	AuthorMilieu [label=<
+        <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0">
+        <TR><TD COLSPAN="2" BGCOLOR="#3F51B5"><FONT COLOR="white">AuthorMilieu</FONT></TD></TR>
+        <TR>
+                         <TD BGCOLOR="#BBDEFB">author_milieu_id</TD>
+                         <TD BGCOLOR="#BBDEFB">INTEGER (PK)</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">label</TD>
+                         <TD BGCOLOR="#BBDEFB">VARCHAR (Unique)</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">note</TD>
+                         <TD BGCOLOR="#BBDEFB">VARCHAR ()</TD>
+                         </TR></TABLE>> URL="http://AuthorMilieu_details.html"]
+	AuthorMilieu -> Author [label=authors color="#1E88E5" style=dashed tooltip="Relation between AuthorMilieu and Author"]
+	Codex [label=<
+        <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0">
+        <TR><TD COLSPAN="2" BGCOLOR="#3F51B5"><FONT COLOR="white">Codex</FONT></TD></TR>
+        <TR>
+                         <TD BGCOLOR="#BBDEFB">codex_id</TD>
+                         <TD BGCOLOR="#BBDEFB">INTEGER (PK)</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">name</TD>
+                         <TD BGCOLOR="#BBDEFB">VARCHAR (Unique)</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">manuscript_preservation_status_id</TD>
+                         <TD BGCOLOR="#BBDEFB">INTEGER ()</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">location_id</TD>
+                         <TD BGCOLOR="#BBDEFB">INTEGER ()</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">manuscript_holding_institution_id</TD>
+                         <TD BGCOLOR="#BBDEFB">INTEGER ()</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">height</TD>
+                         <TD BGCOLOR="#BBDEFB">VARCHAR ()</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">width</TD>
+                         <TD BGCOLOR="#BBDEFB">VARCHAR ()</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">dating_century</TD>
+                         <TD BGCOLOR="#BBDEFB">INTEGER ()</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">dating_range_start</TD>
+                         <TD BGCOLOR="#BBDEFB">INTEGER ()</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">dating_range_end</TD>
+                         <TD BGCOLOR="#BBDEFB">INTEGER ()</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">dating_reference</TD>
+                         <TD BGCOLOR="#BBDEFB">VARCHAR ()</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">dating_confidence_id</TD>
+                         <TD BGCOLOR="#BBDEFB">INTEGER ()</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">dating_note</TD>
+                         <TD BGCOLOR="#BBDEFB">VARCHAR ()</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">codex_legendiers_usable</TD>
+                         <TD BGCOLOR="#BBDEFB">BOOLEAN ()</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">codex_composite</TD>
+                         <TD BGCOLOR="#BBDEFB">BOOLEAN ()</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">codex_legendiers_entry_code</TD>
+                         <TD BGCOLOR="#BBDEFB">VARCHAR ()</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">codex_notes</TD>
+                         <TD BGCOLOR="#BBDEFB">VARCHAR ()</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">vernacular_region_id</TD>
+                         <TD BGCOLOR="#BBDEFB">INTEGER ()</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">origin_archdiocese_id</TD>
+                         <TD BGCOLOR="#BBDEFB">INTEGER ()</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">origin_diocese_id</TD>
+                         <TD BGCOLOR="#BBDEFB">INTEGER ()</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">origin_diocese_confidence_rating_id</TD>
+                         <TD BGCOLOR="#BBDEFB">INTEGER ()</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">origin_institution_id</TD>
+                         <TD BGCOLOR="#BBDEFB">INTEGER ()</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">origin_institution_confidence_rating_id</TD>
+                         <TD BGCOLOR="#BBDEFB">INTEGER ()</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">provenance_early_institute_id</TD>
+                         <TD BGCOLOR="#BBDEFB">INTEGER ()</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">provenance_early_confidence_id</TD>
+                         <TD BGCOLOR="#BBDEFB">INTEGER ()</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">provenance_later_institute_id</TD>
+                         <TD BGCOLOR="#BBDEFB">INTEGER ()</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">provenance_later_confidence_id</TD>
+                         <TD BGCOLOR="#BBDEFB">INTEGER ()</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">origin_or_provenance_secondary_reference</TD>
+                         <TD BGCOLOR="#BBDEFB">VARCHAR ()</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">manuscript_type_id</TD>
+                         <TD BGCOLOR="#BBDEFB">INTEGER ()</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">manuscript_type_note</TD>
+                         <TD BGCOLOR="#BBDEFB">VARCHAR ()</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">general_notes</TD>
+                         <TD BGCOLOR="#BBDEFB">VARCHAR ()</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">shelfmark</TD>
+                         <TD BGCOLOR="#BBDEFB">VARCHAR ()</TD>
+                         </TR></TABLE>> URL="http://Codex_details.html"]
+	Codex -> ManuscriptPreservationStatus [label=preservation_status color="#1E88E5" style=dashed tooltip="Relation between Codex and ManuscriptPreservationStatus"]
+	Codex -> Location [label=location color="#1E88E5" style=dashed tooltip="Relation between Codex and Location"]
+	Codex -> ManuscriptHoldingInstitution [label=holding_institution color="#1E88E5" style=dashed tooltip="Relation between Codex and ManuscriptHoldingInstitution"]
+	Codex -> DatingConfidence [label=dating_confidence color="#1E88E5" style=dashed tooltip="Relation between Codex and DatingConfidence"]
+	Codex -> VernacularRegion [label=vernacular_region color="#1E88E5" style=dashed tooltip="Relation between Codex and VernacularRegion"]
+	Codex -> Archdiocese [label=origin_archdiocese color="#1E88E5" style=dashed tooltip="Relation between Codex and Archdiocese"]
+	Codex -> Diocese [label=origin_diocese color="#1E88E5" style=dashed tooltip="Relation between Codex and Diocese"]
+	Codex -> OriginConfidence [label=origin_diocese_confidence color="#1E88E5" style=dashed tooltip="Relation between Codex and OriginConfidence"]
+	Codex -> Institution [label=origin_institution color="#1E88E5" style=dashed tooltip="Relation between Codex and Institution"]
+	Codex -> OriginConfidence [label=origin_institution_confidence color="#1E88E5" style=dashed tooltip="Relation between Codex and OriginConfidence"]
+	Codex -> Institution [label=provenance_early_institute color="#1E88E5" style=dashed tooltip="Relation between Codex and Institution"]
+	Codex -> ProvenanceConfidence [label=provenance_early_confidence color="#1E88E5" style=dashed tooltip="Relation between Codex and ProvenanceConfidence"]
+	Codex -> Institution [label=provenance_later_institute color="#1E88E5" style=dashed tooltip="Relation between Codex and Institution"]
+	Codex -> ProvenanceConfidence [label=provenance_later_confidence color="#1E88E5" style=dashed tooltip="Relation between Codex and ProvenanceConfidence"]
+	Codex -> ManuscriptType [label=manuscript_type color="#1E88E5" style=dashed tooltip="Relation between Codex and ManuscriptType"]
+	Codex -> Manuscript [label=manuscripts color="#1E88E5" style=dashed tooltip="Relation between Codex and Manuscript"]
+	DatingConfidence [label=<
+        <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0">
+        <TR><TD COLSPAN="2" BGCOLOR="#3F51B5"><FONT COLOR="white">DatingConfidence</FONT></TD></TR>
+        <TR>
+                         <TD BGCOLOR="#BBDEFB">dating_confidence_id</TD>
+                         <TD BGCOLOR="#BBDEFB">INTEGER (PK)</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">label</TD>
+                         <TD BGCOLOR="#BBDEFB">VARCHAR (Unique)</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">notes</TD>
+                         <TD BGCOLOR="#BBDEFB">VARCHAR ()</TD>
+                         </TR></TABLE>> URL="http://DatingConfidence_details.html"]
+	DatingConfidence -> Text [label=texts color="#1E88E5" style=dashed tooltip="Relation between DatingConfidence and Text"]
+	DatingConfidence -> Codex [label=codices color="#1E88E5" style=dashed tooltip="Relation between DatingConfidence and Codex"]
+	Diocese [label=<
+        <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0">
+        <TR><TD COLSPAN="2" BGCOLOR="#3F51B5"><FONT COLOR="white">Diocese</FONT></TD></TR>
+        <TR>
+                         <TD BGCOLOR="#BBDEFB">diocese_id</TD>
+                         <TD BGCOLOR="#BBDEFB">INTEGER (PK)</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">name</TD>
+                         <TD BGCOLOR="#BBDEFB">VARCHAR (Unique)</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">location_id</TD>
+                         <TD BGCOLOR="#BBDEFB">INTEGER ()</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">note</TD>
+                         <TD BGCOLOR="#BBDEFB">VARCHAR ()</TD>
+                         </TR></TABLE>> URL="http://Diocese_details.html"]
+	Diocese -> Location [label=location color="#1E88E5" style=dashed tooltip="Relation between Diocese and Location"]
+	Diocese -> Codex [label=origin_codices color="#1E88E5" style=dashed tooltip="Relation between Diocese and Codex"]
+	Edition [label=<
+        <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0">
+        <TR><TD COLSPAN="2" BGCOLOR="#3F51B5"><FONT COLOR="white">Edition</FONT></TD></TR>
+        <TR>
+                         <TD BGCOLOR="#BBDEFB">edition_id</TD>
+                         <TD BGCOLOR="#BBDEFB">INTEGER (PK)</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">text_id</TD>
+                         <TD BGCOLOR="#BBDEFB">INTEGER (Index)</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">identifier_per_text</TD>
+                         <TD BGCOLOR="#BBDEFB">VARCHAR (Index)</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">page_numbers</TD>
+                         <TD BGCOLOR="#BBDEFB">VARCHAR ()</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">reprint</TD>
+                         <TD BGCOLOR="#BBDEFB">BOOLEAN ()</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">reprint_identical</TD>
+                         <TD BGCOLOR="#BBDEFB">BOOLEAN ()</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">reprint_of_edition_id</TD>
+                         <TD BGCOLOR="#BBDEFB">INTEGER ()</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">reprint_of</TD>
+                         <TD BGCOLOR="#BBDEFB">VARCHAR ()</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">collation_done</TD>
+                         <TD BGCOLOR="#BBDEFB">BOOLEAN ()</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">general_notes</TD>
+                         <TD BGCOLOR="#BBDEFB">VARCHAR ()</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">publication_id</TD>
+                         <TD BGCOLOR="#BBDEFB">INTEGER (Index)</TD>
+                         </TR></TABLE>> URL="http://Edition_details.html"]
+	Edition -> Text [label=text color="#1E88E5" style=dashed tooltip="Relation between Edition and Text"]
+	Edition -> Publication [label=publication color="#1E88E5" style=dashed tooltip="Relation between Edition and Publication"]
+	Edition -> Edition [label=reprint_of_edition color="#1E88E5" style=dashed tooltip="Relation between Edition and Edition"]
+	Edition -> Edition [label=reprints color="#1E88E5" style=dashed tooltip="Relation between Edition and Edition"]
+	Edition -> EditionLink [label=links color="#1E88E5" style=dashed tooltip="Relation between Edition and EditionLink"]
+	Edition -> EditionManuscript [label=manuscript_links color="#1E88E5" style=dashed tooltip="Relation between Edition and EditionManuscript"]
+	Edition -> EditionEdition [label=consulted_edition_links color="#1E88E5" style=dashed tooltip="Relation between Edition and EditionEdition"]
+	Edition -> EditionEdition [label=consulted_by_links color="#1E88E5" style=dashed tooltip="Relation between Edition and EditionEdition"]
+	EditionEdition [label=<
+        <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0">
+        <TR><TD COLSPAN="2" BGCOLOR="#3F51B5"><FONT COLOR="white">EditionEdition</FONT></TD></TR>
+        <TR>
+                         <TD BGCOLOR="#BBDEFB">edition__edition_id</TD>
+                         <TD BGCOLOR="#BBDEFB">INTEGER (PK)</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">edition_id</TD>
+                         <TD BGCOLOR="#BBDEFB">INTEGER (Index)</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">consulted_edition_id</TD>
+                         <TD BGCOLOR="#BBDEFB">INTEGER (Index)</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">notes</TD>
+                         <TD BGCOLOR="#BBDEFB">VARCHAR ()</TD>
+                         </TR></TABLE>> URL="http://EditionEdition_details.html"]
+	EditionEdition -> Edition [label=edition color="#1E88E5" style=dashed tooltip="Relation between EditionEdition and Edition"]
+	EditionEdition -> Edition [label=consulted_edition color="#1E88E5" style=dashed tooltip="Relation between EditionEdition and Edition"]
+	EditionManuscript [label=<
+        <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0">
+        <TR><TD COLSPAN="2" BGCOLOR="#3F51B5"><FONT COLOR="white">EditionManuscript</FONT></TD></TR>
+        <TR>
+                         <TD BGCOLOR="#BBDEFB">edition__manuscripts_id</TD>
+                         <TD BGCOLOR="#BBDEFB">INTEGER (PK)</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">edition_id</TD>
+                         <TD BGCOLOR="#BBDEFB">INTEGER (Index)</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">manuscript_id</TD>
+                         <TD BGCOLOR="#BBDEFB">INTEGER (Index)</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">likely_use_of_a_copy</TD>
+                         <TD BGCOLOR="#BBDEFB">BOOLEAN ()</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">notes</TD>
+                         <TD BGCOLOR="#BBDEFB">VARCHAR ()</TD>
+                         </TR></TABLE>> URL="http://EditionManuscript_details.html"]
+	EditionManuscript -> Edition [label=edition color="#1E88E5" style=dashed tooltip="Relation between EditionManuscript and Edition"]
+	EditionManuscript -> Manuscript [label=manuscript color="#1E88E5" style=dashed tooltip="Relation between EditionManuscript and Manuscript"]
+	EditionLink [label=<
+        <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0">
+        <TR><TD COLSPAN="2" BGCOLOR="#3F51B5"><FONT COLOR="white">EditionLink</FONT></TD></TR>
+        <TR>
+                         <TD BGCOLOR="#BBDEFB">edition_link_id</TD>
+                         <TD BGCOLOR="#BBDEFB">INTEGER (PK)</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">edition_id</TD>
+                         <TD BGCOLOR="#BBDEFB">INTEGER (Index)</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">edition_link_type_id</TD>
+                         <TD BGCOLOR="#BBDEFB">INTEGER ()</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">url</TD>
+                         <TD BGCOLOR="#BBDEFB">VARCHAR ()</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">note</TD>
+                         <TD BGCOLOR="#BBDEFB">VARCHAR ()</TD>
+                         </TR></TABLE>> URL="http://EditionLink_details.html"]
+	EditionLink -> Edition [label=edition color="#1E88E5" style=dashed tooltip="Relation between EditionLink and Edition"]
+	EditionLink -> EditionLinkType [label=link_type color="#1E88E5" style=dashed tooltip="Relation between EditionLink and EditionLinkType"]
+	EditionLinkType [label=<
+        <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0">
+        <TR><TD COLSPAN="2" BGCOLOR="#3F51B5"><FONT COLOR="white">EditionLinkType</FONT></TD></TR>
+        <TR>
+                         <TD BGCOLOR="#BBDEFB">edition_link_type_id</TD>
+                         <TD BGCOLOR="#BBDEFB">INTEGER (PK)</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">label</TD>
+                         <TD BGCOLOR="#BBDEFB">VARCHAR (Unique)</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">note</TD>
+                         <TD BGCOLOR="#BBDEFB">VARCHAR ()</TD>
+                         </TR></TABLE>> URL="http://EditionLinkType_details.html"]
+	EditionLinkType -> EditionLink [label=links color="#1E88E5" style=dashed tooltip="Relation between EditionLinkType and EditionLink"]
+	Institution [label=<
+        <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0">
+        <TR><TD COLSPAN="2" BGCOLOR="#3F51B5"><FONT COLOR="white">Institution</FONT></TD></TR>
+        <TR>
+                         <TD BGCOLOR="#BBDEFB">institution_id</TD>
+                         <TD BGCOLOR="#BBDEFB">INTEGER (PK)</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">name</TD>
+                         <TD BGCOLOR="#BBDEFB">VARCHAR (Unique)</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">location_id</TD>
+                         <TD BGCOLOR="#BBDEFB">INTEGER ()</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">note</TD>
+                         <TD BGCOLOR="#BBDEFB">VARCHAR ()</TD>
+                         </TR></TABLE>> URL="http://Institution_details.html"]
+	Institution -> Location [label=location color="#1E88E5" style=dashed tooltip="Relation between Institution and Location"]
+	Institution -> Codex [label=origin_codices color="#1E88E5" style=dashed tooltip="Relation between Institution and Codex"]
+	Institution -> Codex [label=provenance_early_codices color="#1E88E5" style=dashed tooltip="Relation between Institution and Codex"]
+	Institution -> Codex [label=provenance_later_codices color="#1E88E5" style=dashed tooltip="Relation between Institution and Codex"]
+	Location [label=<
+        <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0">
+        <TR><TD COLSPAN="2" BGCOLOR="#3F51B5"><FONT COLOR="white">Location</FONT></TD></TR>
+        <TR>
+                         <TD BGCOLOR="#BBDEFB">location_id</TD>
+                         <TD BGCOLOR="#BBDEFB">INTEGER (PK)</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">name</TD>
+                         <TD BGCOLOR="#BBDEFB">VARCHAR ()</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">latitude</TD>
+                         <TD BGCOLOR="#BBDEFB">FLOAT ()</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">longitude</TD>
+                         <TD BGCOLOR="#BBDEFB">FLOAT ()</TD>
+                         </TR></TABLE>> URL="http://Location_details.html"]
+	Location -> Archdiocese [label=archdioceses color="#1E88E5" style=dashed tooltip="Relation between Location and Archdiocese"]
+	Location -> Diocese [label=dioceses color="#1E88E5" style=dashed tooltip="Relation between Location and Diocese"]
+	Location -> Institution [label=institutions color="#1E88E5" style=dashed tooltip="Relation between Location and Institution"]
+	Location -> Codex [label=codices color="#1E88E5" style=dashed tooltip="Relation between Location and Codex"]
+	Manuscript [label=<
+        <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0">
+        <TR><TD COLSPAN="2" BGCOLOR="#3F51B5"><FONT COLOR="white">Manuscript</FONT></TD></TR>
+        <TR>
+                         <TD BGCOLOR="#BBDEFB">manuscript_id</TD>
+                         <TD BGCOLOR="#BBDEFB">INTEGER (PK)</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">identifier</TD>
+                         <TD BGCOLOR="#BBDEFB">VARCHAR (Index)</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">text_id</TD>
+                         <TD BGCOLOR="#BBDEFB">INTEGER (Index)</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">folio_or_page_range</TD>
+                         <TD BGCOLOR="#BBDEFB">VARCHAR ()</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">codex_id</TD>
+                         <TD BGCOLOR="#BBDEFB">INTEGER (Index)</TD>
+                         </TR></TABLE>> URL="http://Manuscript_details.html"]
+	Manuscript -> Text [label=text color="#1E88E5" style=dashed tooltip="Relation between Manuscript and Text"]
+	Manuscript -> Codex [label=codex color="#1E88E5" style=dashed tooltip="Relation between Manuscript and Codex"]
+	Manuscript -> ManuscriptLink [label=links color="#1E88E5" style=dashed tooltip="Relation between Manuscript and ManuscriptLink"]
+	Manuscript -> ManuscriptRelation [label=relations color="#1E88E5" style=dashed tooltip="Relation between Manuscript and ManuscriptRelation"]
+	Manuscript -> ManuscriptRelation [label=related_by color="#1E88E5" style=dashed tooltip="Relation between Manuscript and ManuscriptRelation"]
+	Manuscript -> EditionManuscript [label=edition_links color="#1E88E5" style=dashed tooltip="Relation between Manuscript and EditionManuscript"]
+	ManuscriptHoldingInstitution [label=<
+        <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0">
+        <TR><TD COLSPAN="2" BGCOLOR="#3F51B5"><FONT COLOR="white">ManuscriptHoldingInstitution</FONT></TD></TR>
+        <TR>
+                         <TD BGCOLOR="#BBDEFB">manuscript_holding_institution_id</TD>
+                         <TD BGCOLOR="#BBDEFB">INTEGER (PK)</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">name</TD>
+                         <TD BGCOLOR="#BBDEFB">VARCHAR (Unique)</TD>
+                         </TR></TABLE>> URL="http://ManuscriptHoldingInstitution_details.html"]
+	ManuscriptHoldingInstitution -> Codex [label=codices color="#1E88E5" style=dashed tooltip="Relation between ManuscriptHoldingInstitution and Codex"]
+	ManuscriptLink [label=<
+        <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0">
+        <TR><TD COLSPAN="2" BGCOLOR="#3F51B5"><FONT COLOR="white">ManuscriptLink</FONT></TD></TR>
+        <TR>
+                         <TD BGCOLOR="#BBDEFB">manuscript_link_id</TD>
+                         <TD BGCOLOR="#BBDEFB">INTEGER (PK)</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">manuscript_id</TD>
+                         <TD BGCOLOR="#BBDEFB">INTEGER (Index)</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">manuscript_link_type_id</TD>
+                         <TD BGCOLOR="#BBDEFB">INTEGER ()</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">url</TD>
+                         <TD BGCOLOR="#BBDEFB">VARCHAR ()</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">note</TD>
+                         <TD BGCOLOR="#BBDEFB">VARCHAR ()</TD>
+                         </TR></TABLE>> URL="http://ManuscriptLink_details.html"]
+	ManuscriptLink -> Manuscript [label=manuscript color="#1E88E5" style=dashed tooltip="Relation between ManuscriptLink and Manuscript"]
+	ManuscriptLink -> ManuscriptLinkType [label=link_type color="#1E88E5" style=dashed tooltip="Relation between ManuscriptLink and ManuscriptLinkType"]
+	ManuscriptLinkType [label=<
+        <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0">
+        <TR><TD COLSPAN="2" BGCOLOR="#3F51B5"><FONT COLOR="white">ManuscriptLinkType</FONT></TD></TR>
+        <TR>
+                         <TD BGCOLOR="#BBDEFB">manuscript_link_type_id</TD>
+                         <TD BGCOLOR="#BBDEFB">INTEGER (PK)</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">label</TD>
+                         <TD BGCOLOR="#BBDEFB">VARCHAR (Unique)</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">note</TD>
+                         <TD BGCOLOR="#BBDEFB">VARCHAR ()</TD>
+                         </TR></TABLE>> URL="http://ManuscriptLinkType_details.html"]
+	ManuscriptLinkType -> ManuscriptLink [label=links color="#1E88E5" style=dashed tooltip="Relation between ManuscriptLinkType and ManuscriptLink"]
+	ManuscriptPreservationStatus [label=<
+        <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0">
+        <TR><TD COLSPAN="2" BGCOLOR="#3F51B5"><FONT COLOR="white">ManuscriptPreservationStatus</FONT></TD></TR>
+        <TR>
+                         <TD BGCOLOR="#BBDEFB">manuscript_preservation_status_id</TD>
+                         <TD BGCOLOR="#BBDEFB">INTEGER (PK)</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">label</TD>
+                         <TD BGCOLOR="#BBDEFB">VARCHAR (Unique)</TD>
+                         </TR></TABLE>> URL="http://ManuscriptPreservationStatus_details.html"]
+	ManuscriptPreservationStatus -> Codex [label=codices color="#1E88E5" style=dashed tooltip="Relation between ManuscriptPreservationStatus and Codex"]
+	ManuscriptRelation [label=<
+        <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0">
+        <TR><TD COLSPAN="2" BGCOLOR="#3F51B5"><FONT COLOR="white">ManuscriptRelation</FONT></TD></TR>
+        <TR>
+                         <TD BGCOLOR="#BBDEFB">manuscript_relation_id</TD>
+                         <TD BGCOLOR="#BBDEFB">INTEGER (PK)</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">manuscript_id</TD>
+                         <TD BGCOLOR="#BBDEFB">INTEGER (Index)</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">related_manuscript_id</TD>
+                         <TD BGCOLOR="#BBDEFB">INTEGER (Index)</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">manuscript_relationship_type_id</TD>
+                         <TD BGCOLOR="#BBDEFB">INTEGER ()</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">note</TD>
+                         <TD BGCOLOR="#BBDEFB">VARCHAR ()</TD>
+                         </TR></TABLE>> URL="http://ManuscriptRelation_details.html"]
+	ManuscriptRelation -> Manuscript [label=manuscript color="#1E88E5" style=dashed tooltip="Relation between ManuscriptRelation and Manuscript"]
+	ManuscriptRelation -> Manuscript [label=related_manuscript color="#1E88E5" style=dashed tooltip="Relation between ManuscriptRelation and Manuscript"]
+	ManuscriptRelation -> ManuscriptRelationshipType [label=relationship_type color="#1E88E5" style=dashed tooltip="Relation between ManuscriptRelation and ManuscriptRelationshipType"]
+	ManuscriptRelationshipType [label=<
+        <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0">
+        <TR><TD COLSPAN="2" BGCOLOR="#3F51B5"><FONT COLOR="white">ManuscriptRelationshipType</FONT></TD></TR>
+        <TR>
+                         <TD BGCOLOR="#BBDEFB">manuscript_relationship_type_id</TD>
+                         <TD BGCOLOR="#BBDEFB">INTEGER (PK)</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">label</TD>
+                         <TD BGCOLOR="#BBDEFB">VARCHAR (Unique)</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">note</TD>
+                         <TD BGCOLOR="#BBDEFB">VARCHAR ()</TD>
+                         </TR></TABLE>> URL="http://ManuscriptRelationshipType_details.html"]
+	ManuscriptRelationshipType -> ManuscriptRelation [label=relations color="#1E88E5" style=dashed tooltip="Relation between ManuscriptRelationshipType and ManuscriptRelation"]
+	ManuscriptType [label=<
+        <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0">
+        <TR><TD COLSPAN="2" BGCOLOR="#3F51B5"><FONT COLOR="white">ManuscriptType</FONT></TD></TR>
+        <TR>
+                         <TD BGCOLOR="#BBDEFB">manuscript_type_id</TD>
+                         <TD BGCOLOR="#BBDEFB">INTEGER (PK)</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">label</TD>
+                         <TD BGCOLOR="#BBDEFB">VARCHAR (Unique)</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">note</TD>
+                         <TD BGCOLOR="#BBDEFB">VARCHAR ()</TD>
+                         </TR></TABLE>> URL="http://ManuscriptType_details.html"]
+	ManuscriptType -> Codex [label=codices color="#1E88E5" style=dashed tooltip="Relation between ManuscriptType and Codex"]
+	OriginConfidence [label=<
+        <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0">
+        <TR><TD COLSPAN="2" BGCOLOR="#3F51B5"><FONT COLOR="white">OriginConfidence</FONT></TD></TR>
+        <TR>
+                         <TD BGCOLOR="#BBDEFB">origin_confidence_id</TD>
+                         <TD BGCOLOR="#BBDEFB">INTEGER (PK)</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">label</TD>
+                         <TD BGCOLOR="#BBDEFB">VARCHAR (Unique)</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">note</TD>
+                         <TD BGCOLOR="#BBDEFB">VARCHAR ()</TD>
+                         </TR></TABLE>> URL="http://OriginConfidence_details.html"]
+	OriginConfidence -> Codex [label=diocese_rated_codices color="#1E88E5" style=dashed tooltip="Relation between OriginConfidence and Codex"]
+	OriginConfidence -> Codex [label=institution_rated_codices color="#1E88E5" style=dashed tooltip="Relation between OriginConfidence and Codex"]
+	ProvenanceConfidence [label=<
+        <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0">
+        <TR><TD COLSPAN="2" BGCOLOR="#3F51B5"><FONT COLOR="white">ProvenanceConfidence</FONT></TD></TR>
+        <TR>
+                         <TD BGCOLOR="#BBDEFB">provenance_confidence_id</TD>
+                         <TD BGCOLOR="#BBDEFB">INTEGER (PK)</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">label</TD>
+                         <TD BGCOLOR="#BBDEFB">VARCHAR (Unique)</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">note</TD>
+                         <TD BGCOLOR="#BBDEFB">VARCHAR ()</TD>
+                         </TR></TABLE>> URL="http://ProvenanceConfidence_details.html"]
+	ProvenanceConfidence -> Codex [label=early_codices color="#1E88E5" style=dashed tooltip="Relation between ProvenanceConfidence and Codex"]
+	ProvenanceConfidence -> Codex [label=later_codices color="#1E88E5" style=dashed tooltip="Relation between ProvenanceConfidence and Codex"]
+	Publication [label=<
+        <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0">
+        <TR><TD COLSPAN="2" BGCOLOR="#3F51B5"><FONT COLOR="white">Publication</FONT></TD></TR>
+        <TR>
+                         <TD BGCOLOR="#BBDEFB">publication_id</TD>
+                         <TD BGCOLOR="#BBDEFB">INTEGER (PK)</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">name</TD>
+                         <TD BGCOLOR="#BBDEFB">VARCHAR (Unique)</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">publication_year</TD>
+                         <TD BGCOLOR="#BBDEFB">INTEGER ()</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">reference</TD>
+                         <TD BGCOLOR="#BBDEFB">VARCHAR ()</TD>
+                         </TR></TABLE>> URL="http://Publication_details.html"]
+	Publication -> Edition [label=editions color="#1E88E5" style=dashed tooltip="Relation between Publication and Edition"]
+	Repertory [label=<
+        <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0">
+        <TR><TD COLSPAN="2" BGCOLOR="#3F51B5"><FONT COLOR="white">Repertory</FONT></TD></TR>
+        <TR>
+                         <TD BGCOLOR="#BBDEFB">repertory_id</TD>
+                         <TD BGCOLOR="#BBDEFB">INTEGER (PK)</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">name</TD>
+                         <TD BGCOLOR="#BBDEFB">VARCHAR (Unique)</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">note</TD>
+                         <TD BGCOLOR="#BBDEFB">VARCHAR ()</TD>
+                         </TR></TABLE>> URL="http://Repertory_details.html"]
+	Repertory -> RepertoryLink [label=links color="#1E88E5" style=dashed tooltip="Relation between Repertory and RepertoryLink"]
+	RepertoryLink [label=<
+        <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0">
+        <TR><TD COLSPAN="2" BGCOLOR="#3F51B5"><FONT COLOR="white">RepertoryLink</FONT></TD></TR>
+        <TR>
+                         <TD BGCOLOR="#BBDEFB">repertory_link_id</TD>
+                         <TD BGCOLOR="#BBDEFB">INTEGER (PK)</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">text_id</TD>
+                         <TD BGCOLOR="#BBDEFB">INTEGER (Index)</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">repertory_id</TD>
+                         <TD BGCOLOR="#BBDEFB">INTEGER (Index)</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">url</TD>
+                         <TD BGCOLOR="#BBDEFB">TEXT ()</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">note</TD>
+                         <TD BGCOLOR="#BBDEFB">VARCHAR ()</TD>
+                         </TR></TABLE>> URL="http://RepertoryLink_details.html"]
+	RepertoryLink -> Text [label=text color="#1E88E5" style=dashed tooltip="Relation between RepertoryLink and Text"]
+	RepertoryLink -> Repertory [label=repertory color="#1E88E5" style=dashed tooltip="Relation between RepertoryLink and Repertory"]
 	Text [label=<
         <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0">
         <TR><TD COLSPAN="2" BGCOLOR="#3F51B5"><FONT COLOR="white">Text</FONT></TD></TR>
@@ -115,17 +693,6 @@ digraph {
                          <TD BGCOLOR="#BBDEFB">VARCHAR (Unique)</TD>
                          </TR></TABLE>> URL="http://TextForm_details.html"]
 	TextForm -> Text [label=texts color="#1E88E5" style=dashed tooltip="Relation between TextForm and Text"]
-	TextSourceType [label=<
-        <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0">
-        <TR><TD COLSPAN="2" BGCOLOR="#3F51B5"><FONT COLOR="white">TextSourceType</FONT></TD></TR>
-        <TR>
-                         <TD BGCOLOR="#BBDEFB">text_source_type_id</TD>
-                         <TD BGCOLOR="#BBDEFB">INTEGER (PK)</TD>
-                         </TR><TR>
-                         <TD BGCOLOR="#BBDEFB">label</TD>
-                         <TD BGCOLOR="#BBDEFB">VARCHAR (Unique)</TD>
-                         </TR></TABLE>> URL="http://TextSourceType_details.html"]
-	TextSourceType -> Text [label=texts color="#1E88E5" style=dashed tooltip="Relation between TextSourceType and Text"]
 	TextSourceSubtype [label=<
         <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0">
         <TR><TD COLSPAN="2" BGCOLOR="#3F51B5"><FONT COLOR="white">TextSourceSubtype</FONT></TD></TR>
@@ -137,408 +704,29 @@ digraph {
                          <TD BGCOLOR="#BBDEFB">VARCHAR (Unique)</TD>
                          </TR></TABLE>> URL="http://TextSourceSubtype_details.html"]
 	TextSourceSubtype -> Text [label=texts color="#1E88E5" style=dashed tooltip="Relation between TextSourceSubtype and Text"]
-	DatingConfidence [label=<
+	TextSourceType [label=<
         <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0">
-        <TR><TD COLSPAN="2" BGCOLOR="#3F51B5"><FONT COLOR="white">DatingConfidence</FONT></TD></TR>
+        <TR><TD COLSPAN="2" BGCOLOR="#3F51B5"><FONT COLOR="white">TextSourceType</FONT></TD></TR>
         <TR>
-                         <TD BGCOLOR="#BBDEFB">dating_confidence_id</TD>
+                         <TD BGCOLOR="#BBDEFB">text_source_type_id</TD>
                          <TD BGCOLOR="#BBDEFB">INTEGER (PK)</TD>
                          </TR><TR>
                          <TD BGCOLOR="#BBDEFB">label</TD>
                          <TD BGCOLOR="#BBDEFB">VARCHAR (Unique)</TD>
-                         </TR><TR>
-                         <TD BGCOLOR="#BBDEFB">notes</TD>
-                         <TD BGCOLOR="#BBDEFB">VARCHAR ()</TD>
-                         </TR></TABLE>> URL="http://DatingConfidence_details.html"]
-	DatingConfidence -> Text [label=texts color="#1E88E5" style=dashed tooltip="Relation between DatingConfidence and Text"]
-	DatingConfidence -> Manuscript [label=manuscripts color="#1E88E5" style=dashed tooltip="Relation between DatingConfidence and Manuscript"]
-	Author [label=<
+                         </TR></TABLE>> URL="http://TextSourceType_details.html"]
+	TextSourceType -> Text [label=texts color="#1E88E5" style=dashed tooltip="Relation between TextSourceType and Text"]
+	VernacularRegion [label=<
         <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0">
-        <TR><TD COLSPAN="2" BGCOLOR="#3F51B5"><FONT COLOR="white">Author</FONT></TD></TR>
+        <TR><TD COLSPAN="2" BGCOLOR="#3F51B5"><FONT COLOR="white">VernacularRegion</FONT></TD></TR>
         <TR>
-                         <TD BGCOLOR="#BBDEFB">author_id</TD>
-                         <TD BGCOLOR="#BBDEFB">INTEGER (PK)</TD>
-                         </TR><TR>
-                         <TD BGCOLOR="#BBDEFB">name</TD>
-                         <TD BGCOLOR="#BBDEFB">VARCHAR (Unique)</TD>
-                         </TR><TR>
-                         <TD BGCOLOR="#BBDEFB">institutional_training_ground</TD>
-                         <TD BGCOLOR="#BBDEFB">VARCHAR ()</TD>
-                         </TR><TR>
-                         <TD BGCOLOR="#BBDEFB">regional_antecedents</TD>
-                         <TD BGCOLOR="#BBDEFB">VARCHAR ()</TD>
-                         </TR><TR>
-                         <TD BGCOLOR="#BBDEFB">author_milieu_id</TD>
-                         <TD BGCOLOR="#BBDEFB">INTEGER ()</TD>
-                         </TR><TR>
-                         <TD BGCOLOR="#BBDEFB">note</TD>
-                         <TD BGCOLOR="#BBDEFB">VARCHAR ()</TD>
-                         </TR></TABLE>> URL="http://Author_details.html"]
-	Author -> AuthorMilieu [label=milieu color="#1E88E5" style=dashed tooltip="Relation between Author and AuthorMilieu"]
-	Author -> Text [label=texts color="#1E88E5" style=dashed tooltip="Relation between Author and Text"]
-	AuthorMilieu [label=<
-        <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0">
-        <TR><TD COLSPAN="2" BGCOLOR="#3F51B5"><FONT COLOR="white">AuthorMilieu</FONT></TD></TR>
-        <TR>
-                         <TD BGCOLOR="#BBDEFB">author_milieu_id</TD>
-                         <TD BGCOLOR="#BBDEFB">INTEGER (PK)</TD>
-                         </TR><TR>
-                         <TD BGCOLOR="#BBDEFB">label</TD>
-                         <TD BGCOLOR="#BBDEFB">VARCHAR (Unique)</TD>
-                         </TR><TR>
-                         <TD BGCOLOR="#BBDEFB">note</TD>
-                         <TD BGCOLOR="#BBDEFB">VARCHAR ()</TD>
-                         </TR></TABLE>> URL="http://AuthorMilieu_details.html"]
-	AuthorMilieu -> Author [label=authors color="#1E88E5" style=dashed tooltip="Relation between AuthorMilieu and Author"]
-	Location [label=<
-        <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0">
-        <TR><TD COLSPAN="2" BGCOLOR="#3F51B5"><FONT COLOR="white">Location</FONT></TD></TR>
-        <TR>
-                         <TD BGCOLOR="#BBDEFB">location_id</TD>
-                         <TD BGCOLOR="#BBDEFB">INTEGER (PK)</TD>
-                         </TR><TR>
-                         <TD BGCOLOR="#BBDEFB">name</TD>
-                         <TD BGCOLOR="#BBDEFB">VARCHAR ()</TD>
-                         </TR><TR>
-                         <TD BGCOLOR="#BBDEFB">latitude</TD>
-                         <TD BGCOLOR="#BBDEFB">FLOAT ()</TD>
-                         </TR><TR>
-                         <TD BGCOLOR="#BBDEFB">longitude</TD>
-                         <TD BGCOLOR="#BBDEFB">FLOAT ()</TD>
-                         </TR></TABLE>> URL="http://Location_details.html"]
-	Location -> Archdiocese [label=archdioceses color="#1E88E5" style=dashed tooltip="Relation between Location and Archdiocese"]
-	Location -> Diocese [label=dioceses color="#1E88E5" style=dashed tooltip="Relation between Location and Diocese"]
-	Location -> Institution [label=institutions color="#1E88E5" style=dashed tooltip="Relation between Location and Institution"]
-	Location -> Manuscript [label=manuscripts color="#1E88E5" style=dashed tooltip="Relation between Location and Manuscript"]
-	Archdiocese [label=<
-        <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0">
-        <TR><TD COLSPAN="2" BGCOLOR="#3F51B5"><FONT COLOR="white">Archdiocese</FONT></TD></TR>
-        <TR>
-                         <TD BGCOLOR="#BBDEFB">archdiocese_id</TD>
-                         <TD BGCOLOR="#BBDEFB">INTEGER (PK)</TD>
-                         </TR><TR>
-                         <TD BGCOLOR="#BBDEFB">name</TD>
-                         <TD BGCOLOR="#BBDEFB">VARCHAR (Unique)</TD>
-                         </TR><TR>
-                         <TD BGCOLOR="#BBDEFB">location_id</TD>
-                         <TD BGCOLOR="#BBDEFB">INTEGER ()</TD>
-                         </TR><TR>
-                         <TD BGCOLOR="#BBDEFB">note</TD>
-                         <TD BGCOLOR="#BBDEFB">VARCHAR ()</TD>
-                         </TR></TABLE>> URL="http://Archdiocese_details.html"]
-	Archdiocese -> Location [label=location color="#1E88E5" style=dashed tooltip="Relation between Archdiocese and Location"]
-	Archdiocese -> Manuscript [label=origin_manuscripts color="#1E88E5" style=dashed tooltip="Relation between Archdiocese and Manuscript"]
-	Diocese [label=<
-        <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0">
-        <TR><TD COLSPAN="2" BGCOLOR="#3F51B5"><FONT COLOR="white">Diocese</FONT></TD></TR>
-        <TR>
-                         <TD BGCOLOR="#BBDEFB">diocese_id</TD>
-                         <TD BGCOLOR="#BBDEFB">INTEGER (PK)</TD>
-                         </TR><TR>
-                         <TD BGCOLOR="#BBDEFB">name</TD>
-                         <TD BGCOLOR="#BBDEFB">VARCHAR (Unique)</TD>
-                         </TR><TR>
-                         <TD BGCOLOR="#BBDEFB">location_id</TD>
-                         <TD BGCOLOR="#BBDEFB">INTEGER ()</TD>
-                         </TR><TR>
-                         <TD BGCOLOR="#BBDEFB">note</TD>
-                         <TD BGCOLOR="#BBDEFB">VARCHAR ()</TD>
-                         </TR></TABLE>> URL="http://Diocese_details.html"]
-	Diocese -> Location [label=location color="#1E88E5" style=dashed tooltip="Relation between Diocese and Location"]
-	Diocese -> Manuscript [label=origin_manuscripts color="#1E88E5" style=dashed tooltip="Relation between Diocese and Manuscript"]
-	Institution [label=<
-        <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0">
-        <TR><TD COLSPAN="2" BGCOLOR="#3F51B5"><FONT COLOR="white">Institution</FONT></TD></TR>
-        <TR>
-                         <TD BGCOLOR="#BBDEFB">institution_id</TD>
-                         <TD BGCOLOR="#BBDEFB">INTEGER (PK)</TD>
-                         </TR><TR>
-                         <TD BGCOLOR="#BBDEFB">name</TD>
-                         <TD BGCOLOR="#BBDEFB">VARCHAR (Unique)</TD>
-                         </TR><TR>
-                         <TD BGCOLOR="#BBDEFB">location_id</TD>
-                         <TD BGCOLOR="#BBDEFB">INTEGER ()</TD>
-                         </TR><TR>
-                         <TD BGCOLOR="#BBDEFB">note</TD>
-                         <TD BGCOLOR="#BBDEFB">VARCHAR ()</TD>
-                         </TR></TABLE>> URL="http://Institution_details.html"]
-	Institution -> Location [label=location color="#1E88E5" style=dashed tooltip="Relation between Institution and Location"]
-	Institution -> Manuscript [label=origin_manuscripts color="#1E88E5" style=dashed tooltip="Relation between Institution and Manuscript"]
-	Institution -> Manuscript [label=provenance_early_manuscripts color="#1E88E5" style=dashed tooltip="Relation between Institution and Manuscript"]
-	Institution -> Manuscript [label=provenance_later_manuscripts color="#1E88E5" style=dashed tooltip="Relation between Institution and Manuscript"]
-	Manuscript [label=<
-        <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0">
-        <TR><TD COLSPAN="2" BGCOLOR="#3F51B5"><FONT COLOR="white">Manuscript</FONT></TD></TR>
-        <TR>
-                         <TD BGCOLOR="#BBDEFB">manuscript_id</TD>
-                         <TD BGCOLOR="#BBDEFB">INTEGER (PK)</TD>
-                         </TR><TR>
-                         <TD BGCOLOR="#BBDEFB">identifier</TD>
-                         <TD BGCOLOR="#BBDEFB">VARCHAR (Index)</TD>
-                         </TR><TR>
-                         <TD BGCOLOR="#BBDEFB">text_id</TD>
-                         <TD BGCOLOR="#BBDEFB">INTEGER (Index)</TD>
-                         </TR><TR>
-                         <TD BGCOLOR="#BBDEFB">codex_number</TD>
-                         <TD BGCOLOR="#BBDEFB">INTEGER ()</TD>
-                         </TR><TR>
-                         <TD BGCOLOR="#BBDEFB">codex_identifier</TD>
-                         <TD BGCOLOR="#BBDEFB">VARCHAR (Index)</TD>
-                         </TR><TR>
-                         <TD BGCOLOR="#BBDEFB">codex_multiple_copies</TD>
-                         <TD BGCOLOR="#BBDEFB">BOOLEAN ()</TD>
-                         </TR><TR>
-                         <TD BGCOLOR="#BBDEFB">codex_copy_amount</TD>
-                         <TD BGCOLOR="#BBDEFB">INTEGER ()</TD>
-                         </TR><TR>
-                         <TD BGCOLOR="#BBDEFB">manuscript_preservation_status_id</TD>
-                         <TD BGCOLOR="#BBDEFB">INTEGER ()</TD>
-                         </TR><TR>
-                         <TD BGCOLOR="#BBDEFB">location_id</TD>
-                         <TD BGCOLOR="#BBDEFB">INTEGER ()</TD>
-                         </TR><TR>
-                         <TD BGCOLOR="#BBDEFB">manuscript_holding_institution_id</TD>
-                         <TD BGCOLOR="#BBDEFB">INTEGER ()</TD>
-                         </TR><TR>
-                         <TD BGCOLOR="#BBDEFB">height</TD>
-                         <TD BGCOLOR="#BBDEFB">VARCHAR ()</TD>
-                         </TR><TR>
-                         <TD BGCOLOR="#BBDEFB">width</TD>
-                         <TD BGCOLOR="#BBDEFB">VARCHAR ()</TD>
-                         </TR><TR>
-                         <TD BGCOLOR="#BBDEFB">dating_century</TD>
-                         <TD BGCOLOR="#BBDEFB">INTEGER ()</TD>
-                         </TR><TR>
-                         <TD BGCOLOR="#BBDEFB">dating_range_start</TD>
-                         <TD BGCOLOR="#BBDEFB">INTEGER ()</TD>
-                         </TR><TR>
-                         <TD BGCOLOR="#BBDEFB">dating_range_end</TD>
-                         <TD BGCOLOR="#BBDEFB">INTEGER ()</TD>
-                         </TR><TR>
-                         <TD BGCOLOR="#BBDEFB">dating_reference</TD>
-                         <TD BGCOLOR="#BBDEFB">VARCHAR ()</TD>
-                         </TR><TR>
-                         <TD BGCOLOR="#BBDEFB">dating_confidence_id</TD>
-                         <TD BGCOLOR="#BBDEFB">INTEGER ()</TD>
-                         </TR><TR>
-                         <TD BGCOLOR="#BBDEFB">dating_note</TD>
-                         <TD BGCOLOR="#BBDEFB">VARCHAR ()</TD>
-                         </TR><TR>
-                         <TD BGCOLOR="#BBDEFB">codex_legendiers_usable</TD>
-                         <TD BGCOLOR="#BBDEFB">BOOLEAN ()</TD>
-                         </TR><TR>
-                         <TD BGCOLOR="#BBDEFB">codex_composite</TD>
-                         <TD BGCOLOR="#BBDEFB">BOOLEAN ()</TD>
-                         </TR><TR>
-                         <TD BGCOLOR="#BBDEFB">codex_legendiers_entry_code</TD>
-                         <TD BGCOLOR="#BBDEFB">VARCHAR ()</TD>
-                         </TR><TR>
-                         <TD BGCOLOR="#BBDEFB">codex_notes</TD>
-                         <TD BGCOLOR="#BBDEFB">VARCHAR ()</TD>
-                         </TR><TR>
                          <TD BGCOLOR="#BBDEFB">vernacular_region_id</TD>
-                         <TD BGCOLOR="#BBDEFB">INTEGER ()</TD>
-                         </TR><TR>
-                         <TD BGCOLOR="#BBDEFB">origin_archdiocese_id</TD>
-                         <TD BGCOLOR="#BBDEFB">INTEGER ()</TD>
-                         </TR><TR>
-                         <TD BGCOLOR="#BBDEFB">origin_diocese_id</TD>
-                         <TD BGCOLOR="#BBDEFB">INTEGER ()</TD>
-                         </TR><TR>
-                         <TD BGCOLOR="#BBDEFB">origin_diocese_confidence_rating_id</TD>
-                         <TD BGCOLOR="#BBDEFB">INTEGER ()</TD>
-                         </TR><TR>
-                         <TD BGCOLOR="#BBDEFB">origin_institution_id</TD>
-                         <TD BGCOLOR="#BBDEFB">INTEGER ()</TD>
-                         </TR><TR>
-                         <TD BGCOLOR="#BBDEFB">origin_institution_confidence_rating_id</TD>
-                         <TD BGCOLOR="#BBDEFB">INTEGER ()</TD>
-                         </TR><TR>
-                         <TD BGCOLOR="#BBDEFB">provenance_early_institute_id</TD>
-                         <TD BGCOLOR="#BBDEFB">INTEGER ()</TD>
-                         </TR><TR>
-                         <TD BGCOLOR="#BBDEFB">provenance_early_confidence_id</TD>
-                         <TD BGCOLOR="#BBDEFB">INTEGER ()</TD>
-                         </TR><TR>
-                         <TD BGCOLOR="#BBDEFB">provenance_later_institute_id</TD>
-                         <TD BGCOLOR="#BBDEFB">INTEGER ()</TD>
-                         </TR><TR>
-                         <TD BGCOLOR="#BBDEFB">provenance_later_confidence_id</TD>
-                         <TD BGCOLOR="#BBDEFB">INTEGER ()</TD>
-                         </TR><TR>
-                         <TD BGCOLOR="#BBDEFB">origin_or_provenance_secondary_reference</TD>
-                         <TD BGCOLOR="#BBDEFB">VARCHAR ()</TD>
-                         </TR><TR>
-                         <TD BGCOLOR="#BBDEFB">manuscript_type_id</TD>
-                         <TD BGCOLOR="#BBDEFB">INTEGER ()</TD>
-                         </TR><TR>
-                         <TD BGCOLOR="#BBDEFB">manuscript_type_note</TD>
-                         <TD BGCOLOR="#BBDEFB">VARCHAR ()</TD>
-                         </TR><TR>
-                         <TD BGCOLOR="#BBDEFB">general_notes</TD>
-                         <TD BGCOLOR="#BBDEFB">VARCHAR ()</TD>
-                         </TR></TABLE>> URL="http://Manuscript_details.html"]
-	Manuscript -> Text [label=text color="#1E88E5" style=dashed tooltip="Relation between Manuscript and Text"]
-	Manuscript -> ManuscriptPreservationStatus [label=preservation_status color="#1E88E5" style=dashed tooltip="Relation between Manuscript and ManuscriptPreservationStatus"]
-	Manuscript -> Location [label=location color="#1E88E5" style=dashed tooltip="Relation between Manuscript and Location"]
-	Manuscript -> ManuscriptHoldingInstitution [label=holding_institution color="#1E88E5" style=dashed tooltip="Relation between Manuscript and ManuscriptHoldingInstitution"]
-	Manuscript -> DatingConfidence [label=dating_confidence color="#1E88E5" style=dashed tooltip="Relation between Manuscript and DatingConfidence"]
-	Manuscript -> VernacularRegion [label=vernacular_region color="#1E88E5" style=dashed tooltip="Relation between Manuscript and VernacularRegion"]
-	Manuscript -> Archdiocese [label=origin_archdiocese color="#1E88E5" style=dashed tooltip="Relation between Manuscript and Archdiocese"]
-	Manuscript -> Diocese [label=origin_diocese color="#1E88E5" style=dashed tooltip="Relation between Manuscript and Diocese"]
-	Manuscript -> OriginConfidence [label=origin_diocese_confidence color="#1E88E5" style=dashed tooltip="Relation between Manuscript and OriginConfidence"]
-	Manuscript -> Institution [label=origin_institution color="#1E88E5" style=dashed tooltip="Relation between Manuscript and Institution"]
-	Manuscript -> OriginConfidence [label=origin_institution_confidence color="#1E88E5" style=dashed tooltip="Relation between Manuscript and OriginConfidence"]
-	Manuscript -> Institution [label=provenance_early_institute color="#1E88E5" style=dashed tooltip="Relation between Manuscript and Institution"]
-	Manuscript -> ProvenanceConfidence [label=provenance_early_confidence color="#1E88E5" style=dashed tooltip="Relation between Manuscript and ProvenanceConfidence"]
-	Manuscript -> Institution [label=provenance_later_institute color="#1E88E5" style=dashed tooltip="Relation between Manuscript and Institution"]
-	Manuscript -> ProvenanceConfidence [label=provenance_later_confidence color="#1E88E5" style=dashed tooltip="Relation between Manuscript and ProvenanceConfidence"]
-	Manuscript -> ManuscriptType [label=manuscript_type color="#1E88E5" style=dashed tooltip="Relation between Manuscript and ManuscriptType"]
-	Manuscript -> ManuscriptLink [label=links color="#1E88E5" style=dashed tooltip="Relation between Manuscript and ManuscriptLink"]
-	Manuscript -> ManuscriptRelation [label=relations color="#1E88E5" style=dashed tooltip="Relation between Manuscript and ManuscriptRelation"]
-	Manuscript -> ManuscriptRelation [label=related_by color="#1E88E5" style=dashed tooltip="Relation between Manuscript and ManuscriptRelation"]
-	Manuscript -> EditionManuscript [label=edition_links color="#1E88E5" style=dashed tooltip="Relation between Manuscript and EditionManuscript"]
-	ManuscriptPreservationStatus [label=<
-        <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0">
-        <TR><TD COLSPAN="2" BGCOLOR="#3F51B5"><FONT COLOR="white">ManuscriptPreservationStatus</FONT></TD></TR>
-        <TR>
-                         <TD BGCOLOR="#BBDEFB">manuscript_preservation_status_id</TD>
                          <TD BGCOLOR="#BBDEFB">INTEGER (PK)</TD>
                          </TR><TR>
                          <TD BGCOLOR="#BBDEFB">label</TD>
                          <TD BGCOLOR="#BBDEFB">VARCHAR (Unique)</TD>
-                         </TR></TABLE>> URL="http://ManuscriptPreservationStatus_details.html"]
-	ManuscriptPreservationStatus -> Manuscript [label=manuscripts color="#1E88E5" style=dashed tooltip="Relation between ManuscriptPreservationStatus and Manuscript"]
-	ManuscriptHoldingInstitution [label=<
-        <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0">
-        <TR><TD COLSPAN="2" BGCOLOR="#3F51B5"><FONT COLOR="white">ManuscriptHoldingInstitution</FONT></TD></TR>
-        <TR>
-                         <TD BGCOLOR="#BBDEFB">manuscript_holding_institution_id</TD>
-                         <TD BGCOLOR="#BBDEFB">INTEGER (PK)</TD>
-                         </TR><TR>
-                         <TD BGCOLOR="#BBDEFB">name</TD>
-                         <TD BGCOLOR="#BBDEFB">VARCHAR (Unique)</TD>
-                         </TR></TABLE>> URL="http://ManuscriptHoldingInstitution_details.html"]
-	ManuscriptHoldingInstitution -> Manuscript [label=manuscripts color="#1E88E5" style=dashed tooltip="Relation between ManuscriptHoldingInstitution and Manuscript"]
-	Edition [label=<
-        <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0">
-        <TR><TD COLSPAN="2" BGCOLOR="#3F51B5"><FONT COLOR="white">Edition</FONT></TD></TR>
-        <TR>
-                         <TD BGCOLOR="#BBDEFB">edition_id</TD>
-                         <TD BGCOLOR="#BBDEFB">INTEGER (PK)</TD>
-                         </TR><TR>
-                         <TD BGCOLOR="#BBDEFB">text_id</TD>
-                         <TD BGCOLOR="#BBDEFB">INTEGER (Index)</TD>
-                         </TR><TR>
-                         <TD BGCOLOR="#BBDEFB">identifier_per_text</TD>
-                         <TD BGCOLOR="#BBDEFB">VARCHAR (Index)</TD>
-                         </TR><TR>
-                         <TD BGCOLOR="#BBDEFB">publication_year</TD>
-                         <TD BGCOLOR="#BBDEFB">INTEGER ()</TD>
-                         </TR><TR>
-                         <TD BGCOLOR="#BBDEFB">reference</TD>
-                         <TD BGCOLOR="#BBDEFB">VARCHAR ()</TD>
-                         </TR><TR>
-                         <TD BGCOLOR="#BBDEFB">page_numbers</TD>
-                         <TD BGCOLOR="#BBDEFB">VARCHAR ()</TD>
-                         </TR><TR>
-                         <TD BGCOLOR="#BBDEFB">reprint</TD>
-                         <TD BGCOLOR="#BBDEFB">BOOLEAN ()</TD>
-                         </TR><TR>
-                         <TD BGCOLOR="#BBDEFB">reprint_identical</TD>
-                         <TD BGCOLOR="#BBDEFB">BOOLEAN ()</TD>
-                         </TR><TR>
-                         <TD BGCOLOR="#BBDEFB">reprint_of_edition_id</TD>
-                         <TD BGCOLOR="#BBDEFB">INTEGER ()</TD>
-                         </TR><TR>
-                         <TD BGCOLOR="#BBDEFB">reprint_of</TD>
-                         <TD BGCOLOR="#BBDEFB">VARCHAR ()</TD>
-                         </TR><TR>
-                         <TD BGCOLOR="#BBDEFB">collation_done</TD>
-                         <TD BGCOLOR="#BBDEFB">BOOLEAN ()</TD>
-                         </TR><TR>
-                         <TD BGCOLOR="#BBDEFB">general_notes</TD>
-                         <TD BGCOLOR="#BBDEFB">VARCHAR ()</TD>
-                         </TR></TABLE>> URL="http://Edition_details.html"]
-	Edition -> Text [label=text color="#1E88E5" style=dashed tooltip="Relation between Edition and Text"]
-	Edition -> Edition [label=reprint_of_edition color="#1E88E5" style=dashed tooltip="Relation between Edition and Edition"]
-	Edition -> Edition [label=reprints color="#1E88E5" style=dashed tooltip="Relation between Edition and Edition"]
-	Edition -> EditionLink [label=links color="#1E88E5" style=dashed tooltip="Relation between Edition and EditionLink"]
-	Edition -> EditionManuscript [label=manuscript_links color="#1E88E5" style=dashed tooltip="Relation between Edition and EditionManuscript"]
-	Edition -> EditionEdition [label=consulted_edition_links color="#1E88E5" style=dashed tooltip="Relation between Edition and EditionEdition"]
-	Edition -> EditionEdition [label=consulted_by_links color="#1E88E5" style=dashed tooltip="Relation between Edition and EditionEdition"]
-	EditionManuscript [label=<
-        <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0">
-        <TR><TD COLSPAN="2" BGCOLOR="#3F51B5"><FONT COLOR="white">EditionManuscript</FONT></TD></TR>
-        <TR>
-                         <TD BGCOLOR="#BBDEFB">edition__manuscripts_id</TD>
-                         <TD BGCOLOR="#BBDEFB">INTEGER (PK)</TD>
-                         </TR><TR>
-                         <TD BGCOLOR="#BBDEFB">edition_id</TD>
-                         <TD BGCOLOR="#BBDEFB">INTEGER (Index)</TD>
-                         </TR><TR>
-                         <TD BGCOLOR="#BBDEFB">manuscript_id</TD>
-                         <TD BGCOLOR="#BBDEFB">INTEGER (Index)</TD>
-                         </TR><TR>
-                         <TD BGCOLOR="#BBDEFB">likely_use_of_a_copy</TD>
-                         <TD BGCOLOR="#BBDEFB">BOOLEAN ()</TD>
-                         </TR><TR>
-                         <TD BGCOLOR="#BBDEFB">notes</TD>
-                         <TD BGCOLOR="#BBDEFB">VARCHAR ()</TD>
-                         </TR></TABLE>> URL="http://EditionManuscript_details.html"]
-	EditionManuscript -> Edition [label=edition color="#1E88E5" style=dashed tooltip="Relation between EditionManuscript and Edition"]
-	EditionManuscript -> Manuscript [label=manuscript color="#1E88E5" style=dashed tooltip="Relation between EditionManuscript and Manuscript"]
-	EditionEdition [label=<
-        <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0">
-        <TR><TD COLSPAN="2" BGCOLOR="#3F51B5"><FONT COLOR="white">EditionEdition</FONT></TD></TR>
-        <TR>
-                         <TD BGCOLOR="#BBDEFB">edition__edition_id</TD>
-                         <TD BGCOLOR="#BBDEFB">INTEGER (PK)</TD>
-                         </TR><TR>
-                         <TD BGCOLOR="#BBDEFB">edition_id</TD>
-                         <TD BGCOLOR="#BBDEFB">INTEGER (Index)</TD>
-                         </TR><TR>
-                         <TD BGCOLOR="#BBDEFB">consulted_edition_id</TD>
-                         <TD BGCOLOR="#BBDEFB">INTEGER (Index)</TD>
-                         </TR><TR>
-                         <TD BGCOLOR="#BBDEFB">notes</TD>
-                         <TD BGCOLOR="#BBDEFB">VARCHAR ()</TD>
-                         </TR></TABLE>> URL="http://EditionEdition_details.html"]
-	EditionEdition -> Edition [label=edition color="#1E88E5" style=dashed tooltip="Relation between EditionEdition and Edition"]
-	EditionEdition -> Edition [label=consulted_edition color="#1E88E5" style=dashed tooltip="Relation between EditionEdition and Edition"]
-	Repertory [label=<
-        <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0">
-        <TR><TD COLSPAN="2" BGCOLOR="#3F51B5"><FONT COLOR="white">Repertory</FONT></TD></TR>
-        <TR>
-                         <TD BGCOLOR="#BBDEFB">repertory_id</TD>
-                         <TD BGCOLOR="#BBDEFB">INTEGER (PK)</TD>
-                         </TR><TR>
-                         <TD BGCOLOR="#BBDEFB">name</TD>
-                         <TD BGCOLOR="#BBDEFB">VARCHAR (Unique)</TD>
                          </TR><TR>
                          <TD BGCOLOR="#BBDEFB">note</TD>
                          <TD BGCOLOR="#BBDEFB">VARCHAR ()</TD>
-                         </TR></TABLE>> URL="http://Repertory_details.html"]
-	Repertory -> RepertoryLink [label=links color="#1E88E5" style=dashed tooltip="Relation between Repertory and RepertoryLink"]
-	RepertoryLink [label=<
-        <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0">
-        <TR><TD COLSPAN="2" BGCOLOR="#3F51B5"><FONT COLOR="white">RepertoryLink</FONT></TD></TR>
-        <TR>
-                         <TD BGCOLOR="#BBDEFB">repertory_link_id</TD>
-                         <TD BGCOLOR="#BBDEFB">INTEGER (PK)</TD>
-                         </TR><TR>
-                         <TD BGCOLOR="#BBDEFB">text_id</TD>
-                         <TD BGCOLOR="#BBDEFB">INTEGER (Index)</TD>
-                         </TR><TR>
-                         <TD BGCOLOR="#BBDEFB">repertory_id</TD>
-                         <TD BGCOLOR="#BBDEFB">INTEGER (Index)</TD>
-                         </TR><TR>
-                         <TD BGCOLOR="#BBDEFB">url</TD>
-                         <TD BGCOLOR="#BBDEFB">VARCHAR ()</TD>
-                         </TR><TR>
-                         <TD BGCOLOR="#BBDEFB">note</TD>
-                         <TD BGCOLOR="#BBDEFB">VARCHAR ()</TD>
-                         </TR></TABLE>> URL="http://RepertoryLink_details.html"]
-	RepertoryLink -> Text [label=text color="#1E88E5" style=dashed tooltip="Relation between RepertoryLink and Text"]
-	RepertoryLink -> Repertory [label=repertory color="#1E88E5" style=dashed tooltip="Relation between RepertoryLink and Repertory"]
+                         </TR></TABLE>> URL="http://VernacularRegion_details.html"]
+	VernacularRegion -> Codex [label=codices color="#1E88E5" style=dashed tooltip="Relation between VernacularRegion and Codex"]
 }

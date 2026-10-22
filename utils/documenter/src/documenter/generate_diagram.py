@@ -1,22 +1,19 @@
-from utilities.model import (
-    Archdiocese, Author, AuthorMilieu, DatingConfidence, Diocese, Edition,
-    EditionEdition, EditionManuscript, Institution, Location, Manuscript,
-    ManuscriptHoldingInstitution, ManuscriptPreservationStatus, Repertory,
-    RepertoryLink, Text, TextForm, TextSourceType, TextSourceSubtype,
-)
+from sqlmodel import SQLModel
+import utilities.model  # noqa: F401  (registers every table model)
 from sqlalchemy_data_model_visualizer import generate_data_model_diagram
 import os
 
 def main():
-    models = [
-        Text, TextForm, TextSourceType, TextSourceSubtype,
-        DatingConfidence, Author, AuthorMilieu,
-        Location, Archdiocese, Diocese, Institution,
-        Manuscript, ManuscriptPreservationStatus,
-        ManuscriptHoldingInstitution, Edition,
-        EditionManuscript, EditionEdition,
-        Repertory, RepertoryLink,
-    ]
+    # Every table model in utilities.model, so new tables appear without
+    # editing this list.
+    models = sorted(
+        (
+            mapper.class_
+            for mapper in SQLModel._sa_registry.mappers
+            if mapper.class_.__module__ == "utilities.model"
+        ),
+        key=lambda cls: cls.__tablename__,
+    )
     output_file_name = '../../data/hagiographies_model'
     try:
         generate_data_model_diagram(models, output_file_name)

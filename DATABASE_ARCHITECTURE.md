@@ -3,23 +3,26 @@
 This document provides a technical overview of the Hagiographies project repository structure and its database model.
 
 > **Status (October 2026).** The PostgreSQL database is the single source of truth
-> and is curated in Mathesar. The tables below describe the schema as created in
-> July 2026; the live DB has since been changed through `db/migrations/` (e.g.
-> `codex` and `publication` tables) and takes precedence. The
-> one-off Excel import has been removed from the repo. The "Excel source" columns
-> record only where the initial data came from.
-> The pre-restart 20-table model is parked, reference only, in
-> `utils/utilities/src/utilities/legacy_model.py`.
+> and is curated in Mathesar. Its schema is defined by `db/migrations/`; the
+> tables below describe `public` after migrations 000–017, matching
+> `utils/utilities/src/utilities/model.py` and `data/hagiographies_model.svg`.
+> The `hagio_admin` schema (migration bookkeeping, file-explorer tables from
+> 013–017) is not covered here. The one-off Excel import has been removed from
+> the repo; the "Excel source" columns record only where the initial data
+> came from.
 
 ## 1 Project Structure
 
-The project is organized into modular directories, separating the Python import/export logic from the administrative interface.
+The project is organized into modular directories.
 
 ```text
 .
 ├── caddy/                  # Reverse proxy configuration (Caddyfile)
 ├── data/                   # Mostly gitignored: databases and Excel sources
 ├── dataflow/               # Dataflow config for the SQLite export
+├── db/                     # Schema migrations (source of truth) + runner
+├── file-explorer/          # File explorer over the image share (Rust + Svelte)
+├── scripts/                # QAS/PRD backup and clone scripts
 ├── utils/                  # Python backend utilities (UV-managed)
 │   ├── documenter/         # Schema diagram generator
 │   ├── mathesar/           # Mathesar config via JSON-RPC (summaries, display)
@@ -41,20 +44,17 @@ Conventions:
   `excel_field()` helper — as a pydantic description **and** as a PostgreSQL
   column comment, so the Excel provenance is visible in `\d+` and in
   Mathesar.
-- The initial import never fixed Excel data and never dropped a record. A cell
-  that failed validation was imported as NULL, and an unresolvable reference
-  skipped only the link; both were reported as warnings. Two documented,
-  deliberate exceptions to the no-normalization rule: manuscript preservation-status labels are matched
-  case-insensitively to `Lost`/`Preserved`, and holding-institution names
-  differing only in case/whitespace are merged into one row (most frequent
-  spelling wins).
+- Provenance note: the initial load normalized only two things.
+  Preservation-status labels were matched case-insensitively to
+  `Lost`/`Preserved`, and holding-institution names differing only in
+  case/whitespace were merged (most frequent spelling wins).
 
 Operational details (lifecycle commands, backups, connectivity) are documented in `POSTGRESQL.md`.
 
 ## 3 Tables
 
-Source worksheets: `TEXTS`, `MANUSCRIPTS` and `EDITIONS` of the corpus
-workbook (`EXCEL_FILE` in `data/`).
+The "Excel source" columns name the `TEXTS`, `MANUSCRIPTS` and `EDITIONS`
+worksheet columns of the June 2026 corpus workbook the initial data came from.
 
 ### text
 
@@ -100,31 +100,62 @@ stored. `'Unknown'`/`'N/A'` in geo/milieu columns → NULL.
 | `author_milieu` | `author_milieu_id` PK, `label` unique, `note` | Monastic, Clerical ('Unknown' → NULL). |
 | `author` | `author_id` PK, `name` unique, `institutional_training_ground`, `regional_antecedents`, `author_milieu_id` FK, `note` | Deduped by name. Anonymous (`Anon…`) = one row per text, `name` = `Anonymous <text.identifier>`, raw cell in `note`. |
 
+### codex
+
+One physical codex (migration 002; the codex-level columns were hoisted from
+`manuscript` in 009). `name` deduplicates MANUSCRIPTS `Codex unique identifier`
+(whitespace-collapsed, `N/A` → no codex). Each column is commented with its
+original Excel source in the DB.
+
+| Column | Type | Excel source (MANUSCRIPTS) |
+| :--- | :--- | :--- |
+| `codex_id` | integer PK | — |
+| `name` | varchar, unique, not null | `Codex unique identifier` |
+| `shelfmark` | varchar | `Manuscript shelfmark` |
+| `manuscript_holding_institution_id` | FK → `manuscript_holding_institution` | `Manuscript holding institution` (`N/A` → NULL) |
+| `location_id` | FK → `location` | `Manuscript location` |
+| `manuscript_preservation_status_id` | FK → `manuscript_preservation_status` | `Preservation status of manuscript copy` |
+| `manuscript_type_id` / `manuscript_type_note` | FK → `manuscript_type` / varchar | `Manuscript type` (normalized / raw) |
+| `height`, `width` | varchar | `Manuscript height` / `width` |
+| `dating_century`, `dating_range_start`, `dating_range_end` | integer | manuscript dating (range 0 when non-integer; raw in `dating_note`) |
+| `dating_confidence_id`, `dating_reference`, `dating_note` | FK → `dating_confidence`, varchar, varchar | dating confidence, reference (hyperlink URL), raw values |
+| `origin_archdiocese_id`, `origin_diocese_id`, `origin_institution_id` | FKs → geography | `Manuscript origin by …` |
+| `origin_diocese_confidence_rating_id`, `origin_institution_confidence_rating_id` | FK → `origin_confidence` | origin confidence ratings |
+| `provenance_early_institute_id`, `provenance_later_institute_id` | FK → `institution` | provenance owners |
+| `provenance_early_confidence_id`, `provenance_later_confidence_id` | FK → `provenance_confidence` | provenance confidence (later: no source column) |
+| `origin_or_provenance_secondary_reference` | varchar | secondary reference (hyperlink URL) |
+| `vernacular_region_id` | FK → `vernacular_region` | `Vernacular region (Romance/Germanic)` |
+| `codex_legendiers_usable`, `codex_composite` | boolean (tri-state) | `Usable Légendiers entry…`, `Composite?` |
+| `codex_legendiers_entry_code`, `codex_notes`, `general_notes` | varchar | `Légendiers entry code`, `Notes on codex contents`, `Notes` |
+
+The number of corpus copies in a codex and whether it holds several are not
+stored: they are `count(*)` over its manuscripts.
+
 ### manuscript
 
-One row per MANUSCRIPTS data row (one manuscript copy of a text).
+One manuscript copy of a text, bound in a codex. Since migrations 009–012 it
+holds only the copy-level columns.
 
 | Column | Type | Excel source (MANUSCRIPTS) |
 | :--- | :--- | :--- |
 | `manuscript_id` | integer PK | — |
-| `identifier` | varchar, **not unique**, not null | `'BHL or NO BHL'` + `_` + `'Manuscript copy unique identifier per text'` (e.g. `BHL_29-4`; workbook duplicates kept, references resolve to the first) |
-| `text_id` | FK → `text`, nullable | `Unique text identifier` (prefix + uid matched to a `text.identifier`; no match → NULL, raw reference in `general_notes`) |
-| `manuscript_preservation_status_id` | FK → `manuscript_preservation_status` | `Preservation status of manuscript copy` |
-| `manuscript_holding_institution_id` | FK → `manuscript_holding_institution` | `Manuscript holding institution` (`N/A` → NULL) |
+| `identifier` | varchar, **not unique**, not null | `'BHL or NO BHL'` + `_` + `'Manuscript copy unique identifier per text'` (e.g. `BHL_29-4`; workbook duplicates kept) |
+| `text_id` | FK → `text`, nullable | `Unique text identifier` (no match → NULL; raw reference in the codex's `general_notes`) |
+| `codex_id` | FK → `codex`, nullable | resolved from `Codex unique identifier` |
+| `folio_or_page_range` | varchar | `Folio or page range` |
 
-No `title` column — the title lives on `text`. Further columns, each commented
-with its Excel source in the DB: codex fields (`codex_number`, `codex_identifier`,
-`codex_copy_amount`, `codex_legendiers_entry_code`, tri-states
-`codex_multiple_copies`/`codex_composite`/`codex_legendiers_usable`, `codex_notes`),
-`location_id`, `height`/`width` (text), dating (`dating_century`,
-`dating_range_start`/`_end` — 0 when non-integer, raw in `dating_note` —
-`dating_confidence_id`, `dating_reference` URL), origin/provenance FKs
-(`origin_archdiocese_id`, `origin_diocese_id`, `origin_institution_id`,
-`provenance_early_institute_id`, `provenance_later_institute_id`) with confidence
-FKs (`origin_diocese_confidence_rating_id`, `origin_institution_confidence_rating_id`,
-`provenance_early_confidence_id`, `provenance_later_confidence_id`),
-`origin_or_provenance_secondary_reference`, `vernacular_region_id`,
-`manuscript_type_id` + `manuscript_type_note`, `general_notes`.
+No `title` column — the title lives on `text`.
+
+### publication
+
+One published volume (migration 003; columns hoisted from `edition` in 010).
+
+| Column | Type | Excel source (EDITIONS) |
+| :--- | :--- | :--- |
+| `publication_id` | integer PK | — |
+| `name` | varchar, unique, not null | `Edition unique identifier (inc. volume)`, deduplicated |
+| `publication_year` | integer | `Publication year` |
+| `reference` | varchar | `Edition reference` |
 
 ### edition
 
@@ -137,8 +168,7 @@ reference in `general_notes`.
 | `edition_id` | integer PK | — |
 | `text_id` | FK → `text`, nullable | `Unique identifier` (matches the TEXTS identifier suffix) |
 | `identifier_per_text` | varchar, not null | text's prefix + `_` + `Edition unique identifier per individual text` (e.g. `BHL_29-A`; not unique in the workbook) |
-| `publication_year` | integer | `Publication year` |
-| `reference` | varchar | `Edition reference` |
+| `publication_id` | FK → `publication`, nullable | resolved from `Edition unique identifier (inc. volume)` |
 | `page_numbers` | varchar | `Page numbers` |
 | `reprint` | boolean | `Reprint ?` (YES/NO) |
 | `reprint_identical` | boolean | `If reprint, identically typeset?` (YES/NO, `N/A` → NULL) |
@@ -167,12 +197,16 @@ unresolvable or ambiguous refs are reported and skipped.
 | `manuscript_link` | `manuscript_link_id` PK, `manuscript_id` FK, `manuscript_link_type_id` FK, `url`, `note` | MANUSCRIPTS Légendiers/catalogue/images link columns (hyperlink target, never the display text) |
 | `manuscript_relation` | `manuscript_relation_id` PK, `manuscript_id` FK, `related_manuscript_id` FK, `manuscript_relationship_type_id` FK, `note` | MANUSCRIPTS `Based on exemplar` / `Exemplar of` (comma-split, resolved like edition manuscript refs) |
 
-### Hand-curated tables (not populated by the importer)
+### Hand-curated tables
 
 | Table | Columns |
 | :--- | :--- |
 | `repertory` | `repertory_id` PK, `name` (unique, not null), `note` |
-| `repertory_link` | `repertory_link_id` PK, `text_id` FK, `repertory_id` FK, `url`, `note` |
+| `repertory_link` | `repertory_link_id` PK, `text_id` FK, `repertory_id` FK, `url` (text), `note` |
+
+The `url` columns of `manuscript_link`, `edition_link` and `repertory_link` are the
+`mathesar_types.uri` domain on QAS/PRD (migrations 004–006, which apply only
+where Mathesar is installed).
 
 ### Lookup tables
 
@@ -195,11 +229,11 @@ import time; all have a `<table>_id` PK and a unique label/name.
 
 ## 4 Initial import (removed)
 
-The one-off Excel import (July 2026) lived in `utils/importer/` and was removed
-in October 2026; it remains in git history. Its last run reported 2156 warnings
-and 0 errors (`data/import_report.csv`/`.html`).
+The one-off Excel import (July 2026, `utils/importer/`) was removed in October
+2026 and remains in git history.
 
 ## 5 Diagram
 
-`just db_diagram` regenerates `data/hagiographies_model.svg` from the live
-model classes.
+`just db_diagram` regenerates `data/hagiographies_model.svg` from every table
+model in `utilities.model`. Re-run it whenever a migration changes `public`
+(and `model.py` with it).

@@ -19,4 +19,3 @@ DB_STRING = os.getenv("DATABASE_URL") or os.environ["PG_DATABASE_URL"]
 if DB_STRING.startswith("postgresql://"):
     DB_STRING = DB_STRING.replace("postgresql://", "postgresql+psycopg://", 1)
 
-DATA_ROOT = Path(os.getenv("DATA_ROOT", "/data"))

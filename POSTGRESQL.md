@@ -5,8 +5,8 @@ This document describes the PostgreSQL-primary architecture of the Hagiographies
 ## 1. Current Status: PostgreSQL-Primary
 
 - **PostgreSQL** is the single "Source of Truth", curated by researchers in Mathesar.
-  `utils/utilities/src/utilities/model.py` describes the July 2026 schema; the live DB has
-  since been modified and takes precedence.
+  The schema is defined by `db/migrations/`; `utils/utilities/src/utilities/model.py`
+  and `data/hagiographies_model.svg` mirror `public` after all migrations.
 - **Mathesar** is the admin UI, editing PostgreSQL directly (no separate admin database adapter to configure).
 - The Excel import was a one-off initial load (July 2026) and is **obsolete**; its
   recipes have been removed. Schema changes go through `db/migrations/`

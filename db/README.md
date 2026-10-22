@@ -1,18 +1,17 @@
-# db — schema migrations and backfills
+# db — schema migrations
 
-Raw SQL against PostgreSQL. Deliberately independent of
-`utils/utilities/src/utilities/model.py`: the SQLModel model is no longer kept
-in sync with the database, and `db/migrations/` is the source of truth for the
-schema.
+Raw SQL against PostgreSQL. `db/migrations/` is the source of truth for the
+schema. `utils/utilities/src/utilities/model.py` (SQLModel, used for the schema
+diagram) mirrors the `public` schema after all migrations, so a migration that
+touches `public` must update `model.py` in the same change (then run
+`just db_diagram`). The runner itself does not depend on the model.
 
 ```
 migrations/            numbered .sql, applied in filename order, each in its own transaction
   000_init.sql         baseline: the schema as it stood on 2026-07-29 (frozen)
 src/hagio_db/
   migrate.py           the migration runner
-  backfill.py          RETIRED: the 2026-07 backfill, kept as a record
-  workbook.py          RETIRED: openpyxl access to the corpus workbook
-  report.py            RETIRED: csv + html report
+  conn.py              database URL resolution and connection
 ```
 
 ## Running
@@ -107,17 +106,9 @@ so a from-scratch database has no domains available until then.
 
 ## The 2026-07 backfill (historical)
 
-`backfill.py`, `report.py` and `workbook.py` record how `manuscript.shelfmark`,
-`manuscript.folio_or_page_range`, `codex` and `publication` were first
-populated from the corpus workbook. It ran once against QAS and PRD, the
-researchers verified the result, and it has no console script or recipe any
-more — migrations `011` and `012` dropped the columns it reads and writes, so
-it cannot run and must not be resurrected. It is kept because it is the only
-description of how the data got where it is.
-
-How it worked, in short: rows were matched only on the exact identifier the
-importer had built, never guessed, and everything unmatched went to
-`data/backfill_report.{csv,html}`. Only `shelfmark`, `folio_or_page_range` and
-`edition.publication_id` came from the workbook; the codex link was pure SQL
-over `manuscript.codex_identifier`, so codices the researchers had renamed in
-Mathesar kept their names and rows absent from the workbook were linked too.
+A one-off backfill populated `manuscript.shelfmark`,
+`manuscript.folio_or_page_range`, `codex` and `publication` from the corpus
+workbook in July 2026 (the codex link itself was pure SQL over the then
+`manuscript.codex_identifier`). Migrations `011`/`012` dropped the columns it
+used; its code (`backfill.py`, `workbook.py`, `report.py`) was removed in
+October 2026 and is in git history.
