@@ -2,8 +2,8 @@
 
 A small web app over the network share that holds the scanned manuscripts and
 editions. Job students use it to find, rename, move and upload files, and to copy
-a working link for a file into `manuscript_link.url` or `edition_link.url` in
-Mathesar, without having to mount the share.
+a working link for a file into `codex_link.codex_link_url` or
+`edition_link.edition_link_url` in Mathesar, without having to mount the share.
 
 Axum + sqlx on the back, Svelte 5 on the front, built into a static bundle that
 is embedded in the binary. One binary, one container.
@@ -31,7 +31,7 @@ search and the `/f/` handler read.
 
 ## Which database rows cite which file
 
-One table per source link table: `hagio_admin.manuscript_link_reference` and
+One table per source link table: `hagio_admin.codex_link_reference` and
 `hagio_admin.edition_link_reference`. Each has a real foreign key to its source row
 and a real foreign key to whichever of `file` or `directory` the URL named, with a
 CHECK that exactly one target is set. So "what cites this file?" and "which files

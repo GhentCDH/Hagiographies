@@ -175,6 +175,7 @@ digraph {
 	Codex -> ProvenanceConfidence [label=provenance_later_confidence color="#1E88E5" style=dashed tooltip="Relation between Codex and ProvenanceConfidence"]
 	Codex -> CodexType [label=manuscript_type color="#1E88E5" style=dashed tooltip="Relation between Codex and CodexType"]
 	Codex -> Manuscript [label=manuscripts color="#1E88E5" style=dashed tooltip="Relation between Codex and Manuscript"]
+	Codex -> CodexLink [label=links color="#1E88E5" style=dashed tooltip="Relation between Codex and CodexLink"]
 	CodexHoldingInstitution [label=<
         <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0">
         <TR><TD COLSPAN="2" BGCOLOR="#3F51B5"><FONT COLOR="white">CodexHoldingInstitution</FONT></TD></TR>
@@ -186,6 +187,41 @@ digraph {
                          <TD BGCOLOR="#BBDEFB">VARCHAR (Unique)</TD>
                          </TR></TABLE>> URL="http://CodexHoldingInstitution_details.html"]
 	CodexHoldingInstitution -> Codex [label=codices color="#1E88E5" style=dashed tooltip="Relation between CodexHoldingInstitution and Codex"]
+	CodexLink [label=<
+        <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0">
+        <TR><TD COLSPAN="2" BGCOLOR="#3F51B5"><FONT COLOR="white">CodexLink</FONT></TD></TR>
+        <TR>
+                         <TD BGCOLOR="#BBDEFB">codex_link_id</TD>
+                         <TD BGCOLOR="#BBDEFB">INTEGER (PK)</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">codex_link_type_id</TD>
+                         <TD BGCOLOR="#BBDEFB">INTEGER ()</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">codex_link_url</TD>
+                         <TD BGCOLOR="#BBDEFB">VARCHAR ()</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">codex_link_note</TD>
+                         <TD BGCOLOR="#BBDEFB">VARCHAR ()</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">codex_id</TD>
+                         <TD BGCOLOR="#BBDEFB">INTEGER (Index)</TD>
+                         </TR></TABLE>> URL="http://CodexLink_details.html"]
+	CodexLink -> Codex [label=codex color="#1E88E5" style=dashed tooltip="Relation between CodexLink and Codex"]
+	CodexLink -> CodexLinkType [label=link_type color="#1E88E5" style=dashed tooltip="Relation between CodexLink and CodexLinkType"]
+	CodexLinkType [label=<
+        <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0">
+        <TR><TD COLSPAN="2" BGCOLOR="#3F51B5"><FONT COLOR="white">CodexLinkType</FONT></TD></TR>
+        <TR>
+                         <TD BGCOLOR="#BBDEFB">codex_link_type_id</TD>
+                         <TD BGCOLOR="#BBDEFB">INTEGER (PK)</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">codex_link_type</TD>
+                         <TD BGCOLOR="#BBDEFB">VARCHAR (Unique)</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">codex_link_type_note</TD>
+                         <TD BGCOLOR="#BBDEFB">VARCHAR ()</TD>
+                         </TR></TABLE>> URL="http://CodexLinkType_details.html"]
+	CodexLinkType -> CodexLink [label=links color="#1E88E5" style=dashed tooltip="Relation between CodexLinkType and CodexLink"]
 	CodexPreservationStatus [label=<
         <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0">
         <TR><TD COLSPAN="2" BGCOLOR="#3F51B5"><FONT COLOR="white">CodexPreservationStatus</FONT></TD></TR>

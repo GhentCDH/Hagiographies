@@ -11,11 +11,12 @@
 #   - The one-off Excel import (July 2026, since removed) loaded the initial
 #     data; the PostgreSQL database, curated in Mathesar, is now the source
 #     of truth. Docstrings mentioning the importer describe that initial load.
-#   - This model mirrors the public schema after db/migrations/ 000–059
+#   - This model mirrors the public schema after db/migrations/ 000–062
 #     (codex/publication split, hoisted and dropped columns). The migrations
 #     are the source of truth: every new migration that touches public must
 #     update this file in the same change, so `just db_diagram` stays current.
-#   - The url columns (manuscript_link_url, edition_link_url, text__repertory_url) are
+#   - The url columns (codex_link_url, manuscript_link_url, edition_link_url,
+#     text__repertory_url) are
 #     the mathesar_types.uri domain on QAS/PRD (migrations 004–006, applied
 #     only where Mathesar is installed); the model declares them as text.
 # ---------------------------------------------------------------------------
@@ -662,6 +663,7 @@ class Codex(SQLModel, table=True):
         back_populates="codices"
     )
     manuscripts: List["Manuscript"] = Relationship(back_populates="codex")
+    links: List["CodexLink"] = Relationship(back_populates="codex")
 
 
 class Manuscript(SQLModel, table=True):
@@ -678,8 +680,8 @@ class Manuscript(SQLModel, table=True):
     Since migrations 009–012 a manuscript is only the text copy: everything
     describing the physical book (shelfmark, holding institution, dating,
     origin/provenance, …) lives on its codex. folio_or_page_range locates
-    the copy inside the codex. URLs (catalogues, Légendiers, images) live in
-    manuscript_link rows.
+    the copy inside the codex. URLs about the codex (catalogues, Légendiers,
+    IIIF, scans) live in codex_link; copy-level URLs in manuscript_link.
     """
 
     __tablename__ = "manuscript"
@@ -729,12 +731,66 @@ class Manuscript(SQLModel, table=True):
     edition_links: List["EditionManuscript"] = Relationship(back_populates="manuscript")
 
 
-class ManuscriptLinkType(SQLModel, table=True):
-    """Lookup: what a manuscript URL points at.
+class CodexLinkType(SQLModel, table=True):
+    """Lookup: what a codex URL points at (catalogue description, Légendiers
+    entry, IIIF manifest, scans, …). Was manuscript_link_type until
+    migration 060.
+    """
 
-    Seeded by the importer with: Images Scan, Images IIIF, Images IIIF MF,
-    Images Photos, Catalogue online, Catalogue Bollandist, Catalogue other,
-    Legendiers entry, Legendiers alternative.
+    __tablename__ = "codex_link_type"
+
+    codex_link_type_id: Optional[int] = Field(default=None, primary_key=True)
+    codex_link_type: str = Field(unique=True)
+    codex_link_type_note: Optional[str] = Field(default=None)
+
+    links: List["CodexLink"] = Relationship(back_populates="link_type")
+
+
+class CodexLink(SQLModel, table=True):
+    """A URL describing a whole codex, typed via codex_link_type.
+
+    From the MANUSCRIPTS link columns ('Légendiers entry link', 'Viable
+    alternative for Légendiers entry on codex contents', 'Online catalogue
+    link', 'Bollandist catalogue link', 'Other relevant catalogue link',
+    'Online manuscript images' routed by 'Type of online images'). The
+    workbook repeated these on every text copy of a codex; migration 061
+    moved them to the codex and merged the repeats (notes joined with ' | ').
+    codex_link_url is the cell's hyperlink target, never its display text.
+    The file explorer tracks these URLs in hagio_admin.codex_link_reference.
+    """
+
+    __tablename__ = "codex_link"
+    __table_args__ = (  # migration 061
+        UniqueConstraint(
+            "codex_id", "codex_link_type_id", "codex_link_url",
+            name="codex_link_codex_id_codex_link_type_id_codex_link_url_key",
+        ),
+    )
+
+    codex_link_id: Optional[int] = Field(default=None, primary_key=True)
+    codex_link_type_id: int = excel_field(
+        "link column → type",
+        sheet="MANUSCRIPTS",
+        foreign_key="codex_link_type.codex_link_type_id",
+    )
+    codex_link_url: str = excel_field("link cell hyperlink target", sheet="MANUSCRIPTS")
+    codex_link_note: Optional[str] = Field(default=None)
+    codex_id: int = Field(
+        foreign_key="codex.codex_id",
+        index=True,
+        sa_column_kwargs={
+            "comment": "The codex this link describes (moved from manuscript "
+            "level in migration 061)"
+        },
+    )
+
+    codex: Optional[Codex] = Relationship(back_populates="links")
+    link_type: Optional[CodexLinkType] = Relationship(back_populates="links")
+
+
+class ManuscriptLinkType(SQLModel, table=True):
+    """Lookup: what a copy-level manuscript URL points at. Created empty in
+    migration 062; the researchers define the types in Mathesar.
     """
 
     __tablename__ = "manuscript_link_type"
@@ -747,31 +803,19 @@ class ManuscriptLinkType(SQLModel, table=True):
 
 
 class ManuscriptLink(SQLModel, table=True):
-    """A URL attached to a manuscript, typed via manuscript_link_type.
-
-    From the MANUSCRIPTS link columns ('Légendiers entry link', 'Viable
-    alternative for Légendiers entry on codex contents', 'Online catalogue
-    link', 'Bollandist catalogue link', 'Other relevant catalogue link',
-    'Online manuscript images' routed by 'Type of online images'). url is
-    the cell's hyperlink target, never its display text ('Link'). notes has
-    no Excel source (manual annotation).
+    """A URL about one text copy (manuscript), not the whole codex: links
+    about the codex live in codex_link. Created empty in migration 062. Not
+    tracked by the file explorer.
     """
 
     __tablename__ = "manuscript_link"
 
     manuscript_link_id: Optional[int] = Field(default=None, primary_key=True)
-    manuscript_id: int = excel_field(
-        "link columns (row)",
-        sheet="MANUSCRIPTS",
-        foreign_key="manuscript.manuscript_id",
-        index=True,
+    manuscript_id: int = Field(foreign_key="manuscript.manuscript_id", index=True)
+    manuscript_link_type_id: int = Field(
+        foreign_key="manuscript_link_type.manuscript_link_type_id"
     )
-    manuscript_link_type_id: int = excel_field(
-        "link column → type",
-        sheet="MANUSCRIPTS",
-        foreign_key="manuscript_link_type.manuscript_link_type_id",
-    )
-    manuscript_link_url: str = excel_field("link cell hyperlink target", sheet="MANUSCRIPTS")
+    manuscript_link_url: str
     manuscript_link_note: Optional[str] = Field(default=None)
 
     manuscript: Optional[Manuscript] = Relationship(back_populates="links")

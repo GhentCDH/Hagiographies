@@ -129,9 +129,12 @@ and they refuse when both names, or neither, exist.
 
 Renames are not free when PL/pgSQL refers to a column by name: function bodies
 are stored as text. The file-explorer triggers read
-`manuscript_link.manuscript_link_url` and `edition_link.edition_link_url`, so
-`050` renamed those columns and replaced the functions in one transaction. Do
-the same for any column that a `hagio_admin` function reads.
+`codex_link.codex_link_url` and `edition_link.edition_link_url`, so `050` (and
+`061`, which moved the manuscript links to codex level) renamed those columns
+and replaced the functions in one transaction. Do the same for any column that a
+`hagio_admin` function reads. The Rust file explorer also names
+`hagio_admin.*_link_reference` tables, so it must be deployed together with any
+migration that renames them.
 
 ## Uniqueness constraints and parked migrations
 
