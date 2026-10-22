@@ -11,11 +11,11 @@
 #   - The one-off Excel import (July 2026, since removed) loaded the initial
 #     data; the PostgreSQL database, curated in Mathesar, is now the source
 #     of truth. Docstrings mentioning the importer describe that initial load.
-#   - This model mirrors the public schema after db/migrations/ 000–017
+#   - This model mirrors the public schema after db/migrations/ 000–059
 #     (codex/publication split, hoisted and dropped columns). The migrations
 #     are the source of truth: every new migration that touches public must
 #     update this file in the same change, so `just db_diagram` stays current.
-#   - The url columns of manuscript_link, edition_link and repertory_link are
+#   - The url columns (manuscript_link_url, edition_link_url, text__repertory_url) are
 #     the mathesar_types.uri domain on QAS/PRD (migrations 004–006, applied
 #     only where Mathesar is installed); the model declares them as text.
 # ---------------------------------------------------------------------------
@@ -23,6 +23,8 @@
 from typing import Any, List, Optional
 
 from sqlalchemy import Text as SAText
+from sqlalchemy import CheckConstraint, Index, UniqueConstraint
+from sqlalchemy import text as sql_text
 from sqlmodel import Field, Relationship, SQLModel
 
 
@@ -39,13 +41,25 @@ def excel_field(excel_column: str, *, sheet: str = "TEXTS", **kwargs: Any) -> An
     return Field(**kwargs)
 
 
+def unique_identifier_rules(table: str) -> tuple:
+    """Constraints making <table>_unique_identifier unique regardless of case
+    and surrounding spaces (migrations 053-056): no leading/trailing spaces,
+    and a unique index on lower(). The exact UNIQUE constraint comes from the
+    field's unique=True."""
+    column = f"{table}_unique_identifier"
+    return (
+        CheckConstraint(f"{column} = btrim({column})", name=f"{table}_{column}_check"),
+        Index(f"{table}_{column}_lower_key", sql_text(f"lower({column})"), unique=True),
+    )
+
+
 class TextForm(SQLModel, table=True):
     """Lookup: prose vs verse (distinct values of TEXTS 'Prose or verse')."""
 
     __tablename__ = "text_form"
 
     text_form_id: Optional[int] = Field(default=None, primary_key=True)
-    label: str = excel_field("Prose or verse", unique=True)
+    text_form: str = excel_field("Prose or verse", unique=True)
 
     texts: List["Text"] = Relationship(back_populates="text_form")
 
@@ -56,7 +70,7 @@ class TextSourceType(SQLModel, table=True):
     __tablename__ = "text_source_type"
 
     text_source_type_id: Optional[int] = Field(default=None, primary_key=True)
-    label: str = excel_field("Source type", unique=True)
+    text_source_type: str = excel_field("Source type", unique=True)
 
     texts: List["Text"] = Relationship(back_populates="text_source_type")
 
@@ -67,7 +81,7 @@ class TextSourceSubtype(SQLModel, table=True):
     __tablename__ = "text_source_subtype"
 
     text_source_subtype_id: Optional[int] = Field(default=None, primary_key=True)
-    label: str = excel_field("Subtype", unique=True)
+    text_source_subtype: str = excel_field("Subtype", unique=True)
 
     texts: List["Text"] = Relationship(back_populates="text_source_subtype")
 
@@ -80,19 +94,19 @@ class Location(SQLModel, table=True):
     'GPS Latitude' column holds longitude ×10⁶. The importer reads them
     swapped and unscaled (documented workbook defect); values outside
     Western Europe (lat 44–56, lon −2–10) are rejected with a warning.
-    name is the first entity name seen at these coordinates.
+    location_name is the first entity name seen at these coordinates.
     """
 
     __tablename__ = "location"
 
     location_id: Optional[int] = Field(default=None, primary_key=True)
-    name: Optional[str] = Field(default=None)
+    location_name: Optional[str] = Field(default=None)
     # Optional: manuscript locations (MANUSCRIPTS 'Manuscript location') are
     # bare place names created without coordinates.
-    latitude: Optional[float] = excel_field(
+    location_latitude: Optional[float] = excel_field(
         "… GPS Longitude (sic, swapped) / 1e6", default=None
     )
-    longitude: Optional[float] = excel_field(
+    location_longitude: Optional[float] = excel_field(
         "… GPS Latitude (sic, swapped) / 1e6", default=None
     )
 
@@ -108,11 +122,11 @@ class Archdiocese(SQLModel, table=True):
     __tablename__ = "archdiocese"
 
     archdiocese_id: Optional[int] = Field(default=None, primary_key=True)
-    name: str = excel_field("Text creation - location by archdiocese", unique=True)
+    archdiocese_name: str = excel_field("Text creation - location by archdiocese", unique=True)
     location_id: Optional[int] = Field(
         default=None, foreign_key="location.location_id"
     )
-    note: Optional[str] = Field(default=None)
+    archdiocese_note: Optional[str] = Field(default=None)
 
     location: Optional[Location] = Relationship(back_populates="archdioceses")
     origin_codices: List["Codex"] = Relationship(
@@ -126,11 +140,11 @@ class Diocese(SQLModel, table=True):
     __tablename__ = "diocese"
 
     diocese_id: Optional[int] = Field(default=None, primary_key=True)
-    name: str = excel_field("Text creation - location by diocese", unique=True)
+    diocese_name: str = excel_field("Text creation - location by diocese", unique=True)
     location_id: Optional[int] = Field(
         default=None, foreign_key="location.location_id"
     )
-    note: Optional[str] = Field(default=None)
+    diocese_note: Optional[str] = Field(default=None)
 
     location: Optional[Location] = Relationship(back_populates="dioceses")
     origin_codices: List["Codex"] = Relationship(
@@ -149,14 +163,14 @@ class Institution(SQLModel, table=True):
     __tablename__ = "institution"
 
     institution_id: Optional[int] = Field(default=None, primary_key=True)
-    name: str = excel_field(
+    institution_name: str = excel_field(
         "'Text creation - location by institution' / 'Primary institutional destinatary'",
         unique=True,
     )
     location_id: Optional[int] = Field(
         default=None, foreign_key="location.location_id"
     )
-    note: Optional[str] = Field(default=None)
+    institution_note: Optional[str] = Field(default=None)
 
     location: Optional[Location] = Relationship(back_populates="institutions")
     origin_codices: List["Codex"] = Relationship(
@@ -166,13 +180,13 @@ class Institution(SQLModel, table=True):
     provenance_early_codices: List["Codex"] = Relationship(
         back_populates="provenance_early_institute",
         sa_relationship_kwargs={
-            "foreign_keys": "Codex.provenance_early_institute_id"
+            "foreign_keys": "Codex.provenance_early_institution_id"
         },
     )
     provenance_later_codices: List["Codex"] = Relationship(
         back_populates="provenance_later_institute",
         sa_relationship_kwargs={
-            "foreign_keys": "Codex.provenance_later_institute_id"
+            "foreign_keys": "Codex.provenance_later_institution_id"
         },
     )
 
@@ -183,8 +197,8 @@ class DatingConfidence(SQLModel, table=True):
     __tablename__ = "dating_confidence"
 
     dating_confidence_id: Optional[int] = Field(default=None, primary_key=True)
-    label: str = excel_field("Dating confidence rating", unique=True)
-    notes: Optional[str] = Field(default=None)
+    dating_confidence: str = excel_field("Dating confidence rating", unique=True)
+    dating_confidence_note: Optional[str] = Field(default=None)
 
     texts: List["Text"] = Relationship(back_populates="dating_confidence")
     codices: List["Codex"] = Relationship(back_populates="dating_confidence")
@@ -196,8 +210,8 @@ class AuthorMilieu(SQLModel, table=True):
     __tablename__ = "author_milieu"
 
     author_milieu_id: Optional[int] = Field(default=None, primary_key=True)
-    label: str = excel_field("Author milieu", unique=True)
-    note: Optional[str] = Field(default=None)
+    author_milieu: str = excel_field("Author milieu", unique=True)
+    author_milieu_note: Optional[str] = Field(default=None)
 
     authors: List["Author"] = Relationship(back_populates="milieu")
 
@@ -213,17 +227,17 @@ class Author(SQLModel, table=True):
     __tablename__ = "author"
 
     author_id: Optional[int] = Field(default=None, primary_key=True)
-    name: str = excel_field("Author of the text", unique=True)
-    institutional_training_ground: Optional[str] = excel_field(
+    author_name: str = excel_field("Author of the text", unique=True)
+    author_institutional_training_ground: Optional[str] = excel_field(
         "Institutional training ground of the author", default=None
     )
-    regional_antecedents: Optional[str] = excel_field(
+    author_regional_antecedents: Optional[str] = excel_field(
         "Regional or local antecedents of the author", default=None
     )
     author_milieu_id: Optional[int] = excel_field(
         "Author milieu", default=None, foreign_key="author_milieu.author_milieu_id"
     )
-    note: Optional[str] = Field(default=None)
+    author_note: Optional[str] = Field(default=None)
 
     milieu: Optional[AuthorMilieu] = Relationship(back_populates="authors")
     texts: List["Text"] = Relationship(back_populates="author")
@@ -232,7 +246,7 @@ class Author(SQLModel, table=True):
 class Text(SQLModel, table=True):
     """One row per TEXTS-sheet data row.
 
-    identifier is the given, stable identifier: the 'BHL or NO BHL' prefix
+    text_unique_identifier is the given, stable identifier: the 'BHL or NO BHL' prefix
     (spaces → '_') joined with '_' to the stringified 'Unique identifier'
     value, e.g. BHL_29, BHL_1055-1056, NO_BHL_ALPER.
 
@@ -241,15 +255,15 @@ class Text(SQLModel, table=True):
     """
 
     __tablename__ = "text"
+    __table_args__ = unique_identifier_rules("text")
 
     text_id: Optional[int] = Field(default=None, primary_key=True)
-    identifier: str = excel_field(
+    text_unique_identifier: str = excel_field(
         "'BHL or NO BHL' + '_' + 'Unique identifier'",
         unique=True,
-        index=True,
     )
-    title: Optional[str] = excel_field("Title of the work", default=None)
-    approximate_token_count: Optional[int] = excel_field(
+    text_title: Optional[str] = excel_field("Title of the work", default=None)
+    text_approximate_token_count: Optional[int] = excel_field(
         "Approximate token count", default=None
     )
     text_form_id: Optional[int] = excel_field(
@@ -267,20 +281,20 @@ class Text(SQLModel, table=True):
         default=None,
         foreign_key="text_source_subtype.text_source_subtype_id",
     )
-    reecriture: Optional[bool] = excel_field("Réécriture?", default=None)
-    reecriture_text_id: Optional[int] = excel_field(
+    text_reecriture: Optional[bool] = excel_field("Réécriture?", default=None)
+    reecriture_of_text_id: Optional[int] = excel_field(
         "Réécriture of which text(s)? (resolved)",
         default=None,
         foreign_key="text.text_id",
     )
-    reecriture_note: Optional[str] = excel_field(
+    text_reecriture_note: Optional[str] = excel_field(
         "Réécriture of which text(s)?", default=None
     )
-    dating_range_start: Optional[int] = excel_field(
+    text_dating_range_start: Optional[int] = excel_field(
         "Dating range (beginning)", default=None
     )
-    dating_range_stop: Optional[int] = excel_field("Dating range (end)", default=None)
-    dating_range: Optional[str] = excel_field(
+    text_dating_range_end: Optional[int] = excel_field("Dating range (end)", default=None)
+    text_dating_quarter_century: Optional[str] = excel_field(
         "Quarter century chronology", default=None
     )
     dating_confidence_id: Optional[int] = excel_field(
@@ -288,11 +302,11 @@ class Text(SQLModel, table=True):
         default=None,
         foreign_key="dating_confidence.dating_confidence_id",
     )
-    dating_note: Optional[str] = excel_field("Dating notes", default=None)
+    text_dating_note: Optional[str] = excel_field("Dating notes", default=None)
     author_id: Optional[int] = excel_field(
         "Author of the text", default=None, foreign_key="author.author_id"
     )
-    author_in_destinary_institution: Optional[bool] = excel_field(
+    text_author_in_destinatary_institution: Optional[bool] = excel_field(
         "Is author based in destinatary institution?",
         default=None,
         description="Tri-state: true/false/NULL (unknown).",
@@ -312,21 +326,21 @@ class Text(SQLModel, table=True):
         default=None,
         foreign_key="institution.institution_id",
     )
-    creation_note: Optional[str] = Field(default=None)
-    destinary_archdiocese_id: Optional[int] = Field(
+    text_creation_note: Optional[str] = Field(default=None)
+    destinatary_archdiocese_id: Optional[int] = Field(
         default=None, foreign_key="archdiocese.archdiocese_id"
     )
-    destinary_diocese_id: Optional[int] = Field(
+    destinatary_diocese_id: Optional[int] = Field(
         default=None, foreign_key="diocese.diocese_id"
     )
-    destinary_institution_id: Optional[int] = excel_field(
+    destinatary_institution_id: Optional[int] = excel_field(
         "Primary institutional destinatary",
         default=None,
         foreign_key="institution.institution_id",
     )
-    destinary_note: Optional[str] = Field(default=None)
-    reference: Optional[str] = excel_field("Selected reference", default=None)
-    general_note: Optional[str] = excel_field("Notes", default=None)
+    text_destinatary_note: Optional[str] = Field(default=None)
+    text_reference: Optional[str] = excel_field("Selected reference", default=None)
+    text_general_note: Optional[str] = excel_field("Notes", default=None)
 
     text_form: Optional[TextForm] = Relationship(back_populates="texts")
     text_source_type: Optional[TextSourceType] = Relationship(back_populates="texts")
@@ -350,39 +364,39 @@ class Text(SQLModel, table=True):
         sa_relationship_kwargs={"foreign_keys": "Text.creation_institution_id"}
     )
     destinary_archdiocese: Optional[Archdiocese] = Relationship(
-        sa_relationship_kwargs={"foreign_keys": "Text.destinary_archdiocese_id"}
+        sa_relationship_kwargs={"foreign_keys": "Text.destinatary_archdiocese_id"}
     )
     destinary_diocese: Optional[Diocese] = Relationship(
-        sa_relationship_kwargs={"foreign_keys": "Text.destinary_diocese_id"}
+        sa_relationship_kwargs={"foreign_keys": "Text.destinatary_diocese_id"}
     )
     destinary_institution: Optional[Institution] = Relationship(
-        sa_relationship_kwargs={"foreign_keys": "Text.destinary_institution_id"}
+        sa_relationship_kwargs={"foreign_keys": "Text.destinatary_institution_id"}
     )
     editions: List["Edition"] = Relationship(back_populates="text")
     manuscripts: List["Manuscript"] = Relationship(back_populates="text")
-    repertory_links: List["RepertoryLink"] = Relationship(back_populates="text")
+    repertory_links: List["TextRepertory"] = Relationship(back_populates="text")
 
 
-class ManuscriptPreservationStatus(SQLModel, table=True):
+class CodexPreservationStatus(SQLModel, table=True):
     """Lookup: Lost / Preserved.
 
     Canonicalised case-insensitively from MANUSCRIPTS 'Preservation status of
     manuscript copy' (the workbook mixes 'LOST' and 'Lost').
     """
 
-    __tablename__ = "manuscript_preservation_status"
+    __tablename__ = "codex_preservation_status"
 
-    manuscript_preservation_status_id: Optional[int] = Field(
+    codex_preservation_status_id: Optional[int] = Field(
         default=None, primary_key=True
     )
-    label: str = excel_field(
+    codex_preservation_status: str = excel_field(
         "Preservation status of manuscript copy", sheet="MANUSCRIPTS", unique=True
     )
 
     codices: List["Codex"] = Relationship(back_populates="preservation_status")
 
 
-class ManuscriptHoldingInstitution(SQLModel, table=True):
+class CodexHoldingInstitution(SQLModel, table=True):
     """Lookup: deduplicated holding institutions.
 
     Names that differ only in case/whitespace are merged into one row; the
@@ -390,12 +404,12 @@ class ManuscriptHoldingInstitution(SQLModel, table=True):
     (those manuscripts get a NULL institution).
     """
 
-    __tablename__ = "manuscript_holding_institution"
+    __tablename__ = "codex_holding_institution"
 
-    manuscript_holding_institution_id: Optional[int] = Field(
+    codex_holding_institution_id: Optional[int] = Field(
         default=None, primary_key=True
     )
-    name: str = excel_field(
+    codex_holding_institution_name: str = excel_field(
         "Manuscript holding institution", sheet="MANUSCRIPTS", unique=True
     )
 
@@ -406,7 +420,7 @@ class Codex(SQLModel, table=True):
     """One physical codex (migration 002; codex-level columns hoisted from
     manuscript in 009).
 
-    name deduplicates the MANUSCRIPTS 'Codex unique identifier' (whitespace-
+    codex_unique_identifier deduplicates the MANUSCRIPTS 'Codex unique identifier' (whitespace-
     collapsed, 'N/A' → no codex). The number of corpus copies in a codex and
     whether it holds several are derived: count(*) of its manuscripts.
     dating_range_start/_end are 0 when the workbook value was not an
@@ -415,20 +429,23 @@ class Codex(SQLModel, table=True):
     """
 
     __tablename__ = "codex"
-    __table_args__ = {
-        "comment": "One physical codex. Excel MANUSCRIPTS → "
-        "'Codex unique identifier', deduplicated."
-    }
+    __table_args__ = (
+        *unique_identifier_rules("codex"),
+        {
+            "comment": "One physical codex. Excel MANUSCRIPTS → "
+            "'Codex unique identifier', deduplicated."
+        },
+    )
 
     codex_id: Optional[int] = Field(default=None, primary_key=True)
-    name: str = excel_field(
+    codex_unique_identifier: str = excel_field(
         "Codex unique identifier", sheet="MANUSCRIPTS", unique=True
     )
-    manuscript_preservation_status_id: Optional[int] = excel_field(
+    codex_preservation_status_id: Optional[int] = excel_field(
         "Preservation status of manuscript copy",
         sheet="MANUSCRIPTS",
         default=None,
-        foreign_key="manuscript_preservation_status.manuscript_preservation_status_id",
+        foreign_key="codex_preservation_status.codex_preservation_status_id",
     )
     location_id: Optional[int] = excel_field(
         "Manuscript location",
@@ -436,32 +453,32 @@ class Codex(SQLModel, table=True):
         default=None,
         foreign_key="location.location_id",
     )
-    manuscript_holding_institution_id: Optional[int] = excel_field(
+    codex_holding_institution_id: Optional[int] = excel_field(
         "Manuscript holding institution",
         sheet="MANUSCRIPTS",
         default=None,
-        foreign_key="manuscript_holding_institution.manuscript_holding_institution_id",
+        foreign_key="codex_holding_institution.codex_holding_institution_id",
     )
-    height: Optional[str] = excel_field(
+    codex_height: Optional[str] = excel_field(
         "Manuscript height", sheet="MANUSCRIPTS", default=None
     )
-    width: Optional[str] = excel_field(
+    codex_width: Optional[str] = excel_field(
         "Manuscript width", sheet="MANUSCRIPTS", default=None
     )
-    dating_century: Optional[int] = excel_field(
+    codex_dating_by_century: Optional[int] = excel_field(
         "Manuscript dating by (earliest) century", sheet="MANUSCRIPTS", default=None
     )
-    dating_range_start: Optional[int] = excel_field(
+    codex_dating_range_start: Optional[int] = excel_field(
         "Manuscript dating range start (0 when not an integer in the workbook)",
         sheet="MANUSCRIPTS",
         default=None,
     )
-    dating_range_end: Optional[int] = excel_field(
+    codex_dating_range_end: Optional[int] = excel_field(
         "Manuscript dating range end (0 when not an integer in the workbook)",
         sheet="MANUSCRIPTS",
         default=None,
     )
-    dating_reference: Optional[str] = excel_field(
+    codex_dating_reference: Optional[str] = excel_field(
         "Preferred secondary reference for manuscript dating "
         "(hyperlink URL when the cell is hyperlinked)",
         sheet="MANUSCRIPTS",
@@ -473,7 +490,7 @@ class Codex(SQLModel, table=True):
         default=None,
         foreign_key="dating_confidence.dating_confidence_id",
     )
-    dating_note: Optional[str] = excel_field(
+    codex_dating_note: Optional[str] = excel_field(
         "raw 'Manuscript dating range start/end' when not integers",
         sheet="MANUSCRIPTS",
         default=None,
@@ -493,7 +510,7 @@ class Codex(SQLModel, table=True):
     codex_legendiers_entry_code: Optional[str] = excel_field(
         "Légendiers entry code", sheet="MANUSCRIPTS", default=None
     )
-    codex_notes: Optional[str] = excel_field(
+    codex_contents_note: Optional[str] = excel_field(
         "Notes on codex contents", sheet="MANUSCRIPTS", default=None
     )
     vernacular_region_id: Optional[int] = excel_field(
@@ -514,7 +531,7 @@ class Codex(SQLModel, table=True):
         default=None,
         foreign_key="diocese.diocese_id",
     )
-    origin_diocese_confidence_rating_id: Optional[int] = excel_field(
+    origin_diocese_confidence_id: Optional[int] = excel_field(
         "Manuscript origin by diocese confidence rating",
         sheet="MANUSCRIPTS",
         default=None,
@@ -526,13 +543,13 @@ class Codex(SQLModel, table=True):
         default=None,
         foreign_key="institution.institution_id",
     )
-    origin_institution_confidence_rating_id: Optional[int] = excel_field(
+    origin_institution_confidence_id: Optional[int] = excel_field(
         "Manuscript origin confidence rating",
         sheet="MANUSCRIPTS",
         default=None,
         foreign_key="origin_confidence.origin_confidence_id",
     )
-    provenance_early_institute_id: Optional[int] = excel_field(
+    provenance_early_institution_id: Optional[int] = excel_field(
         "Manuscript provenance by early/earliest institutional owner "
         "(second occurrence of this duplicated header)",
         sheet="MANUSCRIPTS",
@@ -546,7 +563,7 @@ class Codex(SQLModel, table=True):
         default=None,
         foreign_key="provenance_confidence.provenance_confidence_id",
     )
-    provenance_later_institute_id: Optional[int] = excel_field(
+    provenance_later_institution_id: Optional[int] = excel_field(
         "Manuscript provenance by undetermined or later institutional owner",
         sheet="MANUSCRIPTS",
         default=None,
@@ -559,38 +576,38 @@ class Codex(SQLModel, table=True):
         default=None,
         foreign_key="provenance_confidence.provenance_confidence_id",
     )
-    origin_or_provenance_secondary_reference: Optional[str] = excel_field(
+    codex_origin_or_provenance_secondary_reference: Optional[str] = excel_field(
         "Manuscript origin and provenance preferred secondary reference "
         "(hyperlink URL when the cell is hyperlinked)",
         sheet="MANUSCRIPTS",
         default=None,
     )
-    manuscript_type_id: Optional[int] = excel_field(
+    codex_type_id: Optional[int] = excel_field(
         "Manuscript type (whitespace-normalized label)",
         sheet="MANUSCRIPTS",
         default=None,
-        foreign_key="manuscript_type.manuscript_type_id",
+        foreign_key="codex_type.codex_type_id",
     )
-    manuscript_type_note: Optional[str] = excel_field(
+    codex_type_selection_note: Optional[str] = excel_field(
         "Manuscript type (raw cell, incl. notes on type selection)",
         sheet="MANUSCRIPTS",
         default=None,
     )
-    general_notes: Optional[str] = excel_field(
+    codex_general_note: Optional[str] = excel_field(
         "'Notes', prefixed with the raw 'Unique text identifier' when it "
         "resolves to no text",
         sheet="MANUSCRIPTS",
         default=None,
     )
-    shelfmark: Optional[str] = excel_field(
+    codex_shelfmark: Optional[str] = excel_field(
         "Manuscript shelfmark", sheet="MANUSCRIPTS", default=None
     )
 
-    preservation_status: Optional[ManuscriptPreservationStatus] = Relationship(
+    preservation_status: Optional[CodexPreservationStatus] = Relationship(
         back_populates="codices"
     )
     location: Optional[Location] = Relationship(back_populates="codices")
-    holding_institution: Optional[ManuscriptHoldingInstitution] = Relationship(
+    holding_institution: Optional[CodexHoldingInstitution] = Relationship(
         back_populates="codices"
     )
     dating_confidence: Optional[DatingConfidence] = Relationship(
@@ -608,7 +625,7 @@ class Codex(SQLModel, table=True):
     origin_diocese_confidence: Optional["OriginConfidence"] = Relationship(
         back_populates="diocese_rated_codices",
         sa_relationship_kwargs={
-            "foreign_keys": "Codex.origin_diocese_confidence_rating_id"
+            "foreign_keys": "Codex.origin_diocese_confidence_id"
         },
     )
     origin_institution: Optional[Institution] = Relationship(
@@ -618,13 +635,13 @@ class Codex(SQLModel, table=True):
     origin_institution_confidence: Optional["OriginConfidence"] = Relationship(
         back_populates="institution_rated_codices",
         sa_relationship_kwargs={
-            "foreign_keys": "Codex.origin_institution_confidence_rating_id"
+            "foreign_keys": "Codex.origin_institution_confidence_id"
         },
     )
     provenance_early_institute: Optional[Institution] = Relationship(
         back_populates="provenance_early_codices",
         sa_relationship_kwargs={
-            "foreign_keys": "Codex.provenance_early_institute_id"
+            "foreign_keys": "Codex.provenance_early_institution_id"
         },
     )
     provenance_early_confidence: Optional["ProvenanceConfidence"] = Relationship(
@@ -634,14 +651,14 @@ class Codex(SQLModel, table=True):
     provenance_later_institute: Optional[Institution] = Relationship(
         back_populates="provenance_later_codices",
         sa_relationship_kwargs={
-            "foreign_keys": "Codex.provenance_later_institute_id"
+            "foreign_keys": "Codex.provenance_later_institution_id"
         },
     )
     provenance_later_confidence: Optional["ProvenanceConfidence"] = Relationship(
         back_populates="later_codices",
         sa_relationship_kwargs={"foreign_keys": "Codex.provenance_later_confidence_id"},
     )
-    manuscript_type: Optional["ManuscriptType"] = Relationship(
+    manuscript_type: Optional["CodexType"] = Relationship(
         back_populates="codices"
     )
     manuscripts: List["Manuscript"] = Relationship(back_populates="codex")
@@ -650,15 +667,13 @@ class Codex(SQLModel, table=True):
 class Manuscript(SQLModel, table=True):
     """One row per MANUSCRIPTS-sheet data row (one manuscript copy).
 
-    identifier is the given, stable copy identifier: the 'BHL or NO BHL'
+    manuscript_unique_identifier is the given, stable copy identifier: the 'BHL or NO BHL'
     prefix (spaces → '_') joined with '_' to the 'Manuscript copy unique
-    identifier per text' value, e.g. BHL_29-4. NOT unique in the database:
-    the workbook contains duplicate identifiers and those rows are imported
-    anyway (each duplicate is warned in the import report; references
-    resolve to the first occurrence). text_id links the copy to
+    identifier per text' value, e.g. BHL_29-4. Not constrained unique: the
+    workbook had duplicates (imported as-is); PRD has none since Oct 2026. text_id links the copy to
     its text via prefix + 'Unique text identifier'; when that reference does
     not resolve to a text, the manuscript is still imported with text_id
-    NULL and the raw reference kept in general_notes (now on the codex).
+    NULL and the raw reference kept in the codex's codex_general_note.
 
     Since migrations 009–012 a manuscript is only the text copy: everything
     describing the physical book (shelfmark, holding institution, dating,
@@ -668,13 +683,14 @@ class Manuscript(SQLModel, table=True):
     """
 
     __tablename__ = "manuscript"
+    __table_args__ = unique_identifier_rules("manuscript")
 
     manuscript_id: Optional[int] = Field(default=None, primary_key=True)
-    identifier: str = excel_field(
+    manuscript_unique_identifier: str = excel_field(
         "'BHL or NO BHL' + '_' + 'Manuscript copy unique identifier per text' "
         "(workbook duplicates are imported as-is and warned)",
         sheet="MANUSCRIPTS",
-        index=True,
+        unique=True,
     )
     text_id: Optional[int] = excel_field(
         "Unique text identifier (NULL when the reference is unresolvable; "
@@ -684,7 +700,7 @@ class Manuscript(SQLModel, table=True):
         foreign_key="text.text_id",
         index=True,
     )
-    folio_or_page_range: Optional[str] = excel_field(
+    manuscript_folio_or_page_range: Optional[str] = excel_field(
         "Folio or page range", sheet="MANUSCRIPTS", default=None
     )
     codex_id: Optional[int] = Field(
@@ -700,14 +716,14 @@ class Manuscript(SQLModel, table=True):
     text: Optional["Text"] = Relationship(back_populates="manuscripts")
     codex: Optional[Codex] = Relationship(back_populates="manuscripts")
     links: List["ManuscriptLink"] = Relationship(back_populates="manuscript")
-    relations: List["ManuscriptRelation"] = Relationship(
+    relations: List["ManuscriptManuscript"] = Relationship(
         back_populates="manuscript",
-        sa_relationship_kwargs={"foreign_keys": "ManuscriptRelation.manuscript_id"},
+        sa_relationship_kwargs={"foreign_keys": "ManuscriptManuscript.manuscript_id"},
     )
-    related_by: List["ManuscriptRelation"] = Relationship(
+    related_by: List["ManuscriptManuscript"] = Relationship(
         back_populates="related_manuscript",
         sa_relationship_kwargs={
-            "foreign_keys": "ManuscriptRelation.related_manuscript_id"
+            "foreign_keys": "ManuscriptManuscript.related_manuscript_id"
         },
     )
     edition_links: List["EditionManuscript"] = Relationship(back_populates="manuscript")
@@ -724,8 +740,8 @@ class ManuscriptLinkType(SQLModel, table=True):
     __tablename__ = "manuscript_link_type"
 
     manuscript_link_type_id: Optional[int] = Field(default=None, primary_key=True)
-    label: str = Field(unique=True)
-    note: Optional[str] = Field(default=None)
+    manuscript_link_type: str = Field(unique=True)
+    manuscript_link_type_note: Optional[str] = Field(default=None)
 
     links: List["ManuscriptLink"] = Relationship(back_populates="link_type")
 
@@ -755,8 +771,8 @@ class ManuscriptLink(SQLModel, table=True):
         sheet="MANUSCRIPTS",
         foreign_key="manuscript_link_type.manuscript_link_type_id",
     )
-    url: str = excel_field("link cell hyperlink target", sheet="MANUSCRIPTS")
-    note: Optional[str] = Field(default=None)
+    manuscript_link_url: str = excel_field("link cell hyperlink target", sheet="MANUSCRIPTS")
+    manuscript_link_note: Optional[str] = Field(default=None)
 
     manuscript: Optional[Manuscript] = Relationship(back_populates="links")
     link_type: Optional[ManuscriptLinkType] = Relationship(back_populates="links")
@@ -774,13 +790,13 @@ class ProvenanceConfidence(SQLModel, table=True):
     __tablename__ = "provenance_confidence"
 
     provenance_confidence_id: Optional[int] = Field(default=None, primary_key=True)
-    label: str = excel_field(
+    provenance_confidence: str = excel_field(
         "Manuscript provenance by early/earliest institutional owner "
         "confidence rating",
         sheet="MANUSCRIPTS",
         unique=True,
     )
-    note: Optional[str] = Field(default=None)
+    provenance_confidence_note: Optional[str] = Field(default=None)
 
     early_codices: List["Codex"] = Relationship(
         back_populates="provenance_early_confidence",
@@ -798,24 +814,24 @@ class OriginConfidence(SQLModel, table=True):
     __tablename__ = "origin_confidence"
 
     origin_confidence_id: Optional[int] = Field(default=None, primary_key=True)
-    label: str = excel_field(
+    origin_confidence: str = excel_field(
         "'Manuscript origin by diocese confidence rating' / "
         "'Manuscript origin confidence rating'",
         sheet="MANUSCRIPTS",
         unique=True,
     )
-    note: Optional[str] = Field(default=None)
+    origin_confidence_note: Optional[str] = Field(default=None)
 
     diocese_rated_codices: List["Codex"] = Relationship(
         back_populates="origin_diocese_confidence",
         sa_relationship_kwargs={
-            "foreign_keys": "Codex.origin_diocese_confidence_rating_id"
+            "foreign_keys": "Codex.origin_diocese_confidence_id"
         },
     )
     institution_rated_codices: List["Codex"] = Relationship(
         back_populates="origin_institution_confidence",
         sa_relationship_kwargs={
-            "foreign_keys": "Codex.origin_institution_confidence_rating_id"
+            "foreign_keys": "Codex.origin_institution_confidence_id"
         },
     )
 
@@ -830,51 +846,51 @@ class VernacularRegion(SQLModel, table=True):
     __tablename__ = "vernacular_region"
 
     vernacular_region_id: Optional[int] = Field(default=None, primary_key=True)
-    label: str = excel_field(
+    vernacular_region: str = excel_field(
         "Vernacular region (Romance/Germanic)", sheet="MANUSCRIPTS", unique=True
     )
-    note: Optional[str] = Field(default=None)
+    vernacular_region_note: Optional[str] = Field(default=None)
 
     codices: List["Codex"] = Relationship(back_populates="vernacular_region")
 
 
-class ManuscriptType(SQLModel, table=True):
+class CodexType(SQLModel, table=True):
     """Lookup: manuscript type, one row per distinct whitespace-normalized
     'Manuscript type' value (the raw cell text, which may carry notes on
-    type selection, is kept per manuscript in manuscript_type_note).
+    type selection, is kept per codex in codex_type_selection_note).
     """
 
-    __tablename__ = "manuscript_type"
+    __tablename__ = "codex_type"
 
-    manuscript_type_id: Optional[int] = Field(default=None, primary_key=True)
-    label: str = excel_field(
+    codex_type_id: Optional[int] = Field(default=None, primary_key=True)
+    codex_type: str = excel_field(
         "Manuscript type (whitespace-normalized)", sheet="MANUSCRIPTS", unique=True
     )
-    note: Optional[str] = Field(default=None)
+    codex_type_note: Optional[str] = Field(default=None)
 
     codices: List["Codex"] = Relationship(back_populates="manuscript_type")
 
 
-class ManuscriptRelationshipType(SQLModel, table=True):
+class ManuscriptManuscriptType(SQLModel, table=True):
     """Lookup: how two manuscripts relate.
 
     Seeded by the importer with 'Based on exemplar' and 'Exemplar of'.
     """
 
-    __tablename__ = "manuscript_relationship_type"
+    __tablename__ = "manuscript__manuscript_type"
 
-    manuscript_relationship_type_id: Optional[int] = Field(
+    manuscript__manuscript_type_id: Optional[int] = Field(
         default=None, primary_key=True
     )
-    label: str = Field(unique=True)
-    note: Optional[str] = Field(default=None)
+    manuscript__manuscript_type: str = Field(unique=True)
+    manuscript__manuscript_type_note: Optional[str] = Field(default=None)
 
-    relations: List["ManuscriptRelation"] = Relationship(
+    relations: List["ManuscriptManuscript"] = Relationship(
         back_populates="relationship_type"
     )
 
 
-class ManuscriptRelation(SQLModel, table=True):
+class ManuscriptManuscript(SQLModel, table=True):
     """Link: a manuscript related to another manuscript, typed.
 
     From the MANUSCRIPTS 'Based on exemplar' and 'Exemplar of which
@@ -883,9 +899,19 @@ class ManuscriptRelation(SQLModel, table=True):
     identifier within the row's own text. note has no Excel source.
     """
 
-    __tablename__ = "manuscript_relation"
+    __tablename__ = "manuscript__manuscript"
+    __table_args__ = (  # migration 058
+        UniqueConstraint(
+            "manuscript_id", "related_manuscript_id", "manuscript__manuscript_type_id",
+            name="manuscript__manuscript_relation_key",
+        ),
+        CheckConstraint(
+            "manuscript_id <> related_manuscript_id",
+            name="manuscript__manuscript_not_self_check",
+        ),
+    )
 
-    manuscript_relation_id: Optional[int] = Field(default=None, primary_key=True)
+    manuscript__manuscript_id: Optional[int] = Field(default=None, primary_key=True)
     manuscript_id: int = excel_field(
         "'Based on exemplar' / 'Exemplar of which manuscript(s)' (row)",
         sheet="MANUSCRIPTS",
@@ -898,48 +924,51 @@ class ManuscriptRelation(SQLModel, table=True):
         foreign_key="manuscript.manuscript_id",
         index=True,
     )
-    manuscript_relationship_type_id: int = excel_field(
+    manuscript__manuscript_type_id: int = excel_field(
         "source column → type",
         sheet="MANUSCRIPTS",
-        foreign_key="manuscript_relationship_type.manuscript_relationship_type_id",
+        foreign_key="manuscript__manuscript_type.manuscript__manuscript_type_id",
     )
-    note: Optional[str] = Field(default=None)
+    manuscript__manuscript_note: Optional[str] = Field(default=None)
 
     manuscript: Optional[Manuscript] = Relationship(
         back_populates="relations",
-        sa_relationship_kwargs={"foreign_keys": "ManuscriptRelation.manuscript_id"},
+        sa_relationship_kwargs={"foreign_keys": "ManuscriptManuscript.manuscript_id"},
     )
     related_manuscript: Optional[Manuscript] = Relationship(
         back_populates="related_by",
         sa_relationship_kwargs={
-            "foreign_keys": "ManuscriptRelation.related_manuscript_id"
+            "foreign_keys": "ManuscriptManuscript.related_manuscript_id"
         },
     )
-    relationship_type: Optional[ManuscriptRelationshipType] = Relationship(
+    relationship_type: Optional[ManuscriptManuscriptType] = Relationship(
         back_populates="relations"
     )
 
 
 class Publication(SQLModel, table=True):
     """One published volume (migration 003; columns hoisted from edition in
-    010). name deduplicates EDITIONS 'Edition unique identifier (inc.
+    010). publication_unique_identifier deduplicates EDITIONS 'Edition unique identifier (inc.
     volume)'.
     """
 
     __tablename__ = "publication"
-    __table_args__ = {
-        "comment": "One published volume. Excel EDITIONS → "
-        "'Edition unique identifier (inc. volume)', deduplicated."
-    }
+    __table_args__ = (
+        *unique_identifier_rules("publication"),
+        {
+            "comment": "One published volume. Excel EDITIONS → "
+            "'Edition unique identifier (inc. volume)', deduplicated."
+        },
+    )
 
     publication_id: Optional[int] = Field(default=None, primary_key=True)
-    name: str = excel_field(
+    publication_unique_identifier: str = excel_field(
         "Edition unique identifier (inc. volume)", sheet="EDITIONS", unique=True
     )
     publication_year: Optional[int] = excel_field(
         "Publication year", sheet="EDITIONS", default=None
     )
-    reference: Optional[str] = excel_field(
+    publication_full_reference: Optional[str] = excel_field(
         "Edition reference", sheet="EDITIONS", default=None
     )
 
@@ -952,12 +981,12 @@ class Edition(SQLModel, table=True):
     text_id links the edition to its text: the EDITIONS 'Unique identifier'
     value is the part of text.identifier after the BHL/NO-BHL prefix. When
     that reference does not resolve to a text, the edition is still imported
-    with text_id NULL and the raw reference kept in general_notes.
-    identifier_per_text carries that text's prefix (e.g. BHL_29-A), matching
+    with text_id NULL and the raw reference kept in edition_general_note.
+    edition_unique_identifier carries that text's prefix (e.g. BHL_29-A), matching
     the text and manuscript identifier convention (stored unprefixed when
     the text is unresolvable).
     reprint_of_edition_id resolves 'If reprint, of what?' to another edition
-    of the same text (the raw Excel value is kept in reprint_of); references
+    of the same text (the raw Excel value is kept in edition_reprint_of_note); references
     are matched first as a per-text edition identifier (e.g. '616-B'), then
     as an '(inc. volume)' identifier within the same text.
     The 'Edition images link' hyperlink URL lives in edition_link, typed by
@@ -976,16 +1005,16 @@ class Edition(SQLModel, table=True):
         foreign_key="text.text_id",
         index=True,
     )
-    identifier_per_text: str = excel_field(
+    edition_unique_identifier: str = excel_field(
         "'BHL or NO BHL' prefix + '_' + 'Edition unique identifier per individual text'",
         sheet="EDITIONS",
         index=True,
     )
-    page_numbers: Optional[str] = excel_field(
+    edition_page_numbers: Optional[str] = excel_field(
         "Page numbers", sheet="EDITIONS", default=None
     )
-    reprint: Optional[bool] = excel_field("Reprint ?", sheet="EDITIONS", default=None)
-    reprint_identical: Optional[bool] = excel_field(
+    edition_reprint: Optional[bool] = excel_field("Reprint ?", sheet="EDITIONS", default=None)
+    edition_reprint_identical: Optional[bool] = excel_field(
         "If reprint, identically typeset?", sheet="EDITIONS", default=None
     )
     reprint_of_edition_id: Optional[int] = excel_field(
@@ -994,17 +1023,17 @@ class Edition(SQLModel, table=True):
         default=None,
         foreign_key="edition.edition_id",
     )
-    reprint_of: Optional[str] = excel_field(
+    edition_reprint_of_note: Optional[str] = excel_field(
         "If reprint, of what?", sheet="EDITIONS", default=None
     )
-    collation_done: Optional[bool] = excel_field(
+    edition_collation_done: Optional[bool] = excel_field(
         "Collation done?",
         sheet="EDITIONS",
         default=None,
         description="Tri-state: true/false/NULL (unknown; a non-tristate "
         "workbook value warns and stays NULL).",
     )
-    general_notes: Optional[str] = excel_field("Notes", sheet="EDITIONS", default=None)
+    edition_general_note: Optional[str] = excel_field("Notes", sheet="EDITIONS", default=None)
     publication_id: Optional[int] = Field(
         default=None,
         foreign_key="publication.publication_id",
@@ -1043,8 +1072,8 @@ class EditionLinkType(SQLModel, table=True):
     __tablename__ = "edition_link_type"
 
     edition_link_type_id: Optional[int] = Field(default=None, primary_key=True)
-    label: str = Field(unique=True)
-    note: Optional[str] = Field(default=None)
+    edition_link_type: str = Field(unique=True)
+    edition_link_type_note: Optional[str] = Field(default=None)
 
     links: List["EditionLink"] = Relationship(back_populates="link_type")
 
@@ -1072,8 +1101,8 @@ class EditionLink(SQLModel, table=True):
         sheet="EDITIONS",
         foreign_key="edition_link_type.edition_link_type_id",
     )
-    url: str = excel_field("'Edition images link' hyperlink target", sheet="EDITIONS")
-    note: Optional[str] = Field(default=None)
+    edition_link_url: str = excel_field("'Edition images link' hyperlink target", sheet="EDITIONS")
+    edition_link_note: Optional[str] = Field(default=None)
 
     edition: Optional[Edition] = Relationship(back_populates="links")
     link_type: Optional[EditionLinkType] = Relationship(back_populates="links")
@@ -1088,9 +1117,15 @@ class EditionManuscript(SQLModel, table=True):
     (e.g. 'Cologne HA 6'). notes has no Excel source (manual annotation).
     """
 
-    __tablename__ = "edition__manuscripts"
+    __tablename__ = "edition__manuscript"
+    __table_args__ = (  # migration 057
+        UniqueConstraint(
+            "edition_id", "manuscript_id",
+            name="edition__manuscript_edition_id_manuscript_id_key",
+        ),
+    )
 
-    edition__manuscripts_id: Optional[int] = Field(default=None, primary_key=True)
+    edition__manuscript_id: Optional[int] = Field(default=None, primary_key=True)
     edition_id: int = excel_field(
         "Manuscript used 1–16 (row)",
         sheet="EDITIONS",
@@ -1103,13 +1138,13 @@ class EditionManuscript(SQLModel, table=True):
         foreign_key="manuscript.manuscript_id",
         index=True,
     )
-    likely_use_of_a_copy: Optional[bool] = excel_field(
+    edition__manuscript_likely_use_of_a_copy: Optional[bool] = excel_field(
         "Likely use of a copy of Manuscript 1–16?",
         sheet="EDITIONS",
         default=None,
         description="Tri-state: true/false/NULL (unknown).",
     )
-    notes: Optional[str] = Field(default=None)
+    edition__manuscript_note: Optional[str] = Field(default=None)
 
     edition: Optional[Edition] = Relationship(back_populates="manuscript_links")
     manuscript: Optional[Manuscript] = Relationship(back_populates="edition_links")
@@ -1125,6 +1160,12 @@ class EditionEdition(SQLModel, table=True):
     """
 
     __tablename__ = "edition__edition"
+    __table_args__ = (  # migration 059; the not-self CHECK is parked in db/migrations/pending/
+        UniqueConstraint(
+            "edition_id", "consulted_edition_id",
+            name="edition__edition_edition_id_consulted_edition_id_key",
+        ),
+    )
 
     edition__edition_id: Optional[int] = Field(default=None, primary_key=True)
     edition_id: int = excel_field(
@@ -1139,7 +1180,7 @@ class EditionEdition(SQLModel, table=True):
         foreign_key="edition.edition_id",
         index=True,
     )
-    notes: Optional[str] = Field(default=None)
+    edition__edition_note: Optional[str] = Field(default=None)
 
     edition: Optional[Edition] = Relationship(
         back_populates="consulted_edition_links",
@@ -1161,22 +1202,34 @@ class Repertory(SQLModel, table=True):
     __tablename__ = "repertory"
 
     repertory_id: Optional[int] = Field(default=None, primary_key=True)
-    name: str = Field(unique=True)
-    note: Optional[str] = Field(default=None)
+    repertory_name: str = Field(unique=True)
+    repertory_note: Optional[str] = Field(default=None)
 
-    links: List["RepertoryLink"] = Relationship(back_populates="repertory")
+    links: List["TextRepertory"] = Relationship(back_populates="repertory")
 
 
-class RepertoryLink(SQLModel, table=True):
-    """Link: a text's entry in a repertory, curated by hand."""
+class TextRepertory(SQLModel, table=True):
+    """Many-to-many: a text's entry in a repertory, curated by hand.
 
-    __tablename__ = "repertory_link"
+    One text can have several entries (URLs) in the same repertory; an exact
+    repeat of (text, repertory, url) is refused (migration 051).
+    """
 
-    repertory_link_id: Optional[int] = Field(default=None, primary_key=True)
+    __tablename__ = "text__repertory"
+    __table_args__ = (
+        UniqueConstraint(
+            "text_id",
+            "repertory_id",
+            "text__repertory_url",
+            name="text__repertory_text_id_repertory_id_text__repertory_url_key",
+        ),
+    )
+
+    text__repertory_id: Optional[int] = Field(default=None, primary_key=True)
     text_id: int = Field(foreign_key="text.text_id", index=True)
     repertory_id: int = Field(foreign_key="repertory.repertory_id", index=True)
-    url: Optional[str] = Field(default=None, sa_type=SAText)
-    note: Optional[str] = Field(default=None)
+    text__repertory_url: Optional[str] = Field(default=None, sa_type=SAText)
+    text__repertory_note: Optional[str] = Field(default=None)
 
     text: Optional["Text"] = Relationship(back_populates="repertory_links")
     repertory: Optional[Repertory] = Relationship(back_populates="links")

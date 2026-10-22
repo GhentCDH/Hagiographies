@@ -104,6 +104,55 @@ so a from-scratch database has no domains available until then.
 - Editors are never granted `USAGE` on `hagio_admin`, which makes it invisible
   to them rather than merely unreadable.
 
+## Renaming tables and columns
+
+Migrations 018–051 (October 2026) relabelled the whole `public` schema to the
+naming rules in AGENTS.md: lowercase snake_case, table-prefixed content
+columns, `<a>__<b>` many-to-many junctions. There is one migration per table
+(019–049). Each renames the table, its columns, and the constraint/index/sequence
+names derived from them, so a migration-built database and a `model.py`-built
+one match name for name.
+
+For any future rename, use the guarded helpers from `018` instead of a bare
+`ALTER … RENAME`:
+
+```sql
+SELECT hagio_admin.rename_table('old', 'new');
+SELECT hagio_admin.rename_column('table', 'old', 'new');
+SELECT hagio_admin.rename_constraint('table', 'old', 'new');
+SELECT hagio_admin.rename_index('old', 'new');
+SELECT hagio_admin.rename_sequence('old', 'new');
+```
+
+They are no-ops when the rename already happened (e.g. by hand in Mathesar),
+and they refuse when both names, or neither, exist.
+
+Renames are not free when PL/pgSQL refers to a column by name: function bodies
+are stored as text. The file-explorer triggers read
+`manuscript_link.manuscript_link_url` and `edition_link.edition_link_url`, so
+`050` renamed those columns and replaced the functions in one transaction. Do
+the same for any column that a `hagio_admin` function reads.
+
+## Uniqueness constraints and parked migrations
+
+`051`–`059` add the uniqueness rules described in AGENTS.md ("Uniqueness").
+Each one first lists the offending rows and refuses if there are any, so a
+constraint is never forced onto bad data. The only data they change themselves
+is lossless:
+- `052` trims identifiers and deletes a codex that holds nothing but a duplicate
+  name;
+- `057`–`059` remove junction rows whose every value is also held by a twin.
+
+A constraint that is blocked by production data waits in `migrations/pending/`.
+The runner only globs `migrations/*.sql`, so those files are never applied. Once
+the researchers have fixed the rows named in the file:
+1. give it the next free number and move it up;
+2. add the matching constraint to `model.py`;
+3. run `just db_diagram`.
+
+Don't add a failing migration to `migrations/` itself: the runner stops at the
+first failure, which blocks every later migration.
+
 ## The 2026-07 backfill (historical)
 
 A one-off backfill populated `manuscript.shelfmark`,
