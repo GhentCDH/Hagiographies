@@ -11,7 +11,5 @@ To activate one:
 3. Add the matching constraint to `utils/utilities/src/utilities/model.py`.
 4. Run `just db_diagram`.
 
-| File | Blocked by (PRD, 2026-10-22) |
-| :--- | :--- |
-| `unique_edition_identifier.sql` | `BHL_8426-K` used by editions 770 and 811 |
-| `edition__edition_no_self_reference.sql` | edition__edition 711: `BHL_7963-B` consults itself |
+None at the moment. The last two (edition identifier uniqueness and no
+self-consulting edition) became 063 and 064 in October 2026.

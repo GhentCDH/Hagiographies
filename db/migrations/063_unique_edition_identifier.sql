@@ -1,9 +1,9 @@
--- pending: edition.edition_unique_identifier is unique, regardless of case and surrounding spaces.
+-- 063: edition.edition_unique_identifier is unique, regardless of case and surrounding spaces.
 --
--- BLOCKED: PRD has 'BHL_8426-K' twice (editions 770 and 811). Parked in pending/; give it the next free number and move it up once the researchers have renamed one of them.
+-- Parked in pending/ until the researchers renamed the second 'BHL_8426-K'
+-- (editions 770 and 811 on PRD, 2026-10-22).
 --
--- Three parts, the same for every *_unique_identifier column (053–056 and the
--- parked edition one):
+-- Three parts, the same for every *_unique_identifier column (053–056 and this one):
 --   * UNIQUE constraint edition_edition_unique_identifier_key: exact uniqueness, visible as "unique"
 --     in Mathesar and other tools;
 --   * CHECK edition_edition_unique_identifier_check: no leading/trailing spaces;

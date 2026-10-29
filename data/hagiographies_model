@@ -291,7 +291,7 @@ digraph {
                          <TD BGCOLOR="#BBDEFB">INTEGER (Index)</TD>
                          </TR><TR>
                          <TD BGCOLOR="#BBDEFB">edition_unique_identifier</TD>
-                         <TD BGCOLOR="#BBDEFB">VARCHAR (Index)</TD>
+                         <TD BGCOLOR="#BBDEFB">VARCHAR (Unique)</TD>
                          </TR><TR>
                          <TD BGCOLOR="#BBDEFB">edition_page_numbers</TD>
                          <TD BGCOLOR="#BBDEFB">VARCHAR ()</TD>
