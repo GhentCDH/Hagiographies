@@ -81,6 +81,13 @@ db_migrate_prd_status:
 #   just db_iiif_check               # every manifest (~15 min; Gallica is paced at 10 s)
 #   just db_iiif_check --only failed # retry everything that was not OK
 #   just db_iiif_check --dry-run     # fetch and report, write nothing
+#
+# Gallica refuses any non-browser client (403, from every network), so its
+# manifests are noted as 'not verifiable automatically'; open them in a browser.
+# To fetch from outside the UGent network, e.g. via kleemburg.be:
+#   ssh -N -D 127.0.0.1:1080 kleemburg.be &        # SOCKS tunnel; kill it afterwards
+#   just db_iiif_check --proxy socks5h://127.0.0.1:1080 --delay 10
+# Only the HTTP requests use the tunnel; the database is still reached directly (VPN).
 # The check runs the sync first (--no-sync skips it). Results land in
 # codex_link_checked_at / codex_link_check_note; editing a link's URL clears
 # them (migration 068). Filter on codex_link_check_note in Mathesar.

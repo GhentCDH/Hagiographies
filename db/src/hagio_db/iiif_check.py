@@ -26,10 +26,9 @@ import time
 from collections import Counter, defaultdict
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
-from urllib.error import HTTPError, URLError
 from urllib.parse import urljoin, urlsplit
-from urllib.request import HTTPRedirectHandler, Request, build_opener
 
+import httpx
 import typer
 from rich.table import Table
 
@@ -46,6 +45,14 @@ GIVE_UP_AFTER = 3  # consecutive unreachable answers before a host is skipped
 # then 403/429 for the rest at 1 req/s (2026-11-23).
 HOST_DELAY = {"gallica.bnf.fr": 10.0}
 MAX_HOST_DELAY = 60.0
+# Gallica refuses this checker (HTTP 403) from any network and at any rate,
+# also with browser headers over HTTP/2, while a real browser gets 200: it
+# fingerprints the client below the headers (2026-11-23). Its 403s say
+# nothing about the link; they are noted as such, see GALLICA_403.
+# Extra seconds on top of --timeout for one request, body included. Enforced
+# outside httpx, which does not time out a SOCKS handshake to a dead host.
+DEADLINE_SLACK = 30.0
+GALLICA_403 = "not verifiable automatically: Gallica refuses non-browser clients (HTTP 403); open it in a browser"
 
 MANIFEST_LINKS = """
 SELECT l.codex_link_id, c.codex_unique_identifier, btrim(l.codex_link_url::text),
@@ -60,16 +67,6 @@ SELECT l.codex_link_id, c.codex_unique_identifier, btrim(l.codex_link_url::text)
 ONLY = ("all", "unchecked", "failed")
 
 app = typer.Typer(add_completion=False, help=__doc__)
-
-
-class _NoRedirect(HTTPRedirectHandler):
-    """Hand redirects back to us, so every hop is paced per host."""
-
-    def redirect_request(self, req, fp, code, msg, headers, newurl):  # noqa: D102
-        return None
-
-
-_opener = build_opener(_NoRedirect)
 
 
 class Pacer:
@@ -117,34 +114,70 @@ def _host(url: str) -> str:
     return (urlsplit(url).hostname or "").lower()
 
 
-def _get(url: str, pacer: Pacer, timeout: float) -> tuple[int, str, bytes, dict]:
+def _with_deadline(fn, seconds: float):
+    """Run fn() with a hard wall-clock limit; raise TimeoutError past it.
+
+    The work runs in a daemon thread, so a request stuck in a SOCKS handshake
+    is abandoned rather than waited for, also at interpreter exit.
+    """
+    box: dict = {}
+
+    def target() -> None:
+        try:
+            box["result"] = fn()
+        except BaseException as err:  # noqa: BLE001 - re-raised below
+            box["error"] = err
+
+    worker = threading.Thread(target=target, daemon=True)
+    worker.start()
+    worker.join(seconds)
+    if worker.is_alive():
+        raise TimeoutError
+    if "error" in box:
+        raise box["error"]
+    return box["result"]
+
+
+def _hop(client: httpx.Client, url: str) -> tuple[int, dict, bytes]:
+    """One GET without following redirects; the body only for 2xx, capped."""
+    with client.stream("GET", url) as resp:
+        headers = dict(resp.headers)
+        if not 200 <= resp.status_code < 300:
+            return resp.status_code, headers, b""
+        body = bytearray()
+        for chunk in resp.iter_bytes():
+            body += chunk
+            if len(body) > MAX_BYTES:
+                break
+        return resp.status_code, headers, bytes(body)
+
+
+def _get(url: str, pacer: Pacer, client: httpx.Client) -> tuple[int, str, bytes, dict]:
     """GET with paced redirects and one paced retry on 429/503.
 
-    Returns (status, final url, body, headers); raises URLError/OSError when
-    the host cannot be reached.
+    Redirects are followed by hand, so every hop waits its turn for its host.
+    Returns (status, final url, body, headers); raises httpx.TransportError or
+    TimeoutError when the host cannot be reached.
     """
+    deadline = client.timeout.read + DEADLINE_SLACK if client.timeout.read else 60.0
     retried = False
     for _ in range(MAX_REDIRECTS + 1):
         pacer.wait(_host(url))
-        req = Request(url, headers={"User-Agent": USER_AGENT, "Accept": ACCEPT})
-        try:
-            with _opener.open(req, timeout=timeout) as resp:
-                return resp.status, url, resp.read(MAX_BYTES + 1), dict(resp.headers)
-        except HTTPError as err:
-            if err.code in (301, 302, 303, 307, 308) and err.headers.get("Location"):
-                url = urljoin(url, err.headers["Location"])
-                continue
-            if err.code == 429:
-                pacer.slow_down(_host(url))
-            if err.code in (429, 503) and not retried:
-                retried = True
-                try:
-                    wait = float(err.headers.get("Retry-After", "5"))
-                except ValueError:
-                    wait = 5.0
-                time.sleep(min(max(wait, 0.0), MAX_RETRY_AFTER))
-                continue
-            return err.code, url, b"", dict(err.headers or {})
+        status, headers, body = _with_deadline(lambda u=url: _hop(client, u), deadline)
+        if status in (301, 302, 303, 307, 308) and headers.get("location"):
+            url = urljoin(url, headers["location"])
+            continue
+        if status == 429:
+            pacer.slow_down(_host(url))
+        if status in (429, 503) and not retried:
+            retried = True
+            try:
+                wait = float(headers.get("retry-after", "5"))
+            except ValueError:
+                wait = 5.0
+            time.sleep(min(max(wait, 0.0), MAX_RETRY_AFTER))
+            continue
+        return status, url, body, headers
     return 0, url, b"", {}
 
 
@@ -166,16 +199,19 @@ def classify(data: object) -> str:
     return "JSON, not a IIIF manifest"
 
 
-def check(url: str, pacer: Pacer, timeout: float) -> Result:
+def check(url: str, pacer: Pacer, client: httpx.Client) -> Result:
     if urlsplit(url).scheme not in ("http", "https"):
         return Result(url, "not an http(s) URL")
     try:
-        status, final, body, headers = _get(url, pacer, timeout)
-    except (URLError, OSError) as err:
-        reason = getattr(err, "reason", err)
-        return Result(url, f"unreachable: {reason}"[:200])
+        status, final, body, headers = _get(url, pacer, client)
+    except (httpx.TimeoutException, TimeoutError):
+        return Result(url, "unreachable: timed out")
+    except (httpx.TransportError, OSError) as err:
+        return Result(url, f"unreachable: {err or type(err).__name__}"[:200])
     if status == 0:
         return Result(url, f"unreachable: more than {MAX_REDIRECTS} redirects")
+    if status == 403 and _host(final) == "gallica.bnf.fr":
+        return Result(url, GALLICA_403)
     if status == 403:
         return Result(url, "HTTP 403 (forbidden; the host may block automated clients)")
     if status >= 400:
@@ -193,8 +229,13 @@ def check(url: str, pacer: Pacer, timeout: float) -> Result:
     return Result(url, note)
 
 
-def check_all(urls: list[str], delay: float, timeout: float) -> dict[str, Result]:
-    """One worker per host: hosts run in parallel, a host's URLs one by one."""
+def check_all(urls: list[str], delay: float, timeout: float,
+              proxy: str | None = None) -> dict[str, Result]:
+    """One worker per host: hosts run in parallel, a host's URLs one by one.
+
+    proxy (e.g. socks5h://127.0.0.1:1080 over `ssh -D`) routes every request
+    through another machine; pacing and User-Agent stay the same.
+    """
     by_host: dict[str, list[str]] = defaultdict(list)
     for url in urls:
         by_host[_host(url)].append(url)
@@ -210,18 +251,27 @@ def check_all(urls: list[str], delay: float, timeout: float) -> dict[str, Result
             if dead >= GIVE_UP_AFTER:
                 res = Result(url, f"unreachable: host not answering, skipped after {GIVE_UP_AFTER} failures")
             else:
-                res = check(url, pacer, timeout)
+                res = check(url, pacer, client)
                 dead = dead + 1 if res.note.startswith("unreachable") else 0
             with lock:
                 results[url] = res
                 done += 1
                 mark = "[green]ok[/]" if res.ok else f"[red]{res.note}[/]"
-                console.print(f"[dim]{done}/{len(urls)}[/] {mark} {url}", highlight=False)
+                console.print(f"[dim]{time.strftime('%H:%M:%S')} {done}/{len(urls)}[/] {mark} {url}",
+                              highlight=False)
 
     slow = ", ".join(f"{h} {d:g}s" for h, d in HOST_DELAY.items() if h in by_host)
     console.print(f"checking {len(urls)} manifests on {len(by_host)} hosts, "
-                  f"≥{delay:g}s between requests to one host" + (f" ({slow})" if slow else ""))
-    with ThreadPoolExecutor(max_workers=max(1, len(by_host))) as pool:
+                  f"≥{delay:g}s between requests to one host" + (f" ({slow})" if slow else "")
+                  + (f", via proxy {proxy}" if proxy else ""))
+    client = httpx.Client(
+        proxy=proxy,
+        timeout=timeout,
+        follow_redirects=False,
+        headers={"User-Agent": USER_AGENT, "Accept": ACCEPT},
+        limits=httpx.Limits(max_connections=len(by_host) + 4),
+    )
+    with client, ThreadPoolExecutor(max_workers=max(1, len(by_host))) as pool:
         list(pool.map(run, by_host.values()))
     return results
 
@@ -238,6 +288,10 @@ def main(
     timeout: float = typer.Option(30.0, help="Seconds before a request gives up."),
     only: str = typer.Option(
         "all", help="What to check: all, unchecked (never checked or URL edited since) or failed (not OK)."
+    ),
+    proxy: str = typer.Option(
+        None, help="Route requests through a proxy, e.g. socks5h://127.0.0.1:1080 "
+        "for an `ssh -N -D 127.0.0.1:1080 <host>` tunnel (socks5h: DNS on the far side too).",
     ),
     no_sync: bool = typer.Option(
         False, "--no-sync", help="Skip the manifest/viewer sync that runs first."
@@ -276,7 +330,7 @@ def main(
     links = [(link_id, codex, u) for link_id, codex, u, _, _ in rows]
     manifests = sorted({u for _, _, u in links})
     console.print(f"{len(links)} manifest links to check (--only {only})")
-    results = check_all(manifests, delay, timeout) if manifests else {}
+    results = check_all(manifests, delay, timeout, proxy) if manifests else {}
     counts = Counter(r.note.split(";")[0] if r.ok else r.note.split(":")[0] for r in results.values())
     table = Table("result", "manifests")
     for note, n in counts.most_common():
