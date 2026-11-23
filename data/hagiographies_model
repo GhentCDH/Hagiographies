@@ -205,6 +205,12 @@ digraph {
                          </TR><TR>
                          <TD BGCOLOR="#BBDEFB">codex_id</TD>
                          <TD BGCOLOR="#BBDEFB">INTEGER (Index)</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">codex_link_checked_at</TD>
+                         <TD BGCOLOR="#BBDEFB">DATETIME ()</TD>
+                         </TR><TR>
+                         <TD BGCOLOR="#BBDEFB">codex_link_check_note</TD>
+                         <TD BGCOLOR="#BBDEFB">VARCHAR ()</TD>
                          </TR></TABLE>> URL="http://CodexLink_details.html"]
 	CodexLink -> Codex [label=codex color="#1E88E5" style=dashed tooltip="Relation between CodexLink and Codex"]
 	CodexLink -> CodexLinkType [label=link_type color="#1E88E5" style=dashed tooltip="Relation between CodexLink and CodexLinkType"]

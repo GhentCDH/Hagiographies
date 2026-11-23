@@ -66,6 +66,18 @@ db_migrate_prd:
 db_migrate_prd_status:
     {{DB}} migrate --database-url "$PG_DATABASE_URL_PRD" --status
 
+# Fetch every IIIF manifest link (≤1 request/s per host), record the result in
+# codex_link_checked_at/_check_note and add missing Theseus viewer links.
+# Pass --dry-run to only report.
+db_iiif_check *ARGS:
+    {{DB}} iiif-check {{ARGS}}
+
+db_iiif_check_prd *ARGS:
+    {{DB}} iiif-check --database-url "$PG_DATABASE_URL_PRD" {{ARGS}}
+
+db_local_iiif_check *ARGS:
+    {{DB}} iiif-check --database-url "{{LOCAL_DB}}" {{ARGS}}
+
 # Overwrites the local research DB with a copy of whatever PG_DATABASE_URL
 # points at (QAS), so migrations can be rehearsed locally.
 # Requires PG_DATABASE_URL in the host environment (.env / direnv).

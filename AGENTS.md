@@ -26,6 +26,7 @@ just db_local_migrate         # apply pending migrations to the local Docker Pos
 just db_clone_qas             # copy the remote DB's public schema into the local Docker Postgres (destructive, local only)
 just db_scratch               # throwaway hagiographies_scratch copy of the local DB with all migrations applied
 just db_diagram               # data/hagiographies_model.svg from the SQLModel classes (all tables)
+just db_iiif_check            # fetch every IIIF manifest link (≤1 req/s per host), record the result, add missing viewer links (--dry-run to only report; _prd / db_local_ variants)
 
 just pg_export_sqlite         # dump PostgreSQL → data/hagiographies_full_export.sqlite via Dataflow (dataflow/config.json)
 just pg_export_sqlite_dry_run # validate the Dataflow config, write nothing
@@ -61,7 +62,7 @@ The schema evolves through numbered SQL migrations in `db/migrations/`, applied 
 - Use Mathesar's `msar.cast_to_<type>()`.
 
 Consequences:
-- `utils/utilities/src/utilities/model.py` (SQLModel) **mirrors the `public` schema after migrations 000–064**: tables, columns, types, nullability, FKs, unique constraints, indexes, comments, and constraint/index/sequence *names* were verified identical in October 2026. The one exception is the url columns (`manuscript_link_url`, `edition_link_url`, `text__repertory_url`): they are the `mathesar_types.uri` domain on QAS/PRD, but text in the model. **Every new migration that touches `public` must update `model.py` in the same change and re-run `just db_diagram`.** To check them, build one throwaway DB from the migrations and one from `SQLModel.metadata.create_all`, then diff their `information_schema`. Never use the model to create or alter a real database.
+- `utils/utilities/src/utilities/model.py` (SQLModel) **mirrors the `public` schema after migrations 000–067**: tables, columns, types, nullability, FKs, unique constraints, indexes, comments, and constraint/index/sequence *names* were verified identical (October 2026, re-checked November 2026). The one exception is the url columns (`manuscript_link_url`, `edition_link_url`, `text__repertory_url`): they are the `mathesar_types.uri` domain on QAS/PRD, but text in the model. **Every new migration that touches `public` must update `model.py` in the same change and re-run `just db_diagram`.** To check them, build one throwaway DB from the migrations and one from `SQLModel.metadata.create_all`, then diff their `information_schema`. Never use the model to create or alter a real database.
 - `db/` is a standalone package (`psycopg`, no SQLModel). It runs on the **host** (`uv run --project db`), because the `utils` container's DNS cannot reliably reach the UGent servers or PyPI.
 - A one-off 2026-07 backfill populated `shelfmark`, `folio_or_page_range`, `codex` and `publication` from the workbook. Its code was removed in October 2026 (git history); do not resurrect it.
 
@@ -130,6 +131,9 @@ Entities:
   - Copy count and "multiple copies" are derived: `count(*)` over its manuscripts.
 - **Manuscript** — one text copy in a codex: `codex_id`, `text_id`, `manuscript_unique_identifier`, `manuscript_folio_or_page_range`.
 - **CodexLink** (`codex_link`) — typed URLs describing the whole codex: catalogue descriptions, Légendiers entries, IIIF manifests, scans. Lookup: CodexLinkType. Unique per (codex, type, url). Until migration 061 these lived on the manuscript, repeated once per text copy.
+  - 'IIIF manifest' links hold the bare manifest URL, never a viewer URL, once per codex (065). The same manifest on several codices is allowed but reported.
+  - Each manifest has an 'IIIF viewer' link: `https://theseusviewer.org/?iiif-content=<manifest>` (066). It replaced the projectmirador.org embed links.
+  - `codex_link_checked_at` / `codex_link_check_note` (067) are written by `just db_iiif_check` (`db/src/hagio_db/iiif_check.py`), never by researchers. `codex_link_note` stays theirs.
 - **ManuscriptLink** (`manuscript_link`) — copy-level URLs, typed by ManuscriptLinkType. Created empty in 062; the researchers define the types.
 - **ManuscriptManuscript** (`manuscript__manuscript`) — manuscript↔manuscript relations, typed by **ManuscriptManuscriptType** ('Based on exemplar' / 'Exemplar of').
 - **Publication** (003, hoisted in 010) — `publication_unique_identifier`, `publication_year`, `publication_full_reference`.

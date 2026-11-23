@@ -16,3 +16,4 @@ build-backend = "uv_build"
 
 [project.scripts]
 migrate = "hagio_db.migrate:entrypoint"
+iiif-check = "hagio_db.iiif_check:entrypoint"

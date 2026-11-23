@@ -21,10 +21,11 @@
 #     only where Mathesar is installed); the model declares them as text.
 # ---------------------------------------------------------------------------
 
+from datetime import datetime
 from typing import Any, List, Optional
 
 from sqlalchemy import Text as SAText
-from sqlalchemy import CheckConstraint, Index, UniqueConstraint
+from sqlalchemy import CheckConstraint, DateTime, Index, UniqueConstraint
 from sqlalchemy import text as sql_text
 from sqlmodel import Field, Relationship, SQLModel
 
@@ -757,6 +758,10 @@ class CodexLink(SQLModel, table=True):
     moved them to the codex and merged the repeats (notes joined with ' | ').
     codex_link_url is the cell's hyperlink target, never its display text.
     The file explorer tracks these URLs in hagio_admin.codex_link_reference.
+
+    'IIIF manifest' links hold the bare manifest URL, once per codex (065);
+    each has an 'IIIF viewer' link that opens it in Theseus (066). The IIIF
+    check (just db_iiif_check) fills codex_link_checked_at/_check_note (067).
     """
 
     __tablename__ = "codex_link"
@@ -781,6 +786,20 @@ class CodexLink(SQLModel, table=True):
         sa_column_kwargs={
             "comment": "The codex this link describes (moved from manuscript "
             "level in migration 061)"
+        },
+    )
+    codex_link_checked_at: Optional[datetime] = Field(  # migration 067
+        default=None,
+        sa_type=DateTime(timezone=True),
+        sa_column_kwargs={
+            "comment": "When the IIIF check last fetched this link (empty: never checked)"
+        },
+    )
+    codex_link_check_note: Optional[str] = Field(  # migration 067
+        default=None,
+        sa_column_kwargs={
+            "comment": "Result of the last IIIF check: OK (IIIF v2/v3), HTTP "
+            "error, unreachable, not JSON, not a IIIF manifest, …"
         },
     )
 
