@@ -8,6 +8,10 @@ codex_link_checked_at / codex_link_check_note (migration 067).
 Polite by design: requests to one host are at least --delay seconds apart, also
 across redirects and retries, while different hosts are fetched in parallel.
 
+Every manifest that checks out OK is stored in hagio_admin.iiif_manifest_cache
+(migration 069, see iiif_cache). A cached manifest is re-fetched conditionally
+(ETag / Last-Modified): a 304 keeps the cached copy.
+
 Before checking it runs the manifest/viewer sync (iiif_sync; --no-sync skips
 it), so hand edits in Mathesar are tidied first. It also reports manifests
 attached to more than one codex for the researchers.
@@ -33,6 +37,7 @@ import typer
 from rich.table import Table
 
 from .conn import announce, connect, console, resolve_url
+from .iiif_cache import store, validators
 from .iiif_sync import sync
 
 USER_AGENT = "hagiographies-iiif-check/1.0 (+https://github.com/GhentCDH/Hagiographies)"
@@ -104,6 +109,10 @@ class Pacer:
 class Result:
     url: str
     note: str
+    data: dict | None = None  # the manifest, when it was fetched and is OK
+    status: int = 0
+    etag: str | None = None
+    last_modified: str | None = None
 
     @property
     def ok(self) -> bool:
@@ -138,9 +147,9 @@ def _with_deadline(fn, seconds: float):
     return box["result"]
 
 
-def _hop(client: httpx.Client, url: str) -> tuple[int, dict, bytes]:
+def _hop(client: httpx.Client, url: str, headers: dict | None = None) -> tuple[int, dict, bytes]:
     """One GET without following redirects; the body only for 2xx, capped."""
-    with client.stream("GET", url) as resp:
+    with client.stream("GET", url, headers=headers) as resp:
         headers = dict(resp.headers)
         if not 200 <= resp.status_code < 300:
             return resp.status_code, headers, b""
@@ -152,7 +161,8 @@ def _hop(client: httpx.Client, url: str) -> tuple[int, dict, bytes]:
         return resp.status_code, headers, bytes(body)
 
 
-def _get(url: str, pacer: Pacer, client: httpx.Client) -> tuple[int, str, bytes, dict]:
+def _get(url: str, pacer: Pacer, client: httpx.Client,
+         conditional: dict | None = None) -> tuple[int, str, bytes, dict]:
     """GET with paced redirects and one paced retry on 429/503.
 
     Redirects are followed by hand, so every hop waits its turn for its host.
@@ -161,9 +171,12 @@ def _get(url: str, pacer: Pacer, client: httpx.Client) -> tuple[int, str, bytes,
     """
     deadline = client.timeout.read + DEADLINE_SLACK if client.timeout.read else 60.0
     retried = False
+    first = True
     for _ in range(MAX_REDIRECTS + 1):
         pacer.wait(_host(url))
-        status, headers, body = _with_deadline(lambda u=url: _hop(client, u), deadline)
+        cond = conditional if first else None  # validators belong to the original URL
+        first = False
+        status, headers, body = _with_deadline(lambda u=url, c=cond: _hop(client, u, c), deadline)
         if status in (301, 302, 303, 307, 308) and headers.get("location"):
             url = urljoin(url, headers["location"])
             continue
@@ -199,18 +212,35 @@ def classify(data: object) -> str:
     return "JSON, not a IIIF manifest"
 
 
-def check(url: str, pacer: Pacer, client: httpx.Client) -> Result:
+def check(url: str, pacer: Pacer, client: httpx.Client, cached: tuple | None = None) -> Result:
+    """Fetch and classify one manifest.
+
+    cached is the cache's (etag, last_modified, iiif_version, fetched_via) for
+    this URL, if any: its validators make the request conditional (a 304 keeps
+    the cached copy), and a Gallica 403 counts as OK when a copy fetched in a
+    browser is cached.
+    """
     if urlsplit(url).scheme not in ("http", "https"):
         return Result(url, "not an http(s) URL")
+    conditional = {}
+    if cached and cached[0]:
+        conditional["If-None-Match"] = cached[0]
+    if cached and cached[1]:
+        conditional["If-Modified-Since"] = cached[1]
     try:
-        status, final, body, headers = _get(url, pacer, client)
+        status, final, body, headers = _get(url, pacer, client, conditional or None)
     except (httpx.TimeoutException, TimeoutError):
         return Result(url, "unreachable: timed out")
     except (httpx.TransportError, OSError) as err:
         return Result(url, f"unreachable: {err or type(err).__name__}"[:200])
     if status == 0:
         return Result(url, f"unreachable: more than {MAX_REDIRECTS} redirects")
+    if status == 304 and cached:
+        return Result(url, f"OK (IIIF v{cached[2]}; not modified since cached)", status=304)
     if status == 403 and _host(final) == "gallica.bnf.fr":
+        if cached and cached[3] == "browser":
+            return Result(url, f"OK (IIIF v{cached[2]}; cached copy fetched in a browser, "
+                               "Gallica refuses non-browser clients)", status=403)
         return Result(url, GALLICA_403)
     if status == 403:
         return Result(url, "HTTP 403 (forbidden; the host may block automated clients)")
@@ -226,11 +256,15 @@ def check(url: str, pacer: Pacer, client: httpx.Client) -> Result:
     note = classify(data)
     if final != url:
         note += f"; redirects to {final}"
-    return Result(url, note)
+    res = Result(url, note, status=status)
+    if res.ok and isinstance(data, dict):
+        lower = {k.lower(): v for k, v in headers.items()}
+        res.data, res.etag, res.last_modified = data, lower.get("etag"), lower.get("last-modified")
+    return res
 
 
 def check_all(urls: list[str], delay: float, timeout: float,
-              proxy: str | None = None) -> dict[str, Result]:
+              proxy: str | None = None, cache: dict | None = None) -> dict[str, Result]:
     """One worker per host: hosts run in parallel, a host's URLs one by one.
 
     proxy (e.g. socks5h://127.0.0.1:1080 over `ssh -D`) routes every request
@@ -251,7 +285,7 @@ def check_all(urls: list[str], delay: float, timeout: float,
             if dead >= GIVE_UP_AFTER:
                 res = Result(url, f"unreachable: host not answering, skipped after {GIVE_UP_AFTER} failures")
             else:
-                res = check(url, pacer, client)
+                res = check(url, pacer, client, (cache or {}).get(url))
                 dead = dead + 1 if res.note.startswith("unreachable") else 0
             with lock:
                 results[url] = res
@@ -314,6 +348,7 @@ def main(
     with connect(url, read_only=True) as conn, conn.cursor() as cur:
         cur.execute(MANIFEST_LINKS)
         rows = cur.fetchall()
+        cache = validators(cur)
     if not rows:
         console.print("no 'IIIF manifest' links found")
         return
@@ -330,7 +365,7 @@ def main(
     links = [(link_id, codex, u) for link_id, codex, u, _, _ in rows]
     manifests = sorted({u for _, _, u in links})
     console.print(f"{len(links)} manifest links to check (--only {only})")
-    results = check_all(manifests, delay, timeout, proxy) if manifests else {}
+    results = check_all(manifests, delay, timeout, proxy, cache) if manifests else {}
     counts = Counter(r.note.split(";")[0] if r.ok else r.note.split(":")[0] for r in results.values())
     table = Table("result", "manifests")
     for note, n in counts.most_common():
@@ -357,8 +392,14 @@ def main(
                 "codex_link_check_note = %s WHERE codex_link_id = %s",
                 (results[u].note, link_id),
             )
+        cached = 0
+        for u, res in results.items():
+            if res.data is not None:
+                store(cur, u, res.data, status=res.status, etag=res.etag,
+                      last_modified=res.last_modified, via="checker")
+                cached += 1
         conn.commit()
-    console.print(f"[green]recorded[/] {len(links)} check results")
+    console.print(f"[green]recorded[/] {len(links)} check results; {cached} manifests cached")
 
 
 def entrypoint() -> None:  # pragma: no cover - console script shim

@@ -92,6 +92,24 @@ db_migrate_prd_status:
 # codex_link_checked_at / codex_link_check_note; editing a link's URL clears
 # them (migration 068). Filter on codex_link_check_note in Mathesar.
 
+# Manifest cache: every manifest that checks out OK is stored in
+# hagio_admin.iiif_manifest_cache (full JSON, label, canvas count; migration 069)
+# and re-fetched conditionally (ETag/Last-Modified) on later checks.
+# Manifests fetched in a browser (Gallica) are imported from an NDJSON file,
+# one {"url","status","etag","last_modified","body"} object per line:
+#   just db_iiif_cache_import ~/Downloads/gallica_manifests.ndjson [--dry-run]
+# A Gallica 403 then counts as OK on later checks, backed by that browser copy.
+
+# Import manifests fetched in a browser into the cache (NDJSON, see above)
+db_iiif_cache_import FILE *ARGS:
+    {{DB}} iiif-cache-import "{{FILE}}" {{ARGS}}
+
+db_iiif_cache_import_prd FILE *ARGS:
+    {{DB}} iiif-cache-import "{{FILE}}" --database-url "$PG_DATABASE_URL_PRD" {{ARGS}}
+
+db_local_iiif_cache_import FILE *ARGS:
+    {{DB}} iiif-cache-import "{{FILE}}" --database-url "{{LOCAL_DB}}" {{ARGS}}
+
 # Repair the manifest/viewer link pairs (no network; --dry-run to only report)
 db_iiif_sync *ARGS:
     {{DB}} iiif-sync {{ARGS}}
