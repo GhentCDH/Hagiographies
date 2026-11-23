@@ -44,7 +44,7 @@ def excel_field(excel_column: str, *, sheet: str = "TEXTS", **kwargs: Any) -> An
 
 def unique_identifier_rules(table: str) -> tuple:
     """Constraints making <table>_unique_identifier unique regardless of case
-    and surrounding spaces (migrations 053-056): no leading/trailing spaces,
+    and surrounding spaces (migrations 053-056, 063): no leading/trailing spaces,
     and a unique index on lower(). The exact UNIQUE constraint comes from the
     field's unique=True."""
     column = f"{table}_unique_identifier"
@@ -1039,6 +1039,7 @@ class Edition(SQLModel, table=True):
     """
 
     __tablename__ = "edition"
+    __table_args__ = unique_identifier_rules("edition")  # migration 063
 
     edition_id: Optional[int] = Field(default=None, primary_key=True)
     text_id: Optional[int] = excel_field(
@@ -1052,7 +1053,7 @@ class Edition(SQLModel, table=True):
     edition_unique_identifier: str = excel_field(
         "'BHL or NO BHL' prefix + '_' + 'Edition unique identifier per individual text'",
         sheet="EDITIONS",
-        index=True,
+        unique=True,
     )
     edition_page_numbers: Optional[str] = excel_field(
         "Page numbers", sheet="EDITIONS", default=None
@@ -1204,10 +1205,14 @@ class EditionEdition(SQLModel, table=True):
     """
 
     __tablename__ = "edition__edition"
-    __table_args__ = (  # migration 059; the not-self CHECK is parked in db/migrations/pending/
+    __table_args__ = (  # migrations 059 and 064
         UniqueConstraint(
             "edition_id", "consulted_edition_id",
             name="edition__edition_edition_id_consulted_edition_id_key",
+        ),
+        CheckConstraint(
+            "edition_id <> consulted_edition_id",
+            name="edition__edition_not_self_check",
         ),
     )
 

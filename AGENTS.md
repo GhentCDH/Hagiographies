@@ -61,7 +61,7 @@ The schema evolves through numbered SQL migrations in `db/migrations/`, applied 
 - Use Mathesar's `msar.cast_to_<type>()`.
 
 Consequences:
-- `utils/utilities/src/utilities/model.py` (SQLModel) **mirrors the `public` schema after migrations 000–062**: tables, columns, types, nullability, FKs, unique constraints, indexes, comments, and constraint/index/sequence *names* were verified identical in October 2026. The one exception is the url columns (`manuscript_link_url`, `edition_link_url`, `text__repertory_url`): they are the `mathesar_types.uri` domain on QAS/PRD, but text in the model. **Every new migration that touches `public` must update `model.py` in the same change and re-run `just db_diagram`.** To check them, build one throwaway DB from the migrations and one from `SQLModel.metadata.create_all`, then diff their `information_schema`. Never use the model to create or alter a real database.
+- `utils/utilities/src/utilities/model.py` (SQLModel) **mirrors the `public` schema after migrations 000–064**: tables, columns, types, nullability, FKs, unique constraints, indexes, comments, and constraint/index/sequence *names* were verified identical in October 2026. The one exception is the url columns (`manuscript_link_url`, `edition_link_url`, `text__repertory_url`): they are the `mathesar_types.uri` domain on QAS/PRD, but text in the model. **Every new migration that touches `public` must update `model.py` in the same change and re-run `just db_diagram`.** To check them, build one throwaway DB from the migrations and one from `SQLModel.metadata.create_all`, then diff their `information_schema`. Never use the model to create or alter a real database.
 - `db/` is a standalone package (`psycopg`, no SQLModel). It runs on the **host** (`uv run --project db`), because the `utils` container's DNS cannot reliably reach the UGent servers or PyPI.
 - A one-off 2026-07 backfill populated `shelfmark`, `folio_or_page_range`, `codex` and `publication` from the workbook. Its code was removed in October 2026 (git history); do not resurrect it.
 
@@ -98,21 +98,19 @@ Naming rules (relabelling, migrations 018–051, October 2026). Follow them for 
 - **Lookup value column:** named after its table (`text_form.text_form`); the lookup's note column is `<table>_note`.
 - **Entity name columns:** `<table>_unique_identifier` for row codes (text, manuscript, codex, edition, publication) and `<table>_name` for human names.
 
-Uniqueness (migrations 051–059; the same rules are in `model.py`):
-- **`*_unique_identifier` columns** (text, manuscript, codex, publication) are unique regardless of case and surrounding spaces. Each has three objects:
+Uniqueness (migrations 051–059, 063–064; the same rules are in `model.py`):
+- **`*_unique_identifier` columns** (text, manuscript, codex, publication, edition) are unique regardless of case and surrounding spaces. Each has three objects:
   - a `UNIQUE` constraint `<table>_<col>_key`;
   - `CHECK (col = btrim(col))`;
   - a unique index on `lower(col)` (`<table>_<col>_lower_key`).
 
-  `model.py` builds them via `unique_identifier_rules()`. **`edition`** gets the same rules once the duplicate `BHL_8426-K` is fixed.
+  `model.py` builds them via `unique_identifier_rules()`. `edition` has them too (063).
 - **Many-to-many junctions** allow each pair only once:
   - `edition__manuscript` (edition, manuscript);
-  - `edition__edition` (edition, consulted edition);
+  - `edition__edition` (edition, consulted edition), which also may not reference itself (064);
   - `manuscript__manuscript` (manuscript, related, type), which also may not reference itself;
   - `text__repertory` (text, repertory, url).
-
-  `edition__edition` gets the same no-self-reference rule once row 711 (`BHL_7963-B` consults itself) is fixed.
-- **Parked migrations** live in `db/migrations/pending/`. The runner ignores that folder. Each file is blocked by production data and names the blocking rows; see its README to activate one.
+- **Parked migrations** live in `db/migrations/pending/` (currently none). The runner ignores that folder. Each file is blocked by production data and names the blocking rows; see its README to activate one.
 - **Constraint migrations are data-gated:** they list the offending rows and refuse instead of guessing. The only data they change themselves is lossless cleanup: whitespace trims, an empty duplicate codex, and junction rows fully covered by a twin.
 - **Notes** are singular (`…_note`, `…_general_note`). **One concept, one word:** `institution`, `destinatary`, `_end`, `confidence`.
 

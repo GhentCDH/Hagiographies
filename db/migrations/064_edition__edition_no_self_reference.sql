@@ -1,10 +1,7 @@
--- pending: an edition cannot list itself as a consulted edition.
+-- 064: an edition cannot list itself as a consulted edition.
 --
--- PARKED: PRD (2026-10-22) has one such row, edition__edition_id 711: edition
--- BHL_7963-B "consults" BHL_7963-B. The researchers must point it at the
--- intended edition or delete it in Mathesar. Then give this file the next free
--- number, move it up into db/migrations/, and add the matching CheckConstraint
--- to EditionEdition in model.py. Until then the runner ignores this folder.
+-- Parked in pending/ until the researchers fixed edition__edition_id 711
+-- (BHL_7963-B "consulted" BHL_7963-B on PRD, 2026-10-22).
 
 DO $$
 DECLARE
