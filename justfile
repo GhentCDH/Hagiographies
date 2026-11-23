@@ -81,6 +81,7 @@ db_migrate_prd_status:
 #   just db_iiif_check               # every manifest (~15 min; Gallica is paced at 10 s)
 #   just db_iiif_check --only failed # retry everything that was not OK
 #   just db_iiif_check --dry-run     # fetch and report, write nothing
+#   just db_iiif_check --skip-host gallica.bnf.fr   # everything but Gallica (its copies come from a browser)
 #
 # Gallica refuses any non-browser client (403, from every network), so its
 # manifests are noted as 'not verifiable automatically'; open them in a browser.

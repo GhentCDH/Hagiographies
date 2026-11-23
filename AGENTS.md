@@ -27,7 +27,8 @@ just db_clone_qas             # copy the remote DB's public schema into the loca
 just db_scratch               # throwaway hagiographies_scratch copy of the local DB with all migrations applied
 just db_diagram               # data/hagiographies_model.svg from the SQLModel classes (all tables)
 just db_iiif_sync             # repair IIIF manifest/viewer link pairs after hand edits (no network; --dry-run; _prd / db_local_ variants)
-just db_iiif_check            # sync, then fetch IIIF manifests (≤1 req/s per host) and record the result (--only all|unchecked|failed, --dry-run)
+just db_iiif_check            # sync, then fetch IIIF manifests (≤1 req/s per host), record the result and cache OK manifests (--only all|unchecked|failed, --proxy, --dry-run)
+just db_iiif_cache_import F   # import browser-fetched manifests (NDJSON) into hagio_admin.iiif_manifest_cache
 
 just pg_export_sqlite         # dump PostgreSQL → data/hagiographies_full_export.sqlite via Dataflow (dataflow/config.json)
 just pg_export_sqlite_dry_run # validate the Dataflow config, write nothing
@@ -137,6 +138,7 @@ Entities:
   - `codex_link_checked_at` / `codex_link_check_note` (067) are written by `just db_iiif_check` (`db/src/hagio_db/iiif_check.py`), never by researchers. `codex_link_note` stays theirs.
   - Editing a link's URL or type clears its check result. This is done by the trigger `hagio_admin.reset_codex_link_check` (068), which, like the file explorer's triggers, is not in `model.py`.
   - `just db_iiif_sync` (`iiif_sync.py`) repairs the pairs after hand edits; the manifest is the source of truth. The justfile's IIIF section is the how-to.
+  - The manifests themselves are cached in `hagio_admin.iiif_manifest_cache` (069). It holds the full jsonb, version, label and canvas count, is keyed by URL and has no FK. The check fills it and re-fetches with ETag/Last-Modified. Gallica refuses non-browser clients, so its manifests are fetched in a browser and loaded with `just db_iiif_cache_import FILE` (NDJSON).
 - **ManuscriptLink** (`manuscript_link`) — copy-level URLs, typed by ManuscriptLinkType. Created empty in 062; the researchers define the types.
 - **ManuscriptManuscript** (`manuscript__manuscript`) — manuscript↔manuscript relations, typed by **ManuscriptManuscriptType** ('Based on exemplar' / 'Exemplar of').
 - **Publication** (003, hoisted in 010) — `publication_unique_identifier`, `publication_year`, `publication_full_reference`.

@@ -327,6 +327,10 @@ def main(
         None, help="Route requests through a proxy, e.g. socks5h://127.0.0.1:1080 "
         "for an `ssh -N -D 127.0.0.1:1080 <host>` tunnel (socks5h: DNS on the far side too).",
     ),
+    skip_host: list[str] = typer.Option(
+        [], "--skip-host", help="Leave this host's manifests alone (repeatable), e.g. gallica.bnf.fr "
+        "once its manifests are cached from a browser.",
+    ),
     no_sync: bool = typer.Option(
         False, "--no-sync", help="Skip the manifest/viewer sync that runs first."
     ),
@@ -362,7 +366,8 @@ def main(
         rows = [r for r in rows if r[3]]
     elif only == "failed":
         rows = [r for r in rows if not r[3] and not r[4]]
-    links = [(link_id, codex, u) for link_id, codex, u, _, _ in rows]
+    skip = {h.lower() for h in skip_host}
+    links = [(link_id, codex, u) for link_id, codex, u, _, _ in rows if _host(u) not in skip]
     manifests = sorted({u for _, _, u in links})
     console.print(f"{len(links)} manifest links to check (--only {only})")
     results = check_all(manifests, delay, timeout, proxy, cache) if manifests else {}
