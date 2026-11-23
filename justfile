@@ -66,9 +66,37 @@ db_migrate_prd:
 db_migrate_prd_status:
     {{DB}} migrate --database-url "$PG_DATABASE_URL_PRD" --status
 
-# Fetch every IIIF manifest link (≤1 request/s per host), record the result in
-# codex_link_checked_at/_check_note and add missing Theseus viewer links.
-# Pass --dry-run to only report.
+# ── IIIF manifest links (codex_link) ───────────────────────────────────────
+# 'IIIF manifest' links are the source of truth; each has a derived
+# 'IIIF viewer' link (https://theseusviewer.org/?iiif-content=<manifest>).
+# Three targets per recipe: QAS (PG_DATABASE_URL), _prd, and db_local_ (Docker).
+# Load .env first when direnv is not active: set -a; source .env; set +a
+#
+# After researchers edited links by hand in Mathesar:
+#   just db_iiif_sync --dry-run      # what would change (no network)
+#   just db_iiif_sync                # unpack/merge manifests, repair viewer pairs
+#   just db_iiif_check --only unchecked   # check new or edited manifests
+#
+# Re-checking:
+#   just db_iiif_check               # every manifest (~15 min; Gallica is paced at 10 s)
+#   just db_iiif_check --only failed # retry everything that was not OK
+#   just db_iiif_check --dry-run     # fetch and report, write nothing
+# The check runs the sync first (--no-sync skips it). Results land in
+# codex_link_checked_at / codex_link_check_note; editing a link's URL clears
+# them (migration 068). Filter on codex_link_check_note in Mathesar.
+
+# Repair the manifest/viewer link pairs (no network; --dry-run to only report)
+db_iiif_sync *ARGS:
+    {{DB}} iiif-sync {{ARGS}}
+
+db_iiif_sync_prd *ARGS:
+    {{DB}} iiif-sync --database-url "$PG_DATABASE_URL_PRD" {{ARGS}}
+
+db_local_iiif_sync *ARGS:
+    {{DB}} iiif-sync --database-url "{{LOCAL_DB}}" {{ARGS}}
+
+# Options: --only all|unchecked|failed, --dry-run, --no-sync, --delay, --timeout
+# Sync, then fetch the manifests (≤1 request/s per host) and record the results
 db_iiif_check *ARGS:
     {{DB}} iiif-check {{ARGS}}
 

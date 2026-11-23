@@ -8,9 +8,13 @@ codex_link_checked_at / codex_link_check_note (migration 067).
 Polite by design: requests to one host are at least --delay seconds apart, also
 across redirects and retries, while different hosts are fetched in parallel.
 
-It also adds the Theseus 'IIIF viewer' link of every manifest that lacks one
-(migration 066 did this once; manifests added later get theirs here), and
-reports manifests attached to more than one codex for the researchers.
+Before checking it runs the manifest/viewer sync (iiif_sync; --no-sync skips
+it), so hand edits in Mathesar are tidied first. It also reports manifests
+attached to more than one codex for the researchers.
+
+--only picks what to (re)check: all (default), unchecked (never checked, or the
+URL was edited since: migration 068 clears the result then) or failed (every
+result that is not OK, e.g. to retry Gallica's 403s another day).
 """
 
 from __future__ import annotations
@@ -30,6 +34,7 @@ import typer
 from rich.table import Table
 
 from .conn import announce, connect, console, resolve_url
+from .iiif_sync import sync
 
 USER_AGENT = "hagiographies-iiif-check/1.0 (+https://github.com/GhentCDH/Hagiographies)"
 ACCEPT = "application/ld+json, application/json;q=0.9, */*;q=0.1"
@@ -42,31 +47,17 @@ GIVE_UP_AFTER = 3  # consecutive unreachable answers before a host is skipped
 HOST_DELAY = {"gallica.bnf.fr": 10.0}
 MAX_HOST_DELAY = 60.0
 
-# The same SQL as migration 066, so a viewer link added here is identical to
-# one added there and ON CONFLICT recognises it.
-ADD_VIEWER_LINKS = """
-INSERT INTO public.codex_link (codex_id, codex_link_type_id, codex_link_url)
-SELECT l.codex_id, v.codex_link_type_id,
-       'https://theseusviewer.org/?iiif-content=' ||
-       replace(replace(replace(replace(replace(replace(replace(
-           l.codex_link_url::text, '%', '%25'), '&', '%26'), '?', '%3F'), '#', '%23'),
-           '=', '%3D'), '+', '%2B'), ' ', '%20')
-  FROM public.codex_link l
-  JOIN public.codex_link_type m ON m.codex_link_type_id = l.codex_link_type_id
-                               AND m.codex_link_type = 'IIIF manifest'
- CROSS JOIN public.codex_link_type v
- WHERE v.codex_link_type = 'IIIF viewer'
-ON CONFLICT (codex_id, codex_link_type_id, codex_link_url) DO NOTHING
-"""
-
 MANIFEST_LINKS = """
-SELECT l.codex_link_id, c.codex_unique_identifier, btrim(l.codex_link_url::text)
+SELECT l.codex_link_id, c.codex_unique_identifier, btrim(l.codex_link_url::text),
+       l.codex_link_checked_at IS NULL, coalesce(l.codex_link_check_note, '') LIKE 'OK%'
   FROM public.codex_link l
   JOIN public.codex_link_type t USING (codex_link_type_id)
   JOIN public.codex c USING (codex_id)
  WHERE t.codex_link_type = 'IIIF manifest'
  ORDER BY l.codex_link_id
 """
+
+ONLY = ("all", "unchecked", "failed")
 
 app = typer.Typer(add_completion=False, help=__doc__)
 
@@ -245,25 +236,47 @@ def main(
     ),
     delay: float = typer.Option(1.0, min=1.0, help="Seconds between requests to one host."),
     timeout: float = typer.Option(30.0, help="Seconds before a request gives up."),
+    only: str = typer.Option(
+        "all", help="What to check: all, unchecked (never checked or URL edited since) or failed (not OK)."
+    ),
+    no_sync: bool = typer.Option(
+        False, "--no-sync", help="Skip the manifest/viewer sync that runs first."
+    ),
 ) -> None:
+    if only not in ONLY:
+        raise typer.BadParameter(f"--only must be one of {', '.join(ONLY)}")
     url = resolve_url(database_url)
     announce(url)
+
+    if not no_sync:
+        with connect(url) as conn:
+            sync(conn)
+            if dry_run:
+                conn.rollback()
+            else:
+                conn.commit()
 
     # Read, then let go of the database while the (slow) fetching runs.
     with connect(url, read_only=True) as conn, conn.cursor() as cur:
         cur.execute(MANIFEST_LINKS)
-        links = cur.fetchall()
-    if not links:
+        rows = cur.fetchall()
+    if not rows:
         console.print("no 'IIIF manifest' links found")
         return
 
-    manifests = sorted({u for _, _, u in links})
-    results = check_all(manifests, delay, timeout)
-
-    # Summary per outcome, with the codices of every failure.
+    # Every manifest on the codices, for the 'more than one codex' report.
     codices: dict[str, list[str]] = defaultdict(list)
-    for _, codex, u in links:
+    for _, codex, u, _, _ in rows:
         codices[u].append(codex)
+
+    if only == "unchecked":
+        rows = [r for r in rows if r[3]]
+    elif only == "failed":
+        rows = [r for r in rows if not r[3] and not r[4]]
+    links = [(link_id, codex, u) for link_id, codex, u, _, _ in rows]
+    manifests = sorted({u for _, _, u in links})
+    console.print(f"{len(links)} manifest links to check (--only {only})")
+    results = check_all(manifests, delay, timeout) if manifests else {}
     counts = Counter(r.note.split(";")[0] if r.ok else r.note.split(":")[0] for r in results.values())
     table = Table("result", "manifests")
     for note, n in counts.most_common():
@@ -290,10 +303,8 @@ def main(
                 "codex_link_check_note = %s WHERE codex_link_id = %s",
                 (results[u].note, link_id),
             )
-        cur.execute(ADD_VIEWER_LINKS)
-        added = cur.rowcount
         conn.commit()
-    console.print(f"[green]recorded[/] {len(links)} check results; {added} viewer links added")
+    console.print(f"[green]recorded[/] {len(links)} check results")
 
 
 def entrypoint() -> None:  # pragma: no cover - console script shim
