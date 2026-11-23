@@ -37,6 +37,10 @@ MAX_BYTES = 10 * 1024 * 1024
 MAX_REDIRECTS = 5
 MAX_RETRY_AFTER = 60.0
 GIVE_UP_AFTER = 3  # consecutive unreachable answers before a host is skipped
+# Hosts that block at one request per second. Gallica answered 9 manifests and
+# then 403/429 for the rest at 1 req/s (2026-11-23).
+HOST_DELAY = {"gallica.bnf.fr": 10.0}
+MAX_HOST_DELAY = 60.0
 
 # The same SQL as migration 066, so a viewer link added here is identical to
 # one added there and ON CONFLICT recognises it.
@@ -78,19 +82,31 @@ _opener = build_opener(_NoRedirect)
 
 
 class Pacer:
-    """At most one request per `delay` seconds to each host, across threads."""
+    """At most one request per `delay` seconds to each host, across threads.
+
+    Hosts in HOST_DELAY get their own, longer delay; a host that answers 429
+    gets its delay doubled (up to MAX_HOST_DELAY) for the rest of the run.
+    """
 
     def __init__(self, delay: float) -> None:
         self.delay = delay
         self._guard = threading.Lock()
         self._locks: dict[str, threading.Lock] = defaultdict(threading.Lock)
         self._last: dict[str, float] = {}
+        self._delay: dict[str, float] = {}
+
+    def delay_for(self, host: str) -> float:
+        return self._delay.get(host, max(self.delay, HOST_DELAY.get(host, 0.0)))
+
+    def slow_down(self, host: str) -> None:
+        with self._guard:
+            self._delay[host] = min(self.delay_for(host) * 2, MAX_HOST_DELAY)
 
     def wait(self, host: str) -> None:
         with self._guard:
             lock = self._locks[host]
         with lock:
-            pause = self._last.get(host, 0.0) + self.delay - time.monotonic()
+            pause = self._last.get(host, 0.0) + self.delay_for(host) - time.monotonic()
             if pause > 0:
                 time.sleep(pause)
             self._last[host] = time.monotonic()
@@ -127,6 +143,8 @@ def _get(url: str, pacer: Pacer, timeout: float) -> tuple[int, str, bytes, dict]
             if err.code in (301, 302, 303, 307, 308) and err.headers.get("Location"):
                 url = urljoin(url, err.headers["Location"])
                 continue
+            if err.code == 429:
+                pacer.slow_down(_host(url))
             if err.code in (429, 503) and not retried:
                 retried = True
                 try:
@@ -209,8 +227,9 @@ def check_all(urls: list[str], delay: float, timeout: float) -> dict[str, Result
                 mark = "[green]ok[/]" if res.ok else f"[red]{res.note}[/]"
                 console.print(f"[dim]{done}/{len(urls)}[/] {mark} {url}", highlight=False)
 
+    slow = ", ".join(f"{h} {d:g}s" for h, d in HOST_DELAY.items() if h in by_host)
     console.print(f"checking {len(urls)} manifests on {len(by_host)} hosts, "
-                  f"≥{delay:g}s between requests to one host")
+                  f"≥{delay:g}s between requests to one host" + (f" ({slow})" if slow else ""))
     with ThreadPoolExecutor(max_workers=max(1, len(by_host))) as pool:
         list(pool.map(run, by_host.values()))
     return results
