@@ -272,3 +272,25 @@ files_logs:
 # Re-scan the whole share and update the file table
 files_rescan:
     curl -fsS -X POST http://localhost:9161/api/rescan
+
+# ── Front end (front/: static browser over the SQLite export) ────────────────
+# Runs on the HOST. No build step: front/index.html loads plain ES modules from
+# front/app and the Pihka submodule (front/vendor/pihka). front_compose inlines
+# everything into one file that ships next to the .sqlite on a data repository.
+# Refresh the export first (db_clone_qas, then pg_export_sqlite) for a release.
+FRONT_DB := "data/hagiographies_full_export.sqlite"
+
+# Regenerate front/app/config.generated.js from the Mathesar label/display JSON
+front_config:
+    uv run --no-project python front/tools/gen_config.py
+
+# Serve the decomposed front end on http://localhost:9162 (links the export in)
+front_serve port="9162":
+    git submodule update --init front/vendor/pihka
+    mkdir -p front/app/database
+    ln -sf "{{justfile_directory()}}/{{FRONT_DB}}" front/app/database/hagiographies.sqlite
+    uv run --no-project python front/tools/serve.py --port {{port}}
+
+# Compose front/dist/hagiographies.html (+ .sqlite, SHA256SUMS, README.txt); --release refuses TBD metadata
+front_compose *args:
+    uv run --no-project python front/tools/compose.py --db {{FRONT_DB}} {{args}}

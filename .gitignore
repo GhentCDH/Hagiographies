@@ -45,3 +45,7 @@ Desktop.ini
 cli_old.txt
 /data/share
 *.tar.gz
+
+# Front end (front/): build output and the local database link
+front/dist/
+front/app/database/
