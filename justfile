@@ -66,6 +66,72 @@ db_migrate_prd:
 db_migrate_prd_status:
     {{DB}} migrate --database-url "$PG_DATABASE_URL_PRD" --status
 
+# ── IIIF manifest links (codex_link) ───────────────────────────────────────
+# 'IIIF manifest' links are the source of truth; each has a derived
+# 'IIIF viewer' link (https://theseusviewer.org/?iiif-content=<manifest>).
+# Three targets per recipe: QAS (PG_DATABASE_URL), _prd, and db_local_ (Docker).
+# Load .env first when direnv is not active: set -a; source .env; set +a
+#
+# After researchers edited links by hand in Mathesar:
+#   just db_iiif_sync --dry-run      # what would change (no network)
+#   just db_iiif_sync                # unpack/merge manifests, repair viewer pairs
+#   just db_iiif_check --only unchecked   # check new or edited manifests
+#
+# Re-checking:
+#   just db_iiif_check               # every manifest (~15 min; Gallica is paced at 10 s)
+#   just db_iiif_check --only failed # retry everything that was not OK
+#   just db_iiif_check --dry-run     # fetch and report, write nothing
+#   just db_iiif_check --skip-host gallica.bnf.fr   # everything but Gallica (its copies come from a browser)
+#
+# Gallica refuses any non-browser client (403, from every network), so its
+# manifests are noted as 'not verifiable automatically'; open them in a browser.
+# To fetch from outside the UGent network, e.g. via kleemburg.be:
+#   ssh -N -D 127.0.0.1:1080 kleemburg.be &        # SOCKS tunnel; kill it afterwards
+#   just db_iiif_check --proxy socks5h://127.0.0.1:1080 --delay 10
+# Only the HTTP requests use the tunnel; the database is still reached directly (VPN).
+# The check runs the sync first (--no-sync skips it). Results land in
+# codex_link_checked_at / codex_link_check_note; editing a link's URL clears
+# them (migration 068). Filter on codex_link_check_note in Mathesar.
+
+# Manifest cache: every manifest that checks out OK is stored in
+# hagio_admin.iiif_manifest_cache (full JSON, label, canvas count; migration 069)
+# and re-fetched conditionally (ETag/Last-Modified) on later checks.
+# Manifests fetched in a browser (Gallica) are imported from an NDJSON file,
+# one {"url","status","etag","last_modified","body"} object per line:
+#   just db_iiif_cache_import ~/Downloads/gallica_manifests.ndjson [--dry-run]
+# A Gallica 403 then counts as OK on later checks, backed by that browser copy.
+
+# Import manifests fetched in a browser into the cache (NDJSON, see above)
+db_iiif_cache_import FILE *ARGS:
+    {{DB}} iiif-cache-import "{{FILE}}" {{ARGS}}
+
+db_iiif_cache_import_prd FILE *ARGS:
+    {{DB}} iiif-cache-import "{{FILE}}" --database-url "$PG_DATABASE_URL_PRD" {{ARGS}}
+
+db_local_iiif_cache_import FILE *ARGS:
+    {{DB}} iiif-cache-import "{{FILE}}" --database-url "{{LOCAL_DB}}" {{ARGS}}
+
+# Repair the manifest/viewer link pairs (no network; --dry-run to only report)
+db_iiif_sync *ARGS:
+    {{DB}} iiif-sync {{ARGS}}
+
+db_iiif_sync_prd *ARGS:
+    {{DB}} iiif-sync --database-url "$PG_DATABASE_URL_PRD" {{ARGS}}
+
+db_local_iiif_sync *ARGS:
+    {{DB}} iiif-sync --database-url "{{LOCAL_DB}}" {{ARGS}}
+
+# Options: --only all|unchecked|failed, --dry-run, --no-sync, --delay, --timeout
+# Sync, then fetch the manifests (≤1 request/s per host) and record the results
+db_iiif_check *ARGS:
+    {{DB}} iiif-check {{ARGS}}
+
+db_iiif_check_prd *ARGS:
+    {{DB}} iiif-check --database-url "$PG_DATABASE_URL_PRD" {{ARGS}}
+
+db_local_iiif_check *ARGS:
+    {{DB}} iiif-check --database-url "{{LOCAL_DB}}" {{ARGS}}
+
 # Overwrites the local research DB with a copy of whatever PG_DATABASE_URL
 # points at (QAS), so migrations can be rehearsed locally.
 # Requires PG_DATABASE_URL in the host environment (.env / direnv).
