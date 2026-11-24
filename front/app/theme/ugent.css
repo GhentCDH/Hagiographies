@@ -1,0 +1,972 @@
+/*
+ * UGent house style for the Hagiographies browser.
+ *
+ * Load after Pico (pico.min.css) and Pihka's base.css. Ported from the IPEM
+ * archive site (UGent 2016 house style: colours, Panno, blocks) and mapped
+ * onto Pico's --pico-* variables, so Pihka's default views (tables, cards,
+ * facets, pagination, detail) follow it without per-component rules.
+ *
+ * Rules of the house style kept here:
+ *   - only two typefaces: UGent Panno (headings, navigation, controls,
+ *     labels, footer) and Arial (reading text, data, code);
+ *   - square corners, left-aligned titles, no pill buttons, no gradients,
+ *     no Pico amber accent;
+ *   - light and dark themes for all three states of Pihka's theme toggle
+ *     (data-theme="light" | "dark" on <html>, or none = follow the OS).
+ *
+ * Asset URLs are relative to this file (the compose step inlines them).
+ */
+
+/* ─── 1. Fonts ───────────────────────────────────────────────────────── */
+
+@font-face {
+    font-family: 'UGent Panno';
+    src: url('../assets/fonts/panno/ugentpannotext-semilight-web.woff') format('woff');
+    font-style: normal;
+    font-weight: 300;
+    font-display: swap;
+}
+@font-face {
+    font-family: 'UGent Panno';
+    src: url('../assets/fonts/panno/ugentpannotext-normal-web.woff') format('woff');
+    font-style: normal;
+    font-weight: 400;
+    font-display: swap;
+}
+@font-face {
+    font-family: 'UGent Panno';
+    src: url('../assets/fonts/panno/ugentpannotext-medium-web.woff') format('woff');
+    font-style: normal;
+    font-weight: 500;
+    font-display: swap;
+}
+@font-face {
+    font-family: 'UGent Panno';
+    src: url('../assets/fonts/panno/ugentpannotext-semibold-web.woff') format('woff');
+    font-style: normal;
+    font-weight: 600;
+    font-display: swap;
+}
+
+/* ─── 2. Tokens ──────────────────────────────────────────────────────── */
+
+/* Raw palette (UGent 2016) and the two type stacks. */
+:root {
+    --ugent-blue: #1e64c8;
+    --ugent-blue-dark: #164b96;
+    --ugent-yellow: #ffd200;
+    --ugent-yellow-soft: #fff4bd;
+    --ugent-ink: #202020;
+
+    --ugent-font-display: 'UGent Panno', Arial, Helvetica, sans-serif;
+    --ugent-font-text: Arial, 'Helvetica Neue', Helvetica, sans-serif;
+
+    /* Semantic tokens: light value, dark value. light-dark() follows the
+       used color-scheme, which section 3 sets for every theme state. */
+    --ugent-bg: light-dark(#ffffff, #0d1727);
+    --ugent-surface: light-dark(#ffffff, #14243c);
+    --ugent-sunken: light-dark(#f2f5f9, #1d304b);
+    --ugent-soft: light-dark(#e9f0fa, #203b61);
+    --ugent-text: light-dark(#202020, #f4f7fd);
+    --ugent-muted: light-dark(#646464, #b7c5d9);
+    --ugent-border: light-dark(#ccd5e2, #344b6a);
+    /* Form-control and button outlines need 3:1 against the background. */
+    --ugent-border-strong: light-dark(#6f7c8f, #7d93b3);
+    --ugent-accent: light-dark(#1e64c8, #8cb9ff);
+    --ugent-accent-hover: light-dark(#164b96, #a6c9ff);
+    --ugent-link: light-dark(#1e64c8, #a6c9ff);
+    --ugent-on-accent: light-dark(#ffffff, #0d1727);
+    --ugent-header: light-dark(#ffffff, #14243c);
+    --ugent-focus: light-dark(#164b96, #ffd200);
+    --ugent-hero: light-dark(#1e64c8, #1a4f9c);
+}
+
+/* ─── 3. Theme states ────────────────────────────────────────────────── */
+
+/* No data-theme: follow the OS. Light is the default, dark under the
+   media query; data-theme pins either. Selectors match Pico's own
+   specificity (0,2,0) so they win as the later sheet. */
+:root:not([data-theme]) {
+    color-scheme: light dark;
+}
+:root[data-theme=light] {
+    color-scheme: light;
+}
+:root[data-theme=dark] {
+    color-scheme: dark;
+}
+@media (prefers-color-scheme: dark) {
+    :root:not([data-theme=light]) {
+        color-scheme: dark;
+    }
+}
+
+/* ─── 4. Pico / Pihka variable mapping ───────────────────────────────── */
+
+/* Same selector list as base.css's accent block (one rule for all theme
+   states), so these replace both Pico's defaults and Pihka's resin amber. */
+:root:not([data-theme=dark]),
+:root[data-theme=dark] {
+    --pico-font-family: var(--ugent-font-text);
+    --pico-font-family-sans-serif: var(--ugent-font-text);
+    --pico-font-family-monospace: var(--ugent-font-text);
+    --pico-font-family-emoji: var(--ugent-font-text);
+    --pico-line-height: 1.45;
+    --pico-border-radius: 0;
+    --pico-box-shadow: none;
+    --pico-card-box-shadow: none;
+    --pico-button-box-shadow: none;
+    --pico-button-hover-box-shadow: none;
+    --pico-dropdown-box-shadow: none;
+
+    --pico-background-color: var(--ugent-bg);
+    --pico-color: var(--ugent-text);
+    --pico-muted-color: var(--ugent-muted);
+    --pico-muted-border-color: var(--ugent-border);
+    --pico-border-color: var(--ugent-border);
+    --pico-h1-color: var(--ugent-accent);
+    --pico-h2-color: var(--ugent-accent);
+    --pico-h3-color: var(--ugent-accent);
+    --pico-h4-color: var(--ugent-text);
+    --pico-h5-color: var(--ugent-text);
+    --pico-h6-color: var(--ugent-text);
+    --pico-text-selection-color: color-mix(in oklab, var(--ugent-accent) 28%, transparent);
+    --pico-mark-background-color: var(--ugent-yellow);
+    --pico-mark-color: var(--ugent-ink);
+
+    --pico-primary: var(--ugent-link);
+    --pico-primary-background: var(--ugent-accent);
+    --pico-primary-border: var(--ugent-accent);
+    --pico-primary-underline: color-mix(in oklab, var(--ugent-link) 50%, transparent);
+    --pico-primary-hover: var(--ugent-accent-hover);
+    --pico-primary-hover-background: var(--ugent-accent-hover);
+    --pico-primary-hover-border: var(--ugent-accent-hover);
+    --pico-primary-hover-underline: var(--ugent-accent-hover);
+    --pico-primary-focus: color-mix(in oklab, var(--ugent-focus) 45%, transparent);
+    --pico-primary-inverse: var(--ugent-on-accent);
+
+    --pico-secondary: var(--ugent-muted);
+    --pico-secondary-background: var(--ugent-muted);
+    --pico-secondary-border: var(--ugent-border-strong);
+    --pico-secondary-underline: color-mix(in oklab, var(--ugent-muted) 50%, transparent);
+    --pico-secondary-hover: var(--ugent-text);
+    --pico-secondary-hover-background: var(--ugent-text);
+    --pico-secondary-hover-border: var(--ugent-accent);
+    --pico-secondary-hover-underline: var(--ugent-text);
+    --pico-secondary-focus: color-mix(in oklab, var(--ugent-focus) 45%, transparent);
+    --pico-secondary-inverse: var(--ugent-bg);
+
+    --pico-contrast: var(--ugent-text);
+    --pico-contrast-background: var(--ugent-text);
+    --pico-contrast-border: var(--ugent-text);
+    --pico-contrast-inverse: var(--ugent-bg);
+
+    --pico-card-background-color: var(--ugent-surface);
+    --pico-card-border-color: var(--ugent-border);
+    --pico-card-sectioning-background-color: var(--ugent-sunken);
+    --pico-dropdown-background-color: var(--ugent-surface);
+    --pico-dropdown-border-color: var(--ugent-border);
+    --pico-dropdown-color: var(--ugent-text);
+    --pico-dropdown-hover-background-color: var(--ugent-soft);
+
+    --pico-form-element-background-color: var(--ugent-surface);
+    --pico-form-element-selected-background-color: var(--ugent-soft);
+    --pico-form-element-border-color: var(--ugent-border-strong);
+    --pico-form-element-color: var(--ugent-text);
+    --pico-form-element-placeholder-color: var(--ugent-muted);
+    --pico-form-element-active-background-color: var(--ugent-surface);
+    --pico-form-element-active-border-color: var(--ugent-accent);
+    --pico-form-element-focus-color: color-mix(in oklab, var(--ugent-focus) 45%, transparent);
+
+    --pico-switch-checked-background-color: var(--ugent-accent);
+    --pico-range-thumb-color: var(--ugent-accent);
+    --pico-range-thumb-active-color: var(--ugent-accent-hover);
+    --pico-progress-color: var(--ugent-accent);
+
+    --pico-table-border-color: var(--ugent-border);
+    --pico-table-row-stripped-background-color: var(--ugent-sunken);
+    --pico-code-background-color: var(--ugent-sunken);
+    --pico-code-color: var(--ugent-text);
+    --pico-blockquote-border-color: var(--ugent-accent);
+    --pico-blockquote-footer-color: var(--ugent-muted);
+
+    /* Pihka aliases (base.css) resolve through the Pico variables above;
+       --accent is set directly so it follows the link colour. */
+    --accent: var(--ugent-accent);
+    --pihka-font-small: .875rem;
+}
+
+/* Pico rounds search forms and inputs into pills; keep them square. */
+[type=search],
+[role=search],
+[role=search] > :first-child,
+[role=search] > :last-child {
+    --pico-border-radius: 0;
+    border-radius: 0;
+}
+
+html {
+    accent-color: var(--ugent-accent);
+    scrollbar-color: var(--ugent-border-strong) var(--ugent-sunken);
+}
+
+body {
+    background: var(--ugent-bg);
+    color: var(--ugent-text);
+    font-family: var(--ugent-font-text);
+    /* Arial has taller lowercase letters than Panno; match their x-height
+       so mixed lines sit together. Panno elements reset it below. */
+    font-size-adjust: .47;
+}
+
+/* ─── 5. Typography split ────────────────────────────────────────────── */
+
+/* Panno: display and interface text. */
+h1, h2, h3, h4, h5, h6,
+nav, button, [role=button], input[type=submit], input[type=button],
+label, legend, summary, th, caption, dt,
+.ugent-brand, .ugent-tabs, .ugent-crumbs, .eyebrow,
+.site-footer, .view-toggles, .faceted-toolbar, .faceted-info, .faceted-pagination,
+.facet-header, .facet-label, .facet-dropdown-trigger, .text-meta, .column-type,
+.perspective-card-name, .entity-tile-count, .entity-tile-name,
+.iiif-badge, .search-results-summary,
+.ugent-tabs li, .ugent-crumbs li, .footer-links li {
+    font-family: var(--ugent-font-display);
+    font-size-adjust: none;
+}
+
+/* Arial: reading text, data cells, code and anything typed in. */
+p, li, dd, td, blockquote, figcaption,
+input, select, textarea, code, kbd, pre, samp,
+.static-page p, .static-page li, .static-page dd,
+.entity-tile-text, .citation, .cell-text, .cell-list-item {
+    font-family: var(--ugent-font-text);
+    font-size-adjust: .47;
+}
+
+h1, h2, h3 {
+    font-weight: 500;
+    color: var(--ugent-accent);
+    text-align: start;
+}
+h1 { font-size: clamp(1.6rem, 1.2rem + 1.6vw, 2.3rem); line-height: 1.12; }
+h2 { font-size: 1.35rem; }
+h3 { font-size: 1.15rem; }
+strong, b { font-weight: 600; }
+
+/* Code stays Arial; mark it with a background instead of a typeface. */
+code, kbd, samp {
+    font-size: .92em;
+    padding: .05em .3em;
+}
+
+a {
+    color: var(--ugent-link);
+    text-underline-offset: .18em;
+}
+
+/* MapLibre ships its own font stack. Extension stylesheets are appended
+   at runtime, after this file, so their overrides carry a :root prefix. */
+:root .maplibregl-map,
+:root .maplibregl-ctrl,
+:root .maplibregl-popup {
+    font-family: var(--ugent-font-text);
+}
+
+/* ─── 6. Focus, motion, forced colours ───────────────────────────────── */
+
+:where(a, button, [role=button], input, select, textarea, summary, [tabindex]):focus-visible {
+    outline: 3px solid var(--ugent-focus);
+    outline-offset: 2px;
+    box-shadow: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    :root {
+        --pico-transition: 0s;
+    }
+    *, *::before, *::after {
+        animation-duration: .01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: .01ms !important;
+        scroll-behavior: auto !important;
+    }
+}
+
+@media (forced-colors: active) {
+    .intro, .entity-tile, .dataset-box, .cite-box {
+        border: 1px solid CanvasText;
+    }
+    .ugent-tabs a[aria-current=page] {
+        outline: 2px solid Highlight;
+    }
+}
+
+/* ─── 7. Square corners (Pihka/extension hard-coded radii) ───────────── */
+
+article,
+.perspective-card,
+.cell-list-item,
+.facet-dropdown-trigger,
+.facet-dropdown-panel,
+.faceted-pagination button,
+.faceted-pagesize,
+.fts-search-input,
+.global-search input[type="search"],
+.range-value-box,
+.range-track,
+.range-track-fill,
+:root .iiif-detail-view,
+:root .iiif-badge,
+:root .map-canvas,
+:root .maplibregl-ctrl-group,
+:root .point-map-pin:focus-visible,
+.table-scroll img,
+.cards-view img,
+.detail-view img {
+    border-radius: 0;
+}
+/* Vendor pseudo-elements get their own rules: one unknown pseudo-element
+   would invalidate a whole selector list. */
+.range-input::-webkit-slider-thumb {
+    border-radius: 0;
+}
+.range-input::-moz-range-thumb {
+    border-radius: 0;
+}
+
+/* ─── 8. Header ──────────────────────────────────────────────────────── */
+
+#app > header.ugent-header {
+    background: var(--ugent-header);
+    border-top: 6px solid var(--ugent-blue);
+    border-bottom: 0;
+    padding: 0;
+}
+
+.skip-link {
+    position: absolute;
+    inset-inline-start: .5rem;
+    inset-block-start: -10rem;
+    z-index: 100;
+    padding: .5rem 1rem;
+    background: var(--ugent-yellow);
+    color: var(--ugent-ink);
+    font-family: var(--ugent-font-display);
+    font-weight: 500;
+}
+.skip-link:focus-visible {
+    inset-block-start: .5rem;
+}
+
+.ugent-header-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: .5rem 1.25rem;
+    padding-block: .5rem;
+}
+
+/* GhentCDH landscape logo (footer) on a transparent background: the blue-text
+   version in light mode, the white-text version in dark mode. */
+.logo-dark { display: none !important; }
+:root[data-theme="dark"] .logo-light { display: none !important; }
+:root[data-theme="dark"] .logo-dark { display: block !important; }
+@media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) .logo-light { display: none !important; }
+    :root:not([data-theme="light"]) .logo-dark { display: block !important; }
+}
+
+/* Flat header: title and subtitle on one baseline, no logo. */
+.ugent-brand {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    column-gap: .75rem;
+    color: var(--ugent-accent);
+    text-decoration: none;
+    margin-inline-end: auto;
+}
+.ugent-brand:hover {
+    text-decoration: none;
+}
+.ugent-brand strong {
+    font-weight: 600;
+    font-size: 1.55rem;
+    line-height: 1.1;
+}
+.ugent-brand small {
+    color: var(--ugent-muted);
+    font-size: .85rem;
+}
+
+.ugent-header-tools {
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: .5rem;
+}
+.ugent-header-tools .global-search {
+    inline-size: auto;
+    margin: 0;
+}
+.ugent-header-tools .global-search input[type="search"] {
+    margin: 0;
+    inline-size: 15rem;
+    max-inline-size: 60vw;
+}
+.ugent-header-tools button {
+    margin: 0;
+    padding: .4rem .75rem;
+    font-size: .9rem;
+    white-space: nowrap;
+}
+
+/* Tab bar: Home, perspectives, pages. The current one is UGent yellow. */
+.ugent-tabs {
+    display: block;
+    border-bottom: 3px solid var(--ugent-blue);
+    padding: 0;
+}
+.ugent-tabs ul {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0;
+    margin: 0;
+    padding-block: 0;
+    list-style: none;
+}
+.ugent-tabs li {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+.ugent-tabs a {
+    display: block;
+    margin: 0;
+    padding: .65rem .8rem;
+    min-block-size: 2.75rem;
+    color: var(--ugent-accent);
+    font-weight: 500;
+    text-decoration: none;
+}
+.ugent-tabs a:hover {
+    background: var(--ugent-soft);
+    text-decoration: none;
+}
+.ugent-tabs a[aria-current=page] {
+    background: var(--ugent-yellow);
+    color: var(--ugent-ink);
+}
+
+.ugent-crumbs {
+    display: block;
+    padding-block: .4rem 0;
+    font-size: .9rem;
+}
+.ugent-crumbs ol {
+    display: flex;
+    flex-wrap: wrap;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+.ugent-crumbs li {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    color: var(--ugent-muted);
+}
+.ugent-crumbs li + li::before {
+    content: "›" / "";
+    padding-inline: .5em;
+}
+
+@media (max-width: 40rem) {
+    .ugent-brand strong { font-size: 1.3rem; }
+    .ugent-header-tools { inline-size: 100%; flex-wrap: wrap; }
+    .ugent-header-tools .global-search { flex: 1 1 auto; }
+    .ugent-header-tools .global-search input[type="search"] { inline-size: 100%; max-inline-size: none; }
+    /* One scrollable row of tabs instead of five wrapped rows
+       (#app beats base.css's #app > header nav > ul wrap rule). */
+    #app .ugent-tabs > ul {
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        overscroll-behavior-x: contain;
+        scrollbar-width: thin;
+    }
+    .ugent-tabs a { padding: .55rem .7rem; white-space: nowrap; }
+}
+
+/* ─── 9. Footer ──────────────────────────────────────────────────────── */
+
+#app > .site-footer.ugent-footer {
+    background: var(--ugent-soft);
+    border-top: 4px solid var(--ugent-blue);
+    color: var(--ugent-text);
+    font-size: .875rem;
+    padding-block: 1.25rem;
+    margin-top: 2rem;
+}
+.ugent-footer-inner {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 1.25rem 2.5rem;
+}
+/* Text left, GhentCDH logo right, exactly as tall as the text column:
+   shell.js keeps --footer-text-h in step with the text's height. */
+.ugent-footer-logos {
+    margin-inline-start: auto;
+    align-self: flex-start;
+}
+.ugent-footer-logos a {
+    display: block;
+    line-height: 0;
+}
+.ugent-footer-logos img {
+    display: block;
+    block-size: max(3.25rem, var(--footer-text-h, 3.25rem));
+    inline-size: auto;
+}
+/* Narrow screens: the logo wraps below the (now tall) text; keep it modest. */
+@media (max-width: 40rem) {
+    .ugent-footer-logos { margin-inline-start: 0; }
+    .ugent-footer-logos img { block-size: 4rem; }
+}
+.ugent-footer-text {
+    flex: 1 1 22rem;
+    text-align: start;
+}
+.ugent-footer-text p {
+    margin: 0 0 .5rem;
+    font-family: var(--ugent-font-display);
+}
+.ugent-footer .footer-links ul {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .25rem 1.25rem;
+    margin: 0 0 .5rem;
+    padding: 0;
+    list-style: none;
+}
+.ugent-footer .footer-links li {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+.ugent-footer a {
+    color: var(--ugent-link);
+}
+.ugent-footer .powered-by {
+    color: var(--ugent-muted);
+}
+
+/* ─── 10. Front page ─────────────────────────────────────────────────── */
+
+.home {
+    container: home / inline-size;
+}
+
+.intro {
+    background: var(--ugent-hero);
+    color: #ffffff;
+    border-left: 8px solid var(--ugent-yellow);
+    padding: 1.75rem 2rem;
+    margin-block: 1rem 2rem;
+}
+.intro .eyebrow {
+    margin: 0 0 .25rem;
+    color: #ffffff;
+    font-size: .85rem;
+    font-weight: 500;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+}
+.intro h1 {
+    color: #ffffff;
+    margin: 0 0 1rem;
+    font-size: clamp(1.9rem, 1.3rem + 2.4vw, 2.95rem);
+    letter-spacing: -.015em;
+}
+.intro p {
+    max-inline-size: 48rem;
+    color: #ffffff;
+}
+.intro p:last-child {
+    margin-bottom: 0;
+}
+.intro a {
+    color: #ffffff;
+    text-decoration: underline;
+}
+.intro a:focus-visible {
+    outline-color: var(--ugent-yellow);
+}
+
+.browse {
+    container: browse / inline-size;
+    margin-bottom: 2rem;
+}
+.entity-tiles {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr));
+    gap: .75rem;
+    margin: 0 0 1rem;
+    padding: 0;
+    list-style: none;
+}
+.entity-tiles > li {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+.entity-tile {
+    display: flex;
+    flex-direction: column;
+    gap: .2rem;
+    block-size: 100%;
+    padding: .9rem 1rem;
+    background: var(--ugent-soft);
+    border-bottom: 4px solid var(--ugent-accent);
+    color: var(--ugent-text);
+    text-decoration: none;
+}
+.entity-tile:hover {
+    border-bottom-color: var(--ugent-yellow);
+    text-decoration: none;
+}
+.entity-tile-count {
+    color: var(--ugent-accent);
+    font-size: 2rem;
+    font-weight: 500;
+    line-height: 1.1;
+    font-variant-numeric: tabular-nums;
+}
+.entity-tile-name {
+    color: var(--ugent-accent);
+    font-size: 1.15rem;
+    font-weight: 500;
+}
+.entity-tile-text {
+    color: var(--ugent-muted);
+    font-size: .9rem;
+}
+@container browse (width < 30rem) {
+    .entity-tiles {
+        grid-template-columns: 1fr;
+    }
+    .entity-tile {
+        display: grid;
+        grid-template-columns: 5.5rem 1fr;
+        column-gap: .75rem;
+        align-items: baseline;
+    }
+    .entity-tile-count { font-size: 1.5rem; grid-row: span 2; }
+}
+
+.all-tables summary {
+    color: var(--ugent-accent);
+}
+.table-list {
+    columns: 14rem;
+    margin-top: .5rem;
+}
+
+.home-facts {
+    display: grid;
+    gap: 1.5rem;
+}
+@container home (width > 62rem) {
+    .home-facts {
+        grid-template-columns: 3fr 2fr;
+        align-items: start;
+    }
+}
+
+.dataset-box,
+.cite-box {
+    background: var(--ugent-sunken);
+    border-top: 4px solid var(--ugent-accent);
+    padding: 1.25rem 1.4rem;
+}
+.dataset-box h2,
+.cite-box h2 {
+    margin-top: 0;
+}
+.dataset-box dl {
+    display: grid;
+    grid-template-columns: minmax(7rem, max-content) 1fr;
+    gap: .4rem 1.25rem;
+    margin: 0;
+}
+.dataset-box dt {
+    color: var(--ugent-muted);
+    font-weight: 500;
+}
+.dataset-box dd {
+    margin: 0;
+    min-inline-size: 0;
+}
+.dataset-box .hash {
+    overflow-wrap: anywhere;
+    background: none;
+    padding: 0;
+}
+.dataset-box-note {
+    margin: 1rem 0 0;
+    color: var(--ugent-muted);
+    font-size: .875rem;
+}
+@container home (width < 28rem) {
+    .dataset-box dl { grid-template-columns: 1fr; gap: 0; }
+    .dataset-box dd { margin-bottom: .4rem; }
+}
+
+.citation {
+    margin: 0 0 1rem;
+    padding: .5rem 0 .5rem 1rem;
+    border-left: 4px solid var(--ugent-accent);
+    font-style: normal;
+    overflow-wrap: anywhere;
+}
+
+/* ─── 11. Static pages ───────────────────────────────────────────────── */
+
+/* Left-aligned reading column (base.css centres it). */
+.static-page {
+    max-inline-size: 48rem;
+    margin: 0;
+    padding: .5rem 0 1rem;
+    border: 0;
+    background: none;
+}
+.static-page h1 {
+    margin-block: .75rem 1rem;
+}
+.static-page h2 {
+    margin-block: 2rem .6rem;
+}
+.static-page .lead {
+    font-size: 1.1rem;
+}
+.static-page dl dt {
+    color: var(--ugent-accent);
+    font-weight: 500;
+    margin-top: .75rem;
+}
+.static-page dl dd {
+    margin-inline-start: 0;
+}
+.static-page dl.people dd {
+    margin-block: 0;
+}
+.static-page .table-scroll {
+    margin-bottom: 1rem;
+}
+.static-page caption {
+    text-align: start;
+    color: var(--ugent-muted);
+    caption-side: top;
+    padding-bottom: .4rem;
+}
+.model-diagram {
+    margin: 1.5rem 0;
+    border: 1px solid var(--ugent-border);
+    background: #ffffff; /* the diagram is drawn for a white background */
+    padding: .75rem;
+}
+.model-diagram img {
+    display: block;
+    inline-size: 100%;
+    block-size: auto;
+}
+.model-diagram figcaption {
+    color: #4a4a4a;
+    font-size: .875rem;
+    margin-top: .5rem;
+}
+
+/* ─── 12. Pihka default views in house style ─────────────────────────── */
+
+/* Buttons: flat, Panno, accent fill; hover marks with a yellow underbar. */
+button, [role=button], input[type=submit] {
+    font-weight: 500;
+}
+.view-toggles button:not(.outline):hover,
+.faceted-pagination button:not(.outline):hover,
+[type=submit]:hover {
+    box-shadow: inset 0 -3px 0 var(--ugent-yellow);
+}
+
+/* Tables (list, detail, related). */
+.table-scroll {
+    border: 1px solid var(--ugent-border);
+}
+th, thead th {
+    background: var(--ugent-soft);
+    color: var(--ugent-accent);
+    font-size: .875rem;
+    font-weight: 500;
+}
+tbody tr:hover > * {
+    background: color-mix(in oklab, var(--ugent-soft) 60%, var(--ugent-bg));
+}
+
+/* Perspective cards (Pihka's default home, if shown) and list cards. */
+.perspective-card {
+    border: 0;
+    border-bottom: 4px solid var(--ugent-accent);
+    background: var(--ugent-soft);
+}
+.perspective-card:hover {
+    border-bottom-color: var(--ugent-yellow);
+}
+.cards-view article {
+    container-type: inline-size;
+    border: 0;
+    border-top: 4px solid var(--ugent-accent);
+    background: var(--ugent-sunken);
+}
+@container (width > 26rem) {
+    .cards-view article > dl {
+        display: grid;
+        grid-template-columns: minmax(6rem, max-content) 1fr;
+        column-gap: 1rem;
+    }
+    .cards-view article > dl > dd {
+        margin-top: .5em !important; /* align with the dt's inline margin */
+    }
+}
+
+/* Detail view: stack the field/value table when its column is narrow. */
+.detail-view {
+    container: detail / inline-size;
+}
+@container detail (width < 34rem) {
+    .detail-view > div > table,
+    .detail-view > div > table > tbody,
+    .detail-view > div > table > tbody > tr {
+        display: block;
+    }
+    .detail-view > div > table > tbody > tr > th,
+    .detail-view > div > table > tbody > tr > td {
+        display: block;
+        inline-size: auto !important;  /* beats the inline width:1% */
+        white-space: normal !important; /* beats the inline nowrap */
+        padding-inline-end: 0 !important;
+    }
+    .detail-view > div > table > tbody > tr > th {
+        border-bottom: 0;
+        padding-block-end: 0;
+    }
+}
+
+/* View toggles and pagination: segmented, square. */
+.view-toggles button:not(.outline),
+.faceted-pagination .pagination-active {
+    background: var(--ugent-accent);
+    border-color: var(--ugent-accent);
+    color: var(--ugent-on-accent);
+}
+
+/* Facets. */
+.facet-sidebar {
+    background: var(--ugent-sunken);
+    border-top: 4px solid var(--ugent-accent);
+}
+.facet-option-selected {
+    background: var(--ugent-soft);
+}
+.facet-dropdown-trigger {
+    border-color: var(--ugent-border-strong);
+}
+
+/* IIIF badge in list cells: a square tag, not a pill. */
+:root .iiif-badge {
+    border-color: var(--ugent-accent);
+    color: var(--ugent-accent);
+}
+
+/* Multi-value cells: flat tags. */
+.cell-list-item {
+    border: 0;
+    border-left: 3px solid var(--ugent-accent);
+    background: var(--ugent-soft);
+}
+
+/* Theme/language toggles: quiet outline buttons. */
+.theme-toggle,
+.lang-switcher {
+    border-color: var(--ugent-border-strong);
+    color: var(--ugent-text);
+}
+
+@media print {
+    .ugent-tabs, .ugent-header-tools, .skip-link { display: none; }
+    .intro { background: none; color: inherit; border-left-color: var(--ugent-blue); }
+    .intro *, .intro a { color: inherit; }
+}
+
+/* Researchers do not need SQL storage types or PK markers in table headers. */
+:root .column-type,
+:root th > sup { display: none; }
+
+/* Wide list tables: Pihka lets cells break anywhere so the table fits, which
+   turns titles into one-letter columns. Keep words whole, give each column a
+   readable width, and let the table scroll sideways instead. */
+:root .table-scroll :is(th, td) {
+    overflow-wrap: normal;
+    word-break: normal;
+    hyphens: manual; /* titles are Latin; English hyphenation rules would mangle them */
+    min-width: 9ch;
+    max-width: 40ch;
+}
+:root .table-scroll th { white-space: nowrap; }
+
+/* Links inside running text must not rely on colour alone (WCAG 1.4.1). */
+:root :is(p, li, td, dd, blockquote, figcaption, .cell-text) a:not([role="button"], nav a, .perspective-card, .entity-tile) {
+    text-decoration-line: underline;
+    text-decoration-thickness: 1px;
+    text-underline-offset: 0.15em;
+}
+
+/* ── Single page scroll ─────────────────────────────────────────────────
+   Pihka's "fill-height" workspace pins the page to the viewport and gives
+   the table, the facet sidebar, the map and the IIIF viewer their own
+   scrollbars. Here everything flows in one page with one scrollbar: tables
+   grow to their full length (they keep only a horizontal scrollbar when
+   wider than the page), the sidebar scrolls with the page, and the map and
+   viewer get a fixed height relative to the window. */
+:root #app:has(.faceted-content .table-scroll.fill-height) {
+    position: static;
+    height: auto;
+}
+:root #app:has(.faceted-content .table-scroll.fill-height) > .site-footer {
+    position: static;
+    width: auto;
+    margin-top: 2rem;
+}
+:root .faceted-view:has(.fill-height) {
+    flex: 0 0 auto;
+    grid-template-rows: none;
+}
+:root .fill-height {
+    flex: 0 0 auto;
+}
+:root .table-scroll.fill-height {
+    overflow-y: visible;
+    min-height: 0;
+}
+:root .facet-sidebar {
+    position: static;
+    max-height: none;
+    overflow: visible;
+}
+:root .map-list-section.fill-height,
+:root .map-canvas.fill-height {
+    block-size: clamp(18rem, 75dvh, 60rem);
+}
+:root .iiif-detail-view.fill-height {
+    block-size: clamp(24rem, 80dvh, 64rem);
+}

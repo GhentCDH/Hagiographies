@@ -1,0 +1,3 @@
+[submodule "front/vendor/pihka"]
+	path = front/vendor/pihka
+	url = https://github.com/GhentCDH/Pihka.git

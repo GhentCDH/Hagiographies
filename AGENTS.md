@@ -40,6 +40,10 @@ just mathesar_display         # apply column display metadata (column_display.js
 just files_run / files_dev    # file explorer backend (:3000) / Vite dev server
 just files_up / files_logs    # file explorer container on :9161
 just util_open                # open the gateway (Mathesar) in the browser
+
+just front_serve              # decomposed browser over the SQLite export on :9162 (front/, host)
+just front_config             # regenerate front/app/config.generated.js from the Mathesar JSON
+just front_compose            # front/dist/hagiographies.html (+ .sqlite, SHA256SUMS, README.txt); --release for a deposit
 ```
 
 The import and reset recipes were removed in October 2026: `pg_validate`, `pg_import`, `pg_reimport`, `pg_schema_create`, `pg_schema_drop`, `pg_reset`, `reinit` and `iiif_*`. Do not re-add them.
@@ -87,6 +91,12 @@ Consequences:
   - **`mathesar/`** (`mathesar_tools`) — Mathesar JSON-RPC scripts: `mathesar-connect-db`, `mathesar-record-summaries` (`record_summaries.json`) and `mathesar-column-display` (`column_display.json`).
   - **`documenter/`** — SVG entity diagram from the SQLModel classes.
 - **`dataflow/`** — Dataflow config for the SQLite export.
+- **`front/`** — static browser over the SQLite export, deposited next to it on a research data repository as its human-readable metadata.
+  - Built from Pihka (git submodule `front/vendor/pihka`, **never edited**) in UGent house style (Panno + Arial only).
+  - The decomposed version (`front/index.html`, no build step) is what you edit. `front/tools/compose.py` inlines it into one `hagiographies.html` that works from `file://`.
+  - `front/app/prepare.js` reshapes the in-memory copy: it hides restricted `files.m-patch.ugent.be` and placeholder links, unwraps IIIF manifests and adds derived columns. Its `PUBLIC_FILTER_SQL` part (the link removal) is also applied by `compose.py`, then VACUUM, to the copy it embeds and deposits, so the published `.sqlite` never contains those URLs.
+  - It reads `public` column names. A rename must update `front/app/prepare.js`, `front/app/config.js` and `front_config`, like the other name-based consumers.
+  - See `front/README.md` and `front/TASKS.md`.
 - **`scripts/`** — `backup_prd.sh`, `backup_qas.sh` and `clone_prd_to_qas.sh`.
 
 ### Data model
@@ -121,7 +131,7 @@ Other conventions:
 - Columns loaded from the workbook carry a PostgreSQL column comment naming their original Excel column (provenance only).
 - Identifier formats: `text.text_unique_identifier` = `BHL`/`NO_BHL` prefix + `_` + uid (e.g. `BHL_29`, `NO_BHL_ALPER`); `manuscript.manuscript_unique_identifier` = prefix + `_` + copy id (e.g. `BHL_29-4`); `edition.edition_unique_identifier` (e.g. `BHL_29-A`).
 - `manuscript` and `edition` have no title. It lives on `text` (`text_title`) via `text_id`, which is nullable on both.
-- Renaming anything in `public` breaks name-based consumers: `record_summaries.json`, `column_display.json`, the SQLite export, and the trigger functions mentioned above. Update them in the same change.
+- Renaming anything in `public` breaks name-based consumers: `record_summaries.json`, `column_display.json`, the SQLite export, `front/app/prepare.js` + `front/app/config.js`, and the trigger functions mentioned above. Update them in the same change.
 
 Entities:
 - **Text** — dating, réécriture (`reecriture_of_text_id` self-FK), author FK, creation/destinatary geography FKs. Lookups: TextForm, TextSourceType, TextSourceSubtype, DatingConfidence.
@@ -156,7 +166,7 @@ Mathesar (`mathesar/mathesar:0.12.0`) is the curation interface; it edits Postgr
 ### Data Flow
 
 ```
-Mathesar Admin ──(curation)──▶ PostgreSQL (source of truth; schema via db/migrations/) ──[Dataflow]──▶ data/hagiographies_full_export.sqlite
+Mathesar Admin ──(curation)──▶ PostgreSQL (source of truth; schema via db/migrations/) ──[Dataflow]──▶ data/hagiographies_full_export.sqlite ──[front_compose]──▶ front/dist/hagiographies.html
 file-explorer ──(links into codex_link / edition_link; hagio_admin.file*)──▶ PostgreSQL
 ```
 
